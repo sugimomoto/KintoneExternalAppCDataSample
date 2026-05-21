@@ -1,0 +1,55 @@
+# Gradle / Kotlin
+.gradle/
+build/
+out/
+!gradle/wrapper/gradle-wrapper.jar
+*.class
+
+# IntelliJ IDEA / Eclipse / VSCode
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.classpath
+.project
+.settings/
+
+# CData JDBC Driver（ライセンス・JARファイル・OAuth トークン）
+lib/*.jar
+lib/*.lic
+lib/*.txt
+lib/help/
+
+# 開発時にデバッグ用にコピーした proto ディレクトリ
+.proto/
+
+# 設定ファイル（機密含むもの）
+config/jdbc.yaml
+config/table.yaml
+!config/*.example
+
+# 参考資料（社外開示NG含む）。プロジェクトルート直下のみ。
+# `.claude/skills/.../reference/` 等の他階層の reference は含めない
+/reference/
+
+# 環境変数
+.env
+.env.local
+
+# Agent の機密ファイル（バイナリ自体も大きいので除外）
+agent/agent.json
+agent/*.pem
+agent/bin/
+!agent/*.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Buf 生成物（buildディレクトリ内に出るが念のため）
+gen/

@@ -1,0 +1,14 @@
+{
+  "_comment": "kintone-data-connector-agent の設定。実体 (agent.json) は .gitignore 済み。",
+  "_comment_token": "kintone 管理画面で発行された JWT トークン",
+  "token": "REPLACE_WITH_TOKEN_FROM_KINTONE_CONNECTOR_REGISTRATION",
+
+  "_comment_addr": "Adapter の待ち受けアドレス。コンテナから host の Adapter に繋ぐ場合は host.docker.internal を使用",
+  "adapter_addr": "host.docker.internal:8083",
+
+  "_comment_plaintext": "Adapter が TLS なしの場合 true (フェーズ1 デフォルト)",
+  "adapter_plaintext": true,
+
+  "_comment_key": "秘密鍵のパス（コンテナ内）",
+  "private_key_path": "/opt/agent/private-key.pem"
+}

@@ -1,0 +1,24 @@
+services:
+  kintone-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kintone-data-connector-agent:0.9.2
+    container_name: kintone-agent
+    # コンテナから host の Adapter (host.docker.internal:8083) に接続するため
+    # Mac/Windows Docker Desktop では自動で host.docker.internal が解決される。
+    # Linux ホストの場合は extra_hosts を有効化する。
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # agent.json と private-key.pem を個別マウント（バイナリや他ファイルが
+      # /opt/agent に流入してビルド時のイメージ内容を覆い隠さないようにするため）
+      - ./agent.json:/opt/agent/agent.json:ro
+      - ./private-key.pem:/opt/agent/private-key.pem:ro
+    restart: unless-stopped
+    # ログを JSON 形式で構造化（kintone-data-connector-agent は JSON ログ出力）
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

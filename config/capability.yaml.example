@@ -1,0 +1,35 @@
+# Adapter のサポート機能宣言
+# `GetCapability` RPC で kintone に返す内容に対応。
+
+# CRUD オペレーション
+select-supported: true
+insert-supported: true
+update-supported: true
+delete-supported: true
+count-supported: true
+
+# Count 戦略
+#   ACTUAL      : SELECT COUNT(*) を実行（デフォルト）
+#   ALWAYS_ZERO : 常に 0 を返す（Salesforce の大規模オブジェクト等で COUNT が重い場合）
+count-strategy: ACTUAL
+
+# 検索・集計（フェーズ1 では基本実装のみ）
+search-supported: false
+aggregate-supported: false
+
+# Salesforce ID は 18 文字英数字なので TEXT
+# DB auto-increment 等の数値主キーの場合は NUMBER
+record-id-type: TEXT
+
+# 絞り込み・ソートに対応する kintone field_id
+filterable-fields:
+  - id
+  - name
+  - industry
+  - created_at
+
+sortable-fields:
+  - id
+  - name
+  - revenue
+  - created_at

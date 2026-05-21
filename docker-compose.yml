@@ -1,0 +1,19 @@
+services:
+  adapter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cdata-kintone-adapter:0.1.0-SNAPSHOT
+    container_name: cdata-kintone-adapter
+    ports:
+      - "8083:8083"
+    volumes:
+      - ./config:/app/config:ro
+      - ./lib:/app/lib:ro
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # CData JDBC Driver の接続情報を環境変数で渡す
+      SF_USER: ${SF_USER}
+      SF_PASSWORD: ${SF_PASSWORD}
+      SF_SECURITY_TOKEN: ${SF_SECURITY_TOKEN}
+    restart: unless-stopped

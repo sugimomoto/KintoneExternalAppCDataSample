@@ -1,0 +1,5 @@
+# Adapter サーバの待ち受け設定
+port: 8083
+bind-address: 0.0.0.0
+# Agent との通信を平文で行う（adapter_plaintext: true 側と整合）
+plaintext: true

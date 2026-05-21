@@ -1,0 +1,11 @@
+.git
+.gradle
+build
+.idea
+*.iml
+reference
+lib/help
+docs
+.steering
+.claude
+README.md
