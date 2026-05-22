@@ -42,6 +42,7 @@ import build.buf.gen.cybozu.data_connector.adapter.v1.NullableOption
 import build.buf.gen.cybozu.data_connector.adapter.v1.RecordId
 import build.buf.gen.cybozu.data_connector.adapter.v1.TextFieldValueState
 import com.cdata.kintone.adapter.config.TableConfig
+import com.cdata.kintone.adapter.jdbc.SqlIdentifier
 import com.google.protobuf.Timestamp
 import java.sql.Timestamp as SqlTimestamp
 import java.time.Instant
@@ -51,6 +52,10 @@ import java.time.Instant
  * 各 case の意味と SQL 変換規約は `.claude/skills/kintone-external-app-spec/reference/08-jdbc-mapping.md` 参照。
  */
 class FilterTranslator(private val table: TableConfig) {
+
+    /** kintone field_id → JDBC カラム名 (SQL クォート済み)。WHERE 句生成で常に使う。 */
+    private fun col(fieldId: String): String = SqlIdentifier.quote(table.toJdbcColumn(fieldId))
+
 
     /**
      * フィルター条件のリストを SQL WHERE 句に変換する。
@@ -133,13 +138,13 @@ class FilterTranslator(private val table: TableConfig) {
 
     // record_id 系
     private fun recordIdEqual(f: FilterConditionRecordIdEqual): WhereClause {
-        val col = table.toJdbcColumn(f.fieldId)
+        val col = col(f.fieldId)
         val value = recordIdValue(f.value, f.recordIdValue)
         return WhereClause("$col = ?", listOf(value))
     }
 
     private fun recordIdNotEqual(f: FilterConditionRecordIdNotEqual): WhereClause {
-        val col = table.toJdbcColumn(f.fieldId)
+        val col = col(f.fieldId)
         val value = recordIdValue(f.value, f.recordIdValue)
         return WhereClause("$col <> ?", listOf(value))
     }
@@ -165,63 +170,63 @@ class FilterTranslator(private val table: TableConfig) {
     ): WhereClause = recordIdComparisonCommon(f.fieldId, f.value, op)
 
     private fun recordIdComparisonCommon(fieldId: String, value: Long, op: String): WhereClause {
-        val col = table.toJdbcColumn(fieldId)
+        val col = col(fieldId)
         return WhereClause("$col $op ?", listOf(value))
     }
 
     private fun recordIdIn(f: FilterConditionRecordIdIn, negate: Boolean): WhereClause {
-        val col = table.toJdbcColumn(f.fieldId)
+        val col = col(f.fieldId)
         val values = collectRecordIdValues(f.valuesList, f.recordIdValuesList)
         return inClause(col, values, negate)
     }
 
     private fun recordIdIn(f: FilterConditionRecordIdNotIn, negate: Boolean): WhereClause {
-        val col = table.toJdbcColumn(f.fieldId)
+        val col = col(f.fieldId)
         val values = collectRecordIdValues(f.valuesList, f.recordIdValuesList)
         return inClause(col, values, negate)
     }
 
     private fun recordIdContains(f: FilterConditionRecordIdContains, negate: Boolean): WhereClause {
-        val col = table.toJdbcColumn(f.fieldId)
+        val col = col(f.fieldId)
         val op = if (negate) "NOT LIKE" else "LIKE"
         return WhereClause("$col $op ?", listOf("%${f.value}%"))
     }
 
     private fun recordIdContains(f: FilterConditionRecordIdNotContains, negate: Boolean): WhereClause {
-        val col = table.toJdbcColumn(f.fieldId)
+        val col = col(f.fieldId)
         val op = if (negate) "NOT LIKE" else "LIKE"
         return WhereClause("$col $op ?", listOf("%${f.value}%"))
     }
 
     // text 系
     private fun textEqual(f: FilterConditionTextEqual): WhereClause {
-        val col = table.toJdbcColumn(f.fieldId)
+        val col = col(f.fieldId)
         return WhereClause("$col = ?", listOf(f.value))
     }
 
     private fun textNotEqual(f: FilterConditionTextNotEqual): WhereClause {
-        val col = table.toJdbcColumn(f.fieldId)
+        val col = col(f.fieldId)
         return WhereClause("$col <> ?", listOf(f.value))
     }
 
     private fun textIn(f: FilterConditionTextIn, negate: Boolean): WhereClause {
-        val col = table.toJdbcColumn(f.fieldId)
+        val col = col(f.fieldId)
         return inClause(col, f.valuesList, negate)
     }
 
     private fun textIn(f: FilterConditionTextNotIn, negate: Boolean): WhereClause {
-        val col = table.toJdbcColumn(f.fieldId)
+        val col = col(f.fieldId)
         return inClause(col, f.valuesList, negate)
     }
 
     private fun textContains(f: FilterConditionTextContains, negate: Boolean): WhereClause {
-        val col = table.toJdbcColumn(f.fieldId)
+        val col = col(f.fieldId)
         val op = if (negate) "NOT LIKE" else "LIKE"
         return WhereClause("$col $op ?", listOf("%${f.value}%"))
     }
 
     private fun textContains(f: FilterConditionTextNotContains, negate: Boolean): WhereClause {
-        val col = table.toJdbcColumn(f.fieldId)
+        val col = col(f.fieldId)
         val op = if (negate) "NOT LIKE" else "LIKE"
         return WhereClause("$col $op ?", listOf("%${f.value}%"))
     }
@@ -230,7 +235,7 @@ class FilterTranslator(private val table: TableConfig) {
     private fun textIs(f: FilterConditionTextIsNot, negate: Boolean): WhereClause = textStateClause(f.fieldId, f.state, negate)
 
     private fun textStateClause(fieldId: String, state: TextFieldValueState, negate: Boolean): WhereClause {
-        val col = table.toJdbcColumn(fieldId)
+        val col = col(fieldId)
         return when (state) {
             TextFieldValueState.TEXT_FIELD_VALUE_STATE_EMPTY -> {
                 if (negate) {
@@ -245,12 +250,12 @@ class FilterTranslator(private val table: TableConfig) {
 
     // datetime 系
     private fun datetimeEqual(f: FilterConditionDatetimeEqual): WhereClause {
-        val col = table.toJdbcColumn(f.fieldId)
+        val col = col(f.fieldId)
         return WhereClause("$col = ?", listOf(timestampToSql(f.value)))
     }
 
     private fun datetimeNotEqual(f: FilterConditionDatetimeNotEqual): WhereClause {
-        val col = table.toJdbcColumn(f.fieldId)
+        val col = col(f.fieldId)
         return WhereClause("$col <> ?", listOf(timestampToSql(f.value)))
     }
 
@@ -275,7 +280,7 @@ class FilterTranslator(private val table: TableConfig) {
     ): WhereClause = datetimeComparisonCommon(f.fieldId, f.value, op)
 
     private fun datetimeComparisonCommon(fieldId: String, ts: Timestamp, op: String): WhereClause {
-        val col = table.toJdbcColumn(fieldId)
+        val col = col(fieldId)
         return WhereClause("$col $op ?", listOf(timestampToSql(ts)))
     }
 
@@ -286,7 +291,7 @@ class FilterTranslator(private val table: TableConfig) {
         datetimeRangeCommon(f.fieldId, f.start, f.end, negate)
 
     private fun datetimeRangeCommon(fieldId: String, start: Timestamp, end: Timestamp, negate: Boolean): WhereClause {
-        val col = table.toJdbcColumn(fieldId)
+        val col = col(fieldId)
         val inRange = "($col >= ? AND $col < ?)"
         val sql = if (negate) "NOT $inRange" else inRange
         return WhereClause(sql, listOf(timestampToSql(start), timestampToSql(end)))
@@ -294,7 +299,7 @@ class FilterTranslator(private val table: TableConfig) {
 
     // number 系
     private fun numberEqual(f: FilterConditionNumberEqual): WhereClause {
-        val col = table.toJdbcColumn(f.fieldId)
+        val col = col(f.fieldId)
         return if (!f.hasValue()) {
             WhereClause("$col IS NULL", emptyList())
         } else {
@@ -303,7 +308,7 @@ class FilterTranslator(private val table: TableConfig) {
     }
 
     private fun numberNotEqual(f: FilterConditionNumberNotEqual): WhereClause {
-        val col = table.toJdbcColumn(f.fieldId)
+        val col = col(f.fieldId)
         return if (!f.hasValue()) {
             WhereClause("$col IS NOT NULL", emptyList())
         } else {
@@ -332,7 +337,7 @@ class FilterTranslator(private val table: TableConfig) {
     ): WhereClause = numberComparisonCommon(f.fieldId, f.hasValue(), f.value, op)
 
     private fun numberComparisonCommon(fieldId: String, hasValue: Boolean, value: Double, op: String): WhereClause {
-        val col = table.toJdbcColumn(fieldId)
+        val col = col(fieldId)
         if (!hasValue) {
             throw IllegalArgumentException("number 比較条件で値が指定されていません: fieldId=$fieldId, op=$op")
         }
@@ -340,12 +345,12 @@ class FilterTranslator(private val table: TableConfig) {
     }
 
     private fun numberIn(f: FilterConditionNumberIn, negate: Boolean): WhereClause {
-        val col = table.toJdbcColumn(f.fieldId)
+        val col = col(f.fieldId)
         return inClause(col, f.valuesList, negate)
     }
 
     private fun numberIn(f: FilterConditionNumberNotIn, negate: Boolean): WhereClause {
-        val col = table.toJdbcColumn(f.fieldId)
+        val col = col(f.fieldId)
         return inClause(col, f.valuesList, negate)
     }
 
@@ -361,7 +366,7 @@ class FilterTranslator(private val table: TableConfig) {
         nullableOptions: List<NullableOption>,
         negate: Boolean,
     ): WhereClause {
-        val col = table.toJdbcColumn(fieldId)
+        val col = col(fieldId)
         val nonNullValues = nullableOptions.filter { it.hasOption() }.map { it.option.value }
         val hasNullValue = nullableOptions.any { !it.hasOption() }
 

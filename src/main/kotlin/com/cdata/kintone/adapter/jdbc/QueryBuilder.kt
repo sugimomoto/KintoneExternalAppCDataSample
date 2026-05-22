@@ -4,6 +4,7 @@ import build.buf.gen.cybozu.data_connector.adapter.v1.SortCondition
 import build.buf.gen.cybozu.data_connector.adapter.v1.SortDirection
 import com.cdata.kintone.adapter.config.TableConfig
 import com.cdata.kintone.adapter.filter.WhereClause
+import com.cdata.kintone.adapter.jdbc.SqlIdentifier.quote
 
 /**
  * 動的 SQL 文字列と PreparedStatement バインドパラメータをセットで保持する。
@@ -41,12 +42,13 @@ class QueryBuilder(private val table: TableConfig) {
             ""
         } else {
             " ORDER BY " + sortConditions.joinToString(", ") { sc ->
-                val col = table.toJdbcColumn(sc.fieldId)
+                val col = quote(table.toJdbcColumn(sc.fieldId))
                 val direction = if (sc.sortDirection == SortDirection.SORT_DIRECTION_DESC) "DESC" else "ASC"
                 "$col $direction"
             }
         }
-        val sql = "SELECT ${columns.joinToString(", ")} FROM ${table.name} WHERE ${where.sql}$orderBy LIMIT ? OFFSET ?"
+        val colsList = columns.joinToString(", ") { quote(it) }
+        val sql = "SELECT $colsList FROM ${quote(table.name)} WHERE ${where.sql}$orderBy LIMIT ? OFFSET ?"
         return PreparedQuery(sql, where.params + listOf(limit, offset))
     }
 
@@ -61,7 +63,7 @@ class QueryBuilder(private val table: TableConfig) {
         val jdbcColumnValues = columnValues.mapKeys { (k, _) -> table.toJdbcColumn(k) }
         val cols = jdbcColumnValues.keys.toList()
         val placeholders = cols.joinToString(", ") { "?" }
-        val sql = "INSERT INTO ${table.name} (${cols.joinToString(", ")}) VALUES ($placeholders)"
+        val sql = "INSERT INTO ${quote(table.name)} (${cols.joinToString(", ") { quote(it) }}) VALUES ($placeholders)"
         return PreparedQuery(sql, cols.map { jdbcColumnValues[it] })
     }
 
@@ -76,8 +78,8 @@ class QueryBuilder(private val table: TableConfig) {
             .filterKeys { it != table.primaryKey.kintoneFieldId }
             .mapKeys { (k, _) -> table.toJdbcColumn(k) }
         require(nonIdColumns.isNotEmpty()) { "UPDATE 対象のカラムがありません" }
-        val setClause = nonIdColumns.keys.joinToString(", ") { "$it = ?" }
-        val sql = "UPDATE ${table.name} SET $setClause WHERE ${table.primaryKey.jdbcColumn} = ?"
+        val setClause = nonIdColumns.keys.joinToString(", ") { "${quote(it)} = ?" }
+        val sql = "UPDATE ${quote(table.name)} SET $setClause WHERE ${quote(table.primaryKey.jdbcColumn)} = ?"
         return PreparedQuery(sql, nonIdColumns.values.toList() + listOf(idValue))
     }
 
@@ -87,7 +89,7 @@ class QueryBuilder(private val table: TableConfig) {
     fun buildDelete(idValues: List<Any>): PreparedQuery {
         require(idValues.isNotEmpty()) { "削除対象の ID がありません" }
         val placeholders = idValues.joinToString(", ") { "?" }
-        val sql = "DELETE FROM ${table.name} WHERE ${table.primaryKey.jdbcColumn} IN ($placeholders)"
+        val sql = "DELETE FROM ${quote(table.name)} WHERE ${quote(table.primaryKey.jdbcColumn)} IN ($placeholders)"
         return PreparedQuery(sql, idValues)
     }
 
@@ -95,7 +97,7 @@ class QueryBuilder(private val table: TableConfig) {
      * COUNT(*) 文を組み立てる。
      */
     fun buildCount(where: WhereClause): PreparedQuery {
-        val sql = "SELECT COUNT(*) FROM ${table.name} WHERE ${where.sql}"
+        val sql = "SELECT COUNT(*) FROM ${quote(table.name)} WHERE ${where.sql}"
         return PreparedQuery(sql, where.params)
     }
 }

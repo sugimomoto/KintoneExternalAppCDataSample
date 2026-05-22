@@ -52,20 +52,25 @@ class AdapterServiceImplTest {
         countStrategy: CountStrategy = CountStrategy.ACTUAL,
         searchSupported: Boolean = false,
     ): AdapterConfig {
-        val dbUrl = "jdbc:h2:mem:svcTest_${UUID.randomUUID()};DB_CLOSE_DELAY=-1"
+        // MODE=MSSQLServer で H2 を SQL Server 互換モードに切り替え、
+        // QueryBuilder が出力する `[Id]` `[Name]` 等の角括弧クォートを識別子として認識させる。
+        val dbUrl = "jdbc:h2:mem:svcTest_${UUID.randomUUID()};DB_CLOSE_DELAY=-1;MODE=MSSQLServer"
         // 接続を事前に開いて DDL を流す
         DriverManager.getConnection(dbUrl).use { conn ->
+            // DDL 側も角括弧でクォートしてケース保持する。H2 の MSSQLServer モードでは
+            // unquoted な識別子は大文字化されるが、bracket 識別子はそのまま保持されるため、
+            // QueryBuilder が出力する `FROM [Account]` と一致させるには DDL でも `[Account]` を使う。
             conn.createStatement().execute(
                 """
-                CREATE TABLE Account (
-                    Id BIGINT AUTO_INCREMENT PRIMARY KEY,
-                    Name VARCHAR(200),
-                    Revenue DOUBLE
+                CREATE TABLE [Account] (
+                    [Id] BIGINT IDENTITY(1, 1) PRIMARY KEY,
+                    [Name] VARCHAR(200),
+                    [Revenue] FLOAT
                 )
                 """.trimIndent(),
             )
-            conn.createStatement().execute("INSERT INTO Account(Name, Revenue) VALUES ('Acme', 100.0)")
-            conn.createStatement().execute("INSERT INTO Account(Name, Revenue) VALUES ('Beta', 200.0)")
+            conn.createStatement().execute("INSERT INTO [Account]([Name], [Revenue]) VALUES ('Acme', 100.0)")
+            conn.createStatement().execute("INSERT INTO [Account]([Name], [Revenue]) VALUES ('Beta', 200.0)")
         }
 
         return AdapterConfig(

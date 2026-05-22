@@ -1,4 +1,4 @@
-name: "[CRM Data sugimotok_Opportunity]"
+name: "CRM Data sugimotok_Opportunity"
 primary-key:
   kintone-field-id: id
   jdbc-column: Id

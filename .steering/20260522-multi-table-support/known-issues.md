@@ -5,14 +5,15 @@
 
 ---
 
-## ISSUE-001: QueryBuilder がテーブル名・カラム名を識別子クォートしていない
+## ISSUE-001: QueryBuilder がテーブル名・カラム名を識別子クォートしていない ✅ 解決済 (2026-05-22)
 
 | 項目 | 内容 |
 |---|---|
 | 発見日 | 2026-05-22 |
-| 発見契機 | フェーズ2-A E2E、Google Sheets 統合中 |
+| 解決日 | 2026-05-22 |
+| 解決コミット | tag `v0.2.1-quoted-identifiers` |
 | 重要度 | 🟡 中（特定データソースで顕在化） |
-| 関連ファイル | [src/main/kotlin/com/cdata/kintone/adapter/jdbc/QueryBuilder.kt](../../src/main/kotlin/com/cdata/kintone/adapter/jdbc/QueryBuilder.kt) |
+| 関連ファイル | [src/main/kotlin/com/cdata/kintone/adapter/jdbc/QueryBuilder.kt](../../src/main/kotlin/com/cdata/kintone/adapter/jdbc/QueryBuilder.kt), [SqlIdentifier.kt](../../src/main/kotlin/com/cdata/kintone/adapter/jdbc/SqlIdentifier.kt) |
 
 ### 事象
 
@@ -25,40 +26,34 @@ SQL 不正な形式のSQLステートメント：予想外のトークンが見�
 
 QueryBuilder が `FROM ${tableName}` のように識別子を裸で埋め込んでいるため、空白で SQL パーサが切れる。
 
-### 暫定回避
+### 解決方法
 
-`config/tables/<name>/table.yaml` の `name:` フィールドに、ユーザがブラケット込みで書く：
+[SqlIdentifier.kt](../../src/main/kotlin/com/cdata/kintone/adapter/jdbc/SqlIdentifier.kt) を新規追加。
+QueryBuilder / FilterTranslator が出力するすべてのテーブル名・カラム名を `[name]` で
+自動クォートするよう変更した。冪等性 (`[foo]` を二重クォートしない) を持たせたため、
+ユーザが手動でブラケットを書いていた既存 yaml ともそのまま互換。
 
-```yaml
-name: "[CRM Data sugimotok_Opportunity]"
-```
+旧暫定回避 (`name: "[CRM Data sugimotok_Opportunity]"`) は不要になり、シンプルに
+`name: "CRM Data sugimotok_Opportunity"` で動作することを実環境で確認済み。
 
-これは Adapter 設定の責務外なので根本対策ではない。
+### 実装内容（参考）
 
-### 推奨対応
+- `SqlIdentifier.quote(name)`: 識別子を `[name]` でラップ。`]` は `]]` でエスケープ。既に `[...]` 形式なら素通し（冪等）
+- QueryBuilder: SELECT/INSERT/UPDATE/DELETE/COUNT 全てでテーブル名・カラム名をクォート
+- FilterTranslator: 24 箇所の `table.toJdbcColumn(...)` 呼び出しをヘルパ `col()` 経由でクォート
+- AdapterServiceImplTest: H2 を `MODE=MSSQLServer` で起動し、DDL もブラケットでクォートして互換性確保
 
-QueryBuilder（および関連する SQL 生成箇所）で、識別子を **常に CData 標準のブラケット（`[...]`） or ANSI 標準のダブルクォート（`"..."`）でクォート** する。
+### テスト追加件数
 
-- カラム名: `SELECT [Id], [Name] FROM ...`
-- テーブル名: `FROM [CRM Data sugimotok_Opportunity]`
-- WHERE 句: `WHERE [Name] = ?`
+- QueryBuilderTest: 既存 12 → 20 件（+8 ISSUE-001 用）
+- 全体: 181 → 189 件（フェーズ2-A 完了時 181 + ISSUE-001 +8）
+- すべて緑
 
-注意点:
-- CData 全ドライバが共通で `[...]` 形式を受け付けるか要検証（Salesforce/Snowflake等）
-- 既存 Salesforce 動作を壊さないよう、回帰テスト必須
-- バッククォート (\`) を使うエンジンとの互換性確認
+### 実環境動作確認
 
-### TDD タスク案
-
-1. 🔴 空白入りテーブル名でも Select が成功するテスト（モック JDBC 経由）
-2. 🟢 QueryBuilder に `quoteIdentifier(name: String): String` 関数を追加し、すべての SELECT/INSERT/UPDATE/DELETE で使用
-3. 🔴 識別子内ブラケット (`]`) のエスケープテスト（CData は `]]` で escape）
-4. ✅ Salesforce 既存テスト 121 件が全緑のまま維持
-
-### 関連参考
-
-- CData 公式: ["SQL Reference" 内 識別子クォート](https://cdn.cdata.com/help/UAJ/jdbc/pg_keywords.htm)
-- フェーズ2-A 検証ログ: gs-opportunity Select エラー再現手順は [e2e-checklist.md §9](./e2e-checklist.md)
+- Salesforce default テーブル (`config/server.yaml` 直下 / port 8083): Select 動作 OK
+- Google Sheets `gs-opportunity` テーブル (`config/tables/gs-opportunity` / port 18003): Select 動作 OK
+- スペース入りシート名 `CRM Data sugimotok_Opportunity` を `name:` にそのまま書いて動作
 
 ---
 

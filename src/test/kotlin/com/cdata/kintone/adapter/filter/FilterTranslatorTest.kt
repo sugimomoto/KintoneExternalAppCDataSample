@@ -110,7 +110,7 @@ class FilterTranslatorTest {
                 .setFieldId("id").setValue(123L).build()
         }
         val result = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Id = ?)", result.sql)
+        assertEquals("([Id] = ?)", result.sql)
         assertEquals(listOf<Any>(123L), result.params)
     }
 
@@ -123,7 +123,7 @@ class FilterTranslatorTest {
                 .build()
         }
         val result = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Id = ?)", result.sql)
+        assertEquals("([Id] = ?)", result.sql)
         assertEquals(listOf<Any>("001xx"), result.params)
     }
 
@@ -134,7 +134,7 @@ class FilterTranslatorTest {
                 .setFieldId("id").setValue(5L).build()
         }
         val result = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Id <> ?)", result.sql)
+        assertEquals("([Id] <> ?)", result.sql)
         assertEquals(listOf<Any>(5L), result.params)
     }
 
@@ -145,7 +145,7 @@ class FilterTranslatorTest {
                 .setFieldId("id").setValue(10L).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Id > ?)", r.sql)
+        assertEquals("([Id] > ?)", r.sql)
         assertEquals(listOf<Any>(10L), r.params)
     }
 
@@ -156,7 +156,7 @@ class FilterTranslatorTest {
                 .setFieldId("id").setValue(10L).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Id >= ?)", r.sql)
+        assertEquals("([Id] >= ?)", r.sql)
         assertEquals(listOf<Any>(10L), r.params)
     }
 
@@ -167,7 +167,7 @@ class FilterTranslatorTest {
                 .setFieldId("id").setValue(10L).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Id < ?)", r.sql)
+        assertEquals("([Id] < ?)", r.sql)
         assertEquals(listOf<Any>(10L), r.params)
     }
 
@@ -178,7 +178,7 @@ class FilterTranslatorTest {
                 .setFieldId("id").setValue(10L).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Id <= ?)", r.sql)
+        assertEquals("([Id] <= ?)", r.sql)
         assertEquals(listOf<Any>(10L), r.params)
     }
 
@@ -189,7 +189,7 @@ class FilterTranslatorTest {
                 .setFieldId("id").addAllValues(listOf(1L, 2L, 3L)).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Id IN (?, ?, ?))", r.sql)
+        assertEquals("([Id] IN (?, ?, ?))", r.sql)
         assertEquals(listOf<Any>(1L, 2L, 3L), r.params)
     }
 
@@ -203,7 +203,7 @@ class FilterTranslatorTest {
                 .build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Id IN (?, ?))", r.sql)
+        assertEquals("([Id] IN (?, ?))", r.sql)
         assertEquals(listOf<Any>("a", "b"), r.params)
     }
 
@@ -214,7 +214,7 @@ class FilterTranslatorTest {
                 .setFieldId("id").addAllValues(listOf(1L, 2L)).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Id NOT IN (?, ?))", r.sql)
+        assertEquals("([Id] NOT IN (?, ?))", r.sql)
         assertEquals(listOf<Any>(1L, 2L), r.params)
     }
 
@@ -225,7 +225,7 @@ class FilterTranslatorTest {
                 .setFieldId("id").setValue("ABC").build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Id LIKE ?)", r.sql)
+        assertEquals("([Id] LIKE ?)", r.sql)
         assertEquals(listOf<Any>("%ABC%"), r.params)
     }
 
@@ -236,7 +236,7 @@ class FilterTranslatorTest {
                 .setFieldId("id").setValue("XYZ").build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Id NOT LIKE ?)", r.sql)
+        assertEquals("([Id] NOT LIKE ?)", r.sql)
         assertEquals(listOf<Any>("%XYZ%"), r.params)
     }
 
@@ -249,7 +249,7 @@ class FilterTranslatorTest {
                 .setFieldId("name").setValue("Acme").build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Name = ?)", r.sql)
+        assertEquals("([Name] = ?)", r.sql)
         assertEquals(listOf<Any>("Acme"), r.params)
     }
 
@@ -260,7 +260,7 @@ class FilterTranslatorTest {
                 .setFieldId("name").setValue("Acme").build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Name <> ?)", r.sql)
+        assertEquals("([Name] <> ?)", r.sql)
         assertEquals(listOf<Any>("Acme"), r.params)
     }
 
@@ -271,7 +271,7 @@ class FilterTranslatorTest {
                 .setFieldId("name").addAllValues(listOf("A", "B")).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Name IN (?, ?))", r.sql)
+        assertEquals("([Name] IN (?, ?))", r.sql)
         assertEquals(listOf<Any>("A", "B"), r.params)
     }
 
@@ -282,7 +282,7 @@ class FilterTranslatorTest {
                 .setFieldId("name").addAllValues(listOf("A", "B")).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Name NOT IN (?, ?))", r.sql)
+        assertEquals("([Name] NOT IN (?, ?))", r.sql)
         assertEquals(listOf<Any>("A", "B"), r.params)
     }
 
@@ -293,7 +293,7 @@ class FilterTranslatorTest {
                 .setFieldId("name").setValue("foo").build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Name LIKE ?)", r.sql)
+        assertEquals("([Name] LIKE ?)", r.sql)
         assertEquals(listOf<Any>("%foo%"), r.params)
     }
 
@@ -304,7 +304,7 @@ class FilterTranslatorTest {
                 .setFieldId("name").setValue("foo").build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Name NOT LIKE ?)", r.sql)
+        assertEquals("([Name] NOT LIKE ?)", r.sql)
         assertEquals(listOf<Any>("%foo%"), r.params)
     }
 
@@ -317,7 +317,7 @@ class FilterTranslatorTest {
                 .build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("((Name IS NULL OR Name = ''))", r.sql)
+        assertEquals("(([Name] IS NULL OR [Name] = ''))", r.sql)
         assertTrue(r.params.isEmpty())
     }
 
@@ -330,7 +330,7 @@ class FilterTranslatorTest {
                 .build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("((Name IS NOT NULL AND Name <> ''))", r.sql)
+        assertEquals("(([Name] IS NOT NULL AND [Name] <> ''))", r.sql)
         assertTrue(r.params.isEmpty())
     }
 
@@ -343,7 +343,7 @@ class FilterTranslatorTest {
                 .setFieldId("created_at").setValue(timestamp(1_700_000_000L)).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(CreatedDate = ?)", r.sql)
+        assertEquals("([CreatedDate] = ?)", r.sql)
         assertEquals(listOf<Any>(sqlTimestamp(1_700_000_000L)), r.params)
     }
 
@@ -354,7 +354,7 @@ class FilterTranslatorTest {
                 .setFieldId("created_at").setValue(timestamp(1L)).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(CreatedDate <> ?)", r.sql)
+        assertEquals("([CreatedDate] <> ?)", r.sql)
     }
 
     @Test
@@ -364,7 +364,7 @@ class FilterTranslatorTest {
                 .setFieldId("created_at").setValue(timestamp(1L)).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(CreatedDate > ?)", r.sql)
+        assertEquals("([CreatedDate] > ?)", r.sql)
     }
 
     @Test
@@ -374,7 +374,7 @@ class FilterTranslatorTest {
                 .setFieldId("created_at").setValue(timestamp(1L)).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(CreatedDate >= ?)", r.sql)
+        assertEquals("([CreatedDate] >= ?)", r.sql)
     }
 
     @Test
@@ -384,7 +384,7 @@ class FilterTranslatorTest {
                 .setFieldId("created_at").setValue(timestamp(1L)).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(CreatedDate < ?)", r.sql)
+        assertEquals("([CreatedDate] < ?)", r.sql)
     }
 
     @Test
@@ -394,7 +394,7 @@ class FilterTranslatorTest {
                 .setFieldId("created_at").setValue(timestamp(1L)).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(CreatedDate <= ?)", r.sql)
+        assertEquals("([CreatedDate] <= ?)", r.sql)
     }
 
     @Test
@@ -407,7 +407,7 @@ class FilterTranslatorTest {
                 .build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("((CreatedDate >= ? AND CreatedDate < ?))", r.sql)
+        assertEquals("(([CreatedDate] >= ? AND [CreatedDate] < ?))", r.sql)
         assertEquals(2, r.params.size)
     }
 
@@ -420,7 +420,7 @@ class FilterTranslatorTest {
                 .build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(NOT (CreatedDate >= ? AND CreatedDate < ?))", r.sql)
+        assertEquals("(NOT ([CreatedDate] >= ? AND [CreatedDate] < ?))", r.sql)
     }
 
     // ===== number 系（8ケース）=====
@@ -432,7 +432,7 @@ class FilterTranslatorTest {
                 .setFieldId("revenue").setValue(1000.0).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(AnnualRevenue = ?)", r.sql)
+        assertEquals("([AnnualRevenue] = ?)", r.sql)
         assertEquals(listOf<Any>(1000.0), r.params)
     }
 
@@ -443,7 +443,7 @@ class FilterTranslatorTest {
                 .setFieldId("revenue").build() // value 未設定
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(AnnualRevenue IS NULL)", r.sql)
+        assertEquals("([AnnualRevenue] IS NULL)", r.sql)
         assertTrue(r.params.isEmpty())
     }
 
@@ -454,7 +454,7 @@ class FilterTranslatorTest {
                 .setFieldId("revenue").setValue(1.0).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(AnnualRevenue <> ?)", r.sql)
+        assertEquals("([AnnualRevenue] <> ?)", r.sql)
     }
 
     @Test
@@ -464,7 +464,7 @@ class FilterTranslatorTest {
                 .setFieldId("revenue").build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(AnnualRevenue IS NOT NULL)", r.sql)
+        assertEquals("([AnnualRevenue] IS NOT NULL)", r.sql)
     }
 
     @Test
@@ -474,7 +474,7 @@ class FilterTranslatorTest {
                 .setFieldId("revenue").setValue(1.0).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(AnnualRevenue > ?)", r.sql)
+        assertEquals("([AnnualRevenue] > ?)", r.sql)
     }
 
     @Test
@@ -484,7 +484,7 @@ class FilterTranslatorTest {
                 .setFieldId("revenue").setValue(1.0).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(AnnualRevenue >= ?)", r.sql)
+        assertEquals("([AnnualRevenue] >= ?)", r.sql)
     }
 
     @Test
@@ -494,7 +494,7 @@ class FilterTranslatorTest {
                 .setFieldId("revenue").setValue(1.0).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(AnnualRevenue < ?)", r.sql)
+        assertEquals("([AnnualRevenue] < ?)", r.sql)
     }
 
     @Test
@@ -504,7 +504,7 @@ class FilterTranslatorTest {
                 .setFieldId("revenue").setValue(1.0).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(AnnualRevenue <= ?)", r.sql)
+        assertEquals("([AnnualRevenue] <= ?)", r.sql)
     }
 
     @Test
@@ -514,7 +514,7 @@ class FilterTranslatorTest {
                 .setFieldId("revenue").addAllValues(listOf(1.0, 2.0)).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(AnnualRevenue IN (?, ?))", r.sql)
+        assertEquals("([AnnualRevenue] IN (?, ?))", r.sql)
         assertEquals(listOf<Any>(1.0, 2.0), r.params)
     }
 
@@ -525,7 +525,7 @@ class FilterTranslatorTest {
                 .setFieldId("revenue").addAllValues(listOf(1.0, 2.0)).build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(AnnualRevenue NOT IN (?, ?))", r.sql)
+        assertEquals("([AnnualRevenue] NOT IN (?, ?))", r.sql)
     }
 
     // ===== selection 系（2ケース、NULL 含むIN対応含む）=====
@@ -540,7 +540,7 @@ class FilterTranslatorTest {
                 .build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Industry IN (?, ?))", r.sql)
+        assertEquals("([Industry] IN (?, ?))", r.sql)
         assertEquals(listOf<Any>("Banking", "Retail"), r.params)
     }
 
@@ -553,7 +553,7 @@ class FilterTranslatorTest {
                 .build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Industry IS NULL)", r.sql)
+        assertEquals("([Industry] IS NULL)", r.sql)
         assertTrue(r.params.isEmpty())
     }
 
@@ -567,7 +567,7 @@ class FilterTranslatorTest {
                 .build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("((Industry IN (?) OR Industry IS NULL))", r.sql)
+        assertEquals("(([Industry] IN (?) OR [Industry] IS NULL))", r.sql)
         assertEquals(listOf<Any>("Banking"), r.params)
     }
 
@@ -580,7 +580,7 @@ class FilterTranslatorTest {
                 .build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Industry NOT IN (?))", r.sql)
+        assertEquals("([Industry] NOT IN (?))", r.sql)
     }
 
     @Test
@@ -593,7 +593,7 @@ class FilterTranslatorTest {
                 .build()
         }
         val r = translator.translate(listOf(cond), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("((Industry NOT IN (?) AND Industry IS NOT NULL))", r.sql)
+        assertEquals("(([Industry] NOT IN (?) AND [Industry] IS NOT NULL))", r.sql)
     }
 
     // ===== multiple_selection 系（除外、Unsupported を返す）=====
@@ -624,7 +624,7 @@ class FilterTranslatorTest {
                 .setFieldId("revenue").setValue(100.0).build()
         }
         val r = translator.translate(listOf(cond1, cond2), MatchOperator.MATCH_OPERATOR_ALL)
-        assertEquals("(Name LIKE ? AND AnnualRevenue >= ?)", r.sql)
+        assertEquals("([Name] LIKE ? AND [AnnualRevenue] >= ?)", r.sql)
         assertEquals(listOf<Any>("%Acme%", 100.0), r.params)
     }
 
@@ -637,7 +637,7 @@ class FilterTranslatorTest {
             textEqual = FilterConditionTextEqual.newBuilder().setFieldId("name").setValue("B").build()
         }
         val r = translator.translate(listOf(cond1, cond2), MatchOperator.MATCH_OPERATOR_ANY)
-        assertEquals("(Name = ? OR Name = ?)", r.sql)
+        assertEquals("([Name] = ? OR [Name] = ?)", r.sql)
         assertEquals(listOf<Any>("A", "B"), r.params)
     }
 
@@ -647,6 +647,6 @@ class FilterTranslatorTest {
             textEqual = FilterConditionTextEqual.newBuilder().setFieldId("name").setValue("A").build()
         }
         val r = translator.translate(listOf(cond1), MatchOperator.MATCH_OPERATOR_UNSPECIFIED)
-        assertEquals("(Name = ?)", r.sql)
+        assertEquals("([Name] = ?)", r.sql)
     }
 }
