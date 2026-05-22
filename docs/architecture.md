@@ -273,9 +273,32 @@ buf generate
 | メトリクス計測 | Connect の Interceptor で実装 |
 | ホットリロード | フェーズ2 で検討 |
 
-### 6.2 フェーズ2 で見据える拡張
+### 6.2 フェーズ2-A で導入したプロセスモデル（A: 1 JVM マルチサーバ）
+
+```
+            ┌──────────── 1 JVM Process ────────────┐
+            │                                       │
+            │   MultiAdapterRunner                  │
+            │   ├─ TableAdapterServer "account"     │  ← gRPC port: 18001
+            │   ├─ TableAdapterServer "contact"     │  ← gRPC port: 18002
+            │   └─ TableAdapterServer "orders"      │  ← gRPC port: 18003
+            │                                       │
+            │   状態は ./run/active-adapters.json   │
+            └───────────────────────────────────────┘
+                   ↑              ↑              ↑
+              Agent(acc)     Agent(con)     Agent(ord)   ← Docker コンテナ×N
+                   ↑              ↑              ↑
+                            kintone Connector × N
+```
+
+- 各 `TableAdapterServer` は独立した `HealthStatusManager` と JDBC プールを持つ
+- 共通の JDBC 設定は `config/jdbc/<name>.yaml`、個別は `config/tables/<table>/jdbc.yaml`
+- 異なるドライバー（Salesforce + Google Sheets）の同居は URLClassLoader 隔離で実現
+
+### 6.3 フェーズ2-B 以降で見据える拡張
 
 - 複数テーブル管理 UI（Web UI）
+- SQLite ベースの `ConfigSource` 実装（YAML から段階的移行）
 - マルチプロセス制御（Adapter / Agent をまとめて起動・停止）
 - TLS 終端
 - CData Connect AI 連携（gRPC プロキシ経由）

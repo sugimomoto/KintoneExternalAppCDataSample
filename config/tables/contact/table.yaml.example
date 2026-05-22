@@ -1,0 +1,32 @@
+# Salesforce Contact オブジェクトのマッピング
+
+name: Contact
+
+primary-key:
+  kintone-field-id: id
+  jdbc-column: Id
+
+columns:
+  - kintone-field-id: first_name
+    jdbc-column: FirstName
+    type: TEXT
+
+  - kintone-field-id: last_name
+    jdbc-column: LastName
+    type: TEXT
+
+  - kintone-field-id: email
+    jdbc-column: Email
+    type: TEXT
+
+  - kintone-field-id: title
+    jdbc-column: Title
+    type: TEXT
+
+  - kintone-field-id: account_id
+    jdbc-column: AccountId
+    type: TEXT
+
+  - kintone-field-id: created_at
+    jdbc-column: CreatedDate
+    type: DATETIME

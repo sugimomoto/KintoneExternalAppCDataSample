@@ -1,0 +1,4 @@
+# Adapter サーバの待ち受け設定 (Contact テーブル用)
+port: 0
+bind-address: 0.0.0.0
+plaintext: true

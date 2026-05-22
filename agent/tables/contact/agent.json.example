@@ -1,0 +1,13 @@
+{
+  "_comment": "Contact テーブル用 Agent 設定。実体 (agent.json) は .gitignore 済み。",
+  "_comment_token": "kintone Contact コネクターから発行された JWT トークン",
+  "token": "REPLACE_WITH_TOKEN_FOR_CONTACT_CONNECTOR",
+
+  "_comment_addr": "Contact 用 Adapter の待ち受けアドレス。MultiAdapterRunner が割り当てたポートを指定",
+  "adapter_addr": "host.docker.internal:18002",
+
+  "adapter_plaintext": true,
+
+  "_comment_key": "全 Agent で共有する秘密鍵",
+  "private_key_path": "/opt/agent/private-key.pem"
+}

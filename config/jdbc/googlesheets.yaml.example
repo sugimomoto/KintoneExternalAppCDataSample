@@ -1,0 +1,17 @@
+# 共通 JDBC 設定: Google Sheets
+# 複数テーブル（シート）から `jdbc-ref.yaml` で参照される。
+# このファイルは機密情報を含むため、実体はリポジトリにコミットしないこと。
+
+driver-class: cdata.jdbc.googlesheets.GoogleSheetsDriver
+driver-jar: ./lib/cdata.jdbc.googlesheets.jar
+
+# CData 埋め込み OAuth を使用するため OAuthClientId / OAuthClientSecret は不要。
+# 初回接続時にブラウザが自動起動して Google アカウントの承認が要求される。
+# - SpreadsheetId: スプレッドシート ID（URL の /d/<ID>/edit の <ID> 部分）
+#   ※ Spreadsheet は「名前」として扱われるため、ID 指定は必ず SpreadsheetId を使う
+# OAuthSettingsLocation は TableAdapterServer が ./run/oauth/<table>.txt に自動付与する。
+url: "jdbc:googlesheets:SpreadsheetId=${GS_SPREADSHEET_ID};InitiateOAuth=GETANDREFRESH;"
+
+pool:
+  maximum-pool-size: 5
+  connection-timeout: 30000

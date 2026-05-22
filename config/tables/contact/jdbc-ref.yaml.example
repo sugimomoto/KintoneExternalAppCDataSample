@@ -1,0 +1,2 @@
+# 共通 JDBC 設定 `config/jdbc/salesforce.yaml` を参照する。
+name: salesforce

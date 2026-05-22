@@ -3,8 +3,8 @@
 | 項目 | 内容 |
 |---|---|
 | プロダクト名 | kintone External App CData Adapter Sample |
-| バージョン | 1.0（フェーズ1） |
-| 作成日 | 2026-05-15 |
+| バージョン | 2.0（フェーズ2-A：マルチテーブル） |
+| 作成日 | 2026-05-15（フェーズ1）/ 2026-05-22 更新（フェーズ2-A） |
 | ステータス | ドラフト |
 
 ---
@@ -20,6 +20,19 @@
 | 外部レコード | External Record | `Record` | Adapter が提供する1レコードのデータ |
 | 外部連携アプリ | External App | - | kintone 側で、外部データソースに接続して作成されたアプリ |
 | ワイドコース | Wide Course | - | kintone の料金プラン。本機能はワイドコース限定 |
+
+## 1-A. フェーズ2-A 追加用語
+
+| 日本語 | 英語 | コード上の名前 | 説明 |
+|---|---|---|---|
+| テーブル設定セット | Table Config Set | `TableConfigSet` | 1 テーブル分の server/jdbc/table/capability 4 設定をまとめた単位。`AdapterConfig` の typealias |
+| マルチアダプター | Multi Adapter | `MultiAdapterRunner` | 1 JVM 内で複数 `TableAdapterServer` を統合管理するランナー |
+| テーブルアダプターサーバ | Table Adapter Server | `TableAdapterServer` | 1 テーブル分の gRPC サーバ。`MultiAdapterRunner` から複数インスタンス起動される |
+| 共通 JDBC 設定 | Shared JDBC Config | `config/jdbc/<name>.yaml` | 複数テーブルで共有可能な JDBC 接続情報。各テーブルから `jdbc-ref` で参照する |
+| JDBC リファレンス | JDBC Reference | `JdbcRef` | テーブル内 `jdbc-ref.yaml`。共通 JDBC を `name` で参照 |
+| 設定ソース | Config Source | `ConfigSource` | 設定の永続化レイヤ抽象。フェーズ2-A は `YamlConfigSource`、将来 `SqliteConfigSource` を予定 |
+| 稼働 Adapter 一覧 | Active Adapters | `ActiveAdaptersFile` | `./run/active-adapters.json` に書き出される稼働中 Adapter のスナップショット |
+| OAuth キャッシュ分離 | Per-table OAuth Cache | `JdbcUrlEnhancer.withOAuthCachePerTable` | テーブルごとに `OAuthSettingsLocation` を `./run/oauth/<table>.txt` に分離 |
 
 ## 2. 通信プロトコル用語
 

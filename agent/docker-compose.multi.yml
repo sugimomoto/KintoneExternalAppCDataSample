@@ -1,0 +1,54 @@
+# フェーズ2-A: 複数テーブル用 Agent (1 テーブル = 1 Agent コンテナ)
+#
+# 使い方:
+#   1. `adapter serve-all` で Adapter 側を起動し、各テーブルのポートを `./run/active-adapters.json` で確認
+#   2. `agent/tables/<name>/agent.json` に正しい `adapter_addr` (host.docker.internal:<port>) と
+#      kintone から発行された token を設定
+#   3. `docker compose -f docker-compose.multi.yml up -d` で全 Agent を起動
+#
+# 鍵ペア (private-key.pem / public-key.pem) は全 Agent で共有可能。kintone コネクタには
+# 同じ public-key を登録し、コネクタごとに発行される token のみが異なる。
+
+x-agent-defaults: &agent-defaults
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: kintone-data-connector-agent:0.9.2
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  kintone-agent-account:
+    <<: *agent-defaults
+    container_name: kintone-agent-account
+    volumes:
+      - ./tables/account/agent.json:/opt/agent/agent.json:ro
+      - ./private-key.pem:/opt/agent/private-key.pem:ro
+
+  kintone-agent-contact:
+    <<: *agent-defaults
+    container_name: kintone-agent-contact
+    volumes:
+      - ./tables/contact/agent.json:/opt/agent/agent.json:ro
+      - ./private-key.pem:/opt/agent/private-key.pem:ro
+
+  kintone-agent-gs-opportunity:
+    <<: *agent-defaults
+    container_name: kintone-agent-gs-opportunity
+    volumes:
+      - ./tables/gs-opportunity/agent.json:/opt/agent/agent.json:ro
+      - ./private-key.pem:/opt/agent/private-key.pem:ro
+
+  # 新しいテーブルを追加する場合は、以下のテンプレートをコピーする
+  # kintone-agent-<TABLE>:
+  #   <<: *agent-defaults
+  #   container_name: kintone-agent-<TABLE>
+  #   volumes:
+  #     - ./tables/<TABLE>/agent.json:/opt/agent/agent.json:ro
+  #     - ./private-key.pem:/opt/agent/private-key.pem:ro

@@ -1,8 +1,11 @@
 package com.cdata.kintone.adapter.cli
 
+import com.cdata.kintone.adapter.config.CapabilityConfig
 import com.cdata.kintone.adapter.config.ColumnConfig
 import com.cdata.kintone.adapter.config.JdbcConfig
+import com.cdata.kintone.adapter.config.JdbcRef
 import com.cdata.kintone.adapter.config.PrimaryKeyConfig
+import com.cdata.kintone.adapter.config.ServerConfig
 import com.cdata.kintone.adapter.config.TableConfig
 import com.cdata.kintone.adapter.jdbc.JdbcConnectionProvider
 import com.cdata.kintone.adapter.metadata.ColumnInfo
@@ -32,13 +35,30 @@ class InitTableCommand : CliktCommand(name = "init-table") {
         .path(mustExist = true, canBeDir = false)
         .default(Path.of("./config/jdbc.yaml"))
 
-    private val output: Path by option("--output", help = "出力先 table.yaml")
+    private val output: Path by option("--output", help = "出力先 table.yaml（旧構成用）")
         .path()
         .default(Path.of("./config/table.yaml"))
 
     private val nonInteractive: Boolean by option("--non-interactive", help = "対話なしで推奨値を採用").flag()
 
     private val targetTable: String? by option("--table", help = "対象テーブル名を直接指定（指定するとテーブル選択プロンプトをスキップ）")
+
+    private val configName: String? by option(
+        "--name",
+        help = "フェーズ2-A 構成で生成: config/tables/<name>/ 配下に 4 ファイル + jdbc-ref を生成",
+    )
+
+    private val jdbcRefName: String? by option(
+        "--jdbc-ref",
+        help = "共通 jdbc 設定を参照する名前（例: salesforce）。`--name` 指定時のみ有効",
+    )
+
+    private val configDir: Path by option(
+        "--config-dir",
+        help = "ベースの設定ディレクトリ（default: ./config）。`--name` 指定時の出力ベース",
+    )
+        .path()
+        .default(Path.of("./config"))
 
     override fun run() {
         val jdbcConfig = loadJdbcConfigWithEnv(jdbcConfigPath)
@@ -86,10 +106,62 @@ class InitTableCommand : CliktCommand(name = "init-table") {
                     columns = columnConfigs,
                 )
 
-                writeTableConfig(tableConfig, output)
-                echo("生成完了: $output")
-                echo("RecordIdType=${recordIdType} を capability.yaml で record-id-type に設定してください")
+                if (configName != null) {
+                    writeMultiTableLayout(tableConfig, recordIdType)
+                } else {
+                    writeTableConfig(tableConfig, output)
+                    echo("生成完了: $output")
+                    echo("RecordIdType=${recordIdType} を capability.yaml で record-id-type に設定してください")
+                }
             }
+        }
+    }
+
+    /** フェーズ2-A 構成: config/tables/<name>/ 配下に 4 ファイル + (任意で) jdbc-ref を出力。 */
+    private fun writeMultiTableLayout(
+        tableConfig: TableConfig,
+        recordIdType: RecordIdType,
+    ) {
+        val name = configName!!
+        val targetDir = configDir.resolve("tables").resolve(name)
+        Files.createDirectories(targetDir)
+
+        val yaml = Yaml(configuration = YamlConfiguration(encodeDefaults = false))
+
+        val tablePath = targetDir.resolve("table.yaml")
+        Files.writeString(tablePath, yaml.encodeToString(serializer<TableConfig>(), tableConfig))
+
+        val serverPath = targetDir.resolve("server.yaml")
+        if (!serverPath.exists()) {
+            val server = ServerConfig(port = ServerConfig.AUTO_PORT, bindAddress = "0.0.0.0", plaintext = true)
+            Files.writeString(serverPath, yaml.encodeToString(serializer<ServerConfig>(), server))
+        }
+
+        val capabilityPath = targetDir.resolve("capability.yaml")
+        if (!capabilityPath.exists()) {
+            val capability = CapabilityConfig(
+                recordIdType = recordIdType,
+                filterableFields = listOf(tableConfig.primaryKey.kintoneFieldId),
+                sortableFields = listOf(tableConfig.primaryKey.kintoneFieldId),
+            )
+            Files.writeString(capabilityPath, yaml.encodeToString(serializer<CapabilityConfig>(), capability))
+        }
+
+        // jdbc 参照（または個別 jdbc.yaml）。
+        if (jdbcRefName != null) {
+            val refPath = targetDir.resolve("jdbc-ref.yaml")
+            if (!refPath.exists()) {
+                Files.writeString(refPath, yaml.encodeToString(serializer<JdbcRef>(), JdbcRef(jdbcRefName!!)))
+            }
+        }
+
+        echo("=== フェーズ2-A 構成を生成 ===")
+        echo("  - $tablePath")
+        if (Files.exists(serverPath)) echo("  - $serverPath")
+        if (Files.exists(capabilityPath)) echo("  - $capabilityPath")
+        if (jdbcRefName != null) echo("  - ${targetDir.resolve("jdbc-ref.yaml")}")
+        if (jdbcRefName == null) {
+            echo("注: 個別 jdbc.yaml は別途用意してください。共通 jdbc を使う場合は --jdbc-ref を指定。")
         }
     }
 

@@ -41,7 +41,7 @@ import com.cdata.kintone.adapter.config.AdapterConfig
 import com.cdata.kintone.adapter.config.CountStrategy
 import com.cdata.kintone.adapter.filter.FilterTranslator
 import com.cdata.kintone.adapter.filter.UnsupportedFilterException
-import com.cdata.kintone.adapter.jdbc.JdbcConnectionProvider
+import com.cdata.kintone.adapter.jdbc.ConnectionProvider
 import com.cdata.kintone.adapter.jdbc.QueryBuilder
 import com.cdata.kintone.adapter.jdbc.RowMapper
 import com.cdata.kintone.adapter.metadata.ColumnType
@@ -61,7 +61,7 @@ private val log = KotlinLogging.logger {}
  */
 class AdapterServiceImpl(
     private val config: AdapterConfig,
-    private val connectionProvider: JdbcConnectionProvider,
+    private val connectionProvider: ConnectionProvider,
     private val filterTranslator: FilterTranslator = FilterTranslator(config.table),
     private val queryBuilder: QueryBuilder = QueryBuilder(config.table),
     private val rowMapper: RowMapper = RowMapper(config.table, config.capability.recordIdType),

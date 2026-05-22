@@ -165,9 +165,12 @@ docker compose logs -f adapter
 
 | サブコマンド | 説明 | 主なオプション |
 |---|---|---|
-| `serve` | gRPC サーバを起動（デフォルト） | `--config-dir <dir>` |
-| `init-table` | 対話式 `table.yaml` 生成 | `--jdbc-config`, `--output`, `--non-interactive`, **`--table <name>`** |
-| `list-tables` | 接続先のテーブル一覧表示 | `--jdbc-config <file>` |
+| `serve` | 個別テーブルの gRPC サーバを起動 | `--config-dir <dir>`, `--table <name>`, `--tables a,b` |
+| `serve-all` | `config/tables/` 配下の全テーブルを 1 JVM で並行起動（フェーズ2-A） | `--config-dir <dir>` |
+| `list-active` | 稼働中の Adapter 一覧を `./run/active-adapters.json` から表示 | `--state-file <file>` |
+| `migrate-config` | フェーズ1 構成（config 直下の YAML）を `config/tables/default/` に移行 | `--config-dir <dir>`, `--target <name>` |
+| `init-table` | 対話式 `table.yaml` 生成（`--name` でフェーズ2-A 構成、`--jdbc-ref` で共通 jdbc 参照） | `--jdbc-config`, `--name`, `--jdbc-ref`, `--non-interactive`, `--table <name>` |
+| `list-tables` | 接続先データソースのテーブル一覧表示 | `--jdbc-config <file>` |
 | `test-connection` | JDBC 接続テスト | `--jdbc-config <file>` |
 
 `--help` で詳細表示可：
@@ -179,7 +182,9 @@ java -jar build/libs/adapter-0.1.0-SNAPSHOT-all.jar init-table --help
 
 ## 設定ファイル
 
-4つの YAML ファイルで構成。詳細は [docs/functional-design.md §5](docs/functional-design.md) 参照。
+### フェーズ1（シングルテーブル、既存）
+
+4つの YAML ファイルを `config/` 直下に置く。後方互換のため引き続き動作する。
 
 | ファイル | 内容 | Git 管理推奨 |
 |---|---|---|
@@ -188,20 +193,58 @@ java -jar build/libs/adapter-0.1.0-SNAPSHOT-all.jar init-table --help
 | `config/table.yaml` | テーブル名・カラム定義（`init-table` で自動生成可） | △（環境依存） |
 | `config/capability.yaml` | サポート機能宣言・record-id-type | ✅ |
 
-### 他データソースへの切替
+### フェーズ2-A（マルチテーブル、推奨）
 
-`config/jdbc.yaml` の `driver-class` と `url` を変更し、対応する CData JDBC Driver の jar を `lib/` に配置すれば、Google Sheets / SAP / Snowflake / Oracle SaaS 等 250+ のデータソースに同じ Adapter で接続できます（CData JDBC Driver の購入が必要）。
-
-例: CData JDBC Driver for Google Sheets に切替：
-
-```yaml
-# config/jdbc.yaml
-driver-class: cdata.jdbc.googlesheets.GoogleSheetsDriver
-driver-jar: ./lib/cdata.jdbc.googlesheets.jar
-url: "jdbc:googlesheets:AuthScheme=OAuth;InitiateOAuth=GETANDREFRESH;Spreadsheet=YOUR_SPREADSHEET_ID;OAuthSettingsLocation=./lib/cdata-oauth-googlesheets.txt;"
+```
+config/
+├── jdbc/                          # 複数テーブルで共有する JDBC 設定
+│   ├── salesforce.yaml            # 機密: .gitignore
+│   ├── salesforce.yaml.example    # コミット可
+│   └── googlesheets.yaml.example
+└── tables/
+    ├── account/                   # テーブル単位のサブディレクトリ
+    │   ├── server.yaml            # port: 0 (auto) 推奨
+    │   ├── jdbc-ref.yaml          # name: salesforce (共通設定参照)
+    │   ├── table.yaml             # init-table で生成
+    │   └── capability.yaml
+    ├── contact/
+    │   └── …
+    └── googlesheets-orders/
+        ├── jdbc-ref.yaml          # name: googlesheets
+        └── …
 ```
 
-その後 `adapter init-table` で `table.yaml` を再生成。
+ポイント:
+- 各テーブルは独立した gRPC サーバとして起動（1 テーブル ↔ 1 Connector ↔ 1 Agent ↔ 1 kintone アプリ）
+- 共通 JDBC 設定は `config/jdbc/<name>.yaml` に置き、各テーブルから `jdbc-ref.yaml` で参照
+- ドライバーが異なる場合は `jdbc-ref` ではなくテーブル内に個別 `jdbc.yaml` を置く（同一 JVM 内で別 URLClassLoader 経由でロード）
+
+#### フェーズ1 → フェーズ2-A への移行
+
+```bash
+java -jar build/libs/adapter-*-all.jar migrate-config --config-dir ./config
+# → config/server.yaml 等が config/tables/default/ に移動
+```
+
+### 他データソースへの切替・混在運用
+
+CData JDBC Driver の jar を `lib/` に追加し、対応する `config/jdbc/<name>.yaml` を作成すれば、1 JVM 内で 250+ 種類のデータソースを混在運用できます（Google Sheets / SAP / Snowflake / Oracle SaaS 等）。OAuth キャッシュは `./run/oauth/<tableName>.txt` にテーブル別で自動分離されます。
+
+例: Salesforce 3 テーブル + Google Sheets 1 シート を 1 JVM で稼働させたい場合：
+
+```bash
+# 1. 共通設定を作成（example をコピー）
+cp config/jdbc/salesforce.yaml.example config/jdbc/salesforce.yaml
+cp config/jdbc/googlesheets.yaml.example config/jdbc/googlesheets.yaml
+
+# 2. テーブル設定を init-table で生成
+java -jar build/libs/adapter-*-all.jar init-table \
+  --jdbc-config config/jdbc/salesforce.yaml \
+  --name account --jdbc-ref salesforce --table Account --non-interactive
+
+# 3. serve-all で並行起動
+java -jar build/libs/adapter-*-all.jar serve-all
+```
 
 ## ヘルスチェック
 

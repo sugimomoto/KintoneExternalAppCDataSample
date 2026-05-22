@@ -2,8 +2,14 @@ package com.cdata.kintone.adapter.config
 
 import com.cdata.kintone.adapter.metadata.ColumnType
 import com.cdata.kintone.adapter.metadata.RecordIdType
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 
 /**
  * Adapter 全体の設定。4つのファイル (`server.yaml`, `jdbc.yaml`, `table.yaml`, `capability.yaml`) を
@@ -18,12 +24,44 @@ data class AdapterConfig(
 
 @Serializable
 data class ServerConfig(
+    @Serializable(with = PortSerializer::class)
     val port: Int = DEFAULT_PORT,
     @SerialName("bind-address") val bindAddress: String = "127.0.0.1",
     val plaintext: Boolean = true,
 ) {
+    /** `port == 0` の場合、`MultiAdapterRunner` が空きポートを自動割り当てる。 */
+    fun isAutoPort(): Boolean = port == AUTO_PORT
+
     companion object {
         const val DEFAULT_PORT = 8083
+        const val AUTO_PORT = 0
+        const val AUTO_PORT_KEYWORD = "auto"
+    }
+}
+
+/**
+ * `port` フィールドを Int / String どちらでも受け入れるシリアライザ。
+ * - 整数 → そのまま
+ * - "auto" → 0 (AUTO_PORT)
+ * - その他の文字列 → IllegalArgumentException
+ */
+private object PortSerializer : KSerializer<Int> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ServerConfig.port", PrimitiveKind.STRING)
+
+    override fun deserialize(decoder: Decoder): Int {
+        val raw = decoder.decodeString().trim()
+        if (raw.equals(ServerConfig.AUTO_PORT_KEYWORD, ignoreCase = true)) {
+            return ServerConfig.AUTO_PORT
+        }
+        return raw.toIntOrNull()
+            ?: throw IllegalArgumentException(
+                "port は整数または \"auto\" を指定してください: '$raw'",
+            )
+    }
+
+    override fun serialize(encoder: Encoder, value: Int) {
+        encoder.encodeString(value.toString())
     }
 }
 

@@ -59,11 +59,31 @@ KintoneExternalAppCDataSample/
 │           ├ 08-jdbc-mapping.md
 │           └ 09-curl-test-snippets.md
 │
-├ config/                          # 設定ファイル群（4ファイル分割）
-│  ├ server.yaml                   # サーバ設定
-│  ├ jdbc.yaml.example             # JDBC接続設定の雛形（実体は gitignore）
-│  ├ table.yaml.example            # Salesforce 用テーブル定義例
-│  └ capability.yaml               # サポート機能宣言
+├ config/                          # 設定ファイル群
+│  │
+│  │   ── フェーズ1（シングルテーブル、互換維持） ──
+│  ├ server.yaml.example           # サーバ設定の雛形（実体は gitignore）
+│  ├ jdbc.yaml.example             # JDBC接続設定の雛形
+│  ├ table.yaml.example            # テーブル定義例
+│  ├ capability.yaml.example       # サポート機能宣言
+│  │
+│  │   ── フェーズ2-A（マルチテーブル、推奨） ──
+│  ├ jdbc/                         # 複数テーブルで共有する JDBC 設定
+│  │  ├ salesforce.yaml.example
+│  │  └ googlesheets.yaml.example
+│  └ tables/                       # テーブル単位サブディレクトリ
+│     ├ account/
+│     │  ├ server.yaml.example
+│     │  ├ jdbc-ref.yaml.example   # 共通 jdbc を name で参照
+│     │  ├ table.yaml.example
+│     │  └ capability.yaml.example
+│     ├ contact/
+│     └ googlesheets-orders/       # 別ドライバーの例
+│
+├ run/                             # 実行時状態（gitignore）
+│  ├ active-adapters.json          # serve-all が更新、list-active が読み出す
+│  └ oauth/                        # OAuth トークンキャッシュ（テーブル別）
+│     └ <tableName>.txt
 │
 ├ lib/                             # CData JDBC Driver 配置
 │  ├ cdata.jdbc.salesforce.jar     # ※ gitignore
@@ -82,22 +102,30 @@ KintoneExternalAppCDataSample/
 │  │  │  └ com/cdata/kintone/adapter/
 │  │  │     ├ Application.kt            # エントリポイント・サブコマンドディスパッチ
 │  │  │     ├ cli/
-│  │  │     │  ├ ServeCommand.kt        # serve サブコマンド
+│  │  │     │  ├ ServeCommand.kt        # serve サブコマンド（--table / --tables）
+│  │  │     │  ├ ServeAllCommand.kt     # serve-all（フェーズ2-A 全テーブル並行）
+│  │  │     │  ├ ListActiveCommand.kt   # list-active（状態ファイル読み出し）
+│  │  │     │  ├ MigrateConfigCommand.kt # フェーズ1→2-A 移行
 │  │  │     │  ├ InitTableCommand.kt    # init-table 対話式 CLI
 │  │  │     │  ├ ListTablesCommand.kt
 │  │  │     │  └ TestConnectionCommand.kt
 │  │  │     ├ config/
-│  │  │     │  ├ AdapterConfig.kt       # 統合設定モデル
-│  │  │     │  ├ ServerConfig.kt
-│  │  │     │  ├ JdbcConfig.kt
-│  │  │     │  ├ TableConfig.kt
-│  │  │     │  ├ CapabilityConfig.kt
-│  │  │     │  ├ ConfigLoader.kt        # 4ファイル YAML 読込・統合
-│  │  │     │  └ TableConfigWriter.kt   # init-table の出力先
+│  │  │     │  ├ Config.kt              # AdapterConfig / ServerConfig / JdbcConfig / ...
+│  │  │     │  ├ ConfigSource.kt        # 抽象（SQLite 移行に向けた拡張点）
+│  │  │     │  ├ YamlConfigSource.kt    # YAML 実装（フェーズ1/2-A 両対応）
+│  │  │     │  ├ ConfigLoader.kt        # 旧 API（YamlConfigSource への薄いラッパ）
+│  │  │     │  └ ConfigMigrator.kt      # migrate-config 本体
+│  │  │     ├ runtime/
+│  │  │     │  ├ TableAdapterServer.kt  # 1 テーブル分の gRPC サーバ
+│  │  │     │  ├ MultiAdapterRunner.kt  # 1 JVM 内の複数 TableAdapterServer 管理
+│  │  │     │  ├ PortAllocator.kt       # ポート割り当て
+│  │  │     │  └ ActiveAdaptersFile.kt  # 稼働状態を JSON で永続化
 │  │  │     ├ service/
 │  │  │     │  └ AdapterServiceImpl.kt  # 9 RPC 実装
 │  │  │     ├ jdbc/
-│  │  │     │  ├ JdbcConnectionProvider.kt   # HikariCP ラッパ
+│  │  │     │  ├ ConnectionProvider.kt       # 抽象インターフェース
+│  │  │     │  ├ JdbcConnectionProvider.kt   # HikariCP + URLClassLoader ラッパ
+│  │  │     │  ├ JdbcUrlEnhancer.kt           # OAuth キャッシュをテーブル別に分離
 │  │  │     │  ├ QueryBuilder.kt             # SQL 動的組立
 │  │  │     │  ├ RowMapper.kt                # ResultSet ⇄ Record
 │  │  │     │  └ TypeMapper.kt               # JDBC型 ⇄ kintone型

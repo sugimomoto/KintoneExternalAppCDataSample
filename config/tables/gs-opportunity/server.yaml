@@ -1,0 +1,3 @@
+port: 18003
+bind-address: 0.0.0.0
+plaintext: true

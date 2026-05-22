@@ -1,0 +1,13 @@
+{
+  "_comment": "Google Sheets Opportunity 用 Agent 設定。実体 (agent.json) は .gitignore 済み。",
+  "_comment_token": "kintone gs-opportunity Connector から発行された JWT トークン",
+  "token": "REPLACE_WITH_TOKEN_FOR_GS_OPPORTUNITY_CONNECTOR",
+
+  "_comment_addr": "gs-opportunity Adapter のポート (server.yaml で 18003 固定)",
+  "adapter_addr": "host.docker.internal:18003",
+
+  "adapter_plaintext": true,
+
+  "_comment_key": "全 Agent で共有する秘密鍵",
+  "private_key_path": "/opt/agent/private-key.pem"
+}

@@ -494,6 +494,18 @@ CLAUDE.md のルールに従う。
 
 ---
 
+## 10.5 開発運用上の落とし穴
+
+### 10.5.1 shadowJar 再ビルドは Adapter 停止後に行う
+
+- `./gradlew shadowJar` を実行する前に、稼働中の Adapter プロセス (`java -jar build/libs/adapter-*-all.jar serve`) を必ず停止すること
+- 理由: shadowJar はビルド成果物を `build/libs/adapter-*.jar` に**上書き**する。Adapter JVM は遅延クラスロード方式なので、JAR が書き換わると未ロードのクラスを読み込めず `NoClassDefFoundError` を吐く
+- 症状: Adapter ヘルスチェック (`grpc.health.v1.Health/Check`) は SERVING を返すが、実際の RPC（GetCapability 等）に応答できず Agent 側で「タイムアウト」「keepalive ping failed」エラーが連発する
+- 対策: 開発時は [scripts/restart-stack.sh](../scripts/restart-stack.sh) の `--build` モードを使うか、手動で `lsof -ti:8083 | xargs kill` してから `./gradlew shadowJar`
+- 発見契機: 2026-05-22 フェーズ2-A 実装中、28h 稼働していた Salesforce Adapter が「動いてるように見えてリクエストに応答しない」状態に陥った
+
+---
+
 ## 11. 関連ドキュメント
 
 - プロダクト要求：[product-requirements.md](product-requirements.md)

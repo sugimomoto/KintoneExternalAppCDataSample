@@ -1,0 +1,25 @@
+# Contact テーブルのサポート機能宣言
+
+select-supported: true
+insert-supported: true
+update-supported: true
+delete-supported: true
+count-supported: true
+
+count-strategy: ACTUAL
+
+search-supported: false
+aggregate-supported: false
+
+record-id-type: TEXT
+
+filterable-fields:
+  - id
+  - last_name
+  - email
+  - account_id
+
+sortable-fields:
+  - id
+  - last_name
+  - created_at

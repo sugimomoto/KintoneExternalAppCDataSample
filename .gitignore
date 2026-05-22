@@ -25,9 +25,18 @@ lib/help/
 .proto/
 
 # 設定ファイル（機密含むもの）
+# フェーズ1 互換: config 直下
 config/jdbc.yaml
 config/table.yaml
 !config/*.example
+
+# フェーズ2-A: 共通 JDBC 設定 (config/jdbc/<name>.yaml)
+config/jdbc/*.yaml
+!config/jdbc/*.yaml.example
+
+# フェーズ2-A: テーブル別の機密設定（個別 jdbc.yaml のみ保護）。
+# server.yaml / table.yaml / capability.yaml / jdbc-ref.yaml は非機密でコミット可。
+config/tables/*/jdbc.yaml
 
 # 参考資料（社外開示NG含む）。プロジェクトルート直下のみ。
 # `.claude/skills/.../reference/` 等の他階層の reference は含めない
@@ -43,6 +52,10 @@ agent/*.pem
 agent/bin/
 !agent/*.example
 
+# フェーズ2-A: 複数テーブル用 Agent 設定（example のみコミット可）
+agent/tables/*/agent.json
+!agent/tables/*/agent.json.example
+
 # OS
 .DS_Store
 Thumbs.db
@@ -50,6 +63,9 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Runtime state (active-adapters.json 等)
+run/
 
 # Buf 生成物（buildディレクトリ内に出るが念のため）
 gen/

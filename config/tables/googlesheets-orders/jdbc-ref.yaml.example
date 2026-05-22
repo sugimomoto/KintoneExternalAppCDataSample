@@ -1,0 +1,3 @@
+# 共通 JDBC 設定 `config/jdbc/googlesheets.yaml` を参照する。
+# 別ドライバー（Salesforce 以外）の運用例。
+name: googlesheets

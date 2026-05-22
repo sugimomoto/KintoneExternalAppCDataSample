@@ -1,0 +1,30 @@
+# Google Sheets "Orders" シートのマッピング例
+# CData Google Sheets Driver は、シート名がそのままテーブル名になる。
+
+name: Orders
+
+primary-key:
+  kintone-field-id: id
+  jdbc-column: OrderId
+
+columns:
+  - kintone-field-id: customer
+    jdbc-column: Customer
+    type: TEXT
+
+  - kintone-field-id: amount
+    jdbc-column: Amount
+    type: NUMBER
+
+  - kintone-field-id: ordered_at
+    jdbc-column: OrderedAt
+    type: DATETIME
+
+  - kintone-field-id: status
+    jdbc-column: Status
+    type: SELECTION
+    options:
+      - PENDING
+      - PAID
+      - SHIPPED
+      - CANCELED

@@ -154,3 +154,38 @@ Adapter を再ビルド・再起動した直後に kintone でレコード一覧
 | 🟢 低 | Aggregate/Search ガイダンス（§2.10） | 完成度 |
 
 ご検討よろしくお願いいたします。
+
+---
+
+## 補遺: フェーズ2-A（マルチテーブル対応）検証で得た追加知見
+
+2026-05-22 追記。同一 kintone 環境で複数 Connector・複数 Adapter を運用する観点で検証。
+
+### A.1 同一鍵ペアの複数 Connector 利用
+
+- 同一公開鍵 (`public-key.pem`) を複数 Connector に登録できることを確認
+- Connector ごとに発行される token のみが異なるため、Agent 側は token と adapter_addr の差し替えで複数化できた
+- → 運用上、鍵ペア管理が 1 セットで済むのは大きな利点。**ドキュメントへの明示記載を希望**
+
+### A.2 1 Adapter 障害の波及範囲
+
+- 1 つの Adapter（テーブル）だけを再起動すると、他テーブルの Connector セッションには影響しないことを確認
+- ただし対象テーブルの kintone アプリでは §1 と同じく「セッションが見つかりません」が出るタイミングがある
+- → 個別 Connector セッションの復旧 UX は §1.4 の改善要望と同じ
+
+### A.3 OAuth キャッシュの衝突
+
+- CData JDBC Driver の `OAuthSettingsLocation` を明示指定しないと、同じドライバを使う複数テーブル間で OAuth キャッシュファイルを取り合い、再認証が頻発した
+- 本サンプルでは `JdbcUrlEnhancer` でテーブル単位（`./run/oauth/<table>.txt`）に自動分離する仕組みを追加
+- → CData 側、または Agent 側の設定 UI で「テーブル単位のキャッシュ分離」を案内できると親切
+
+### A.4 管理用 gRPC エンドポイントの代替
+
+- 当初は「稼働 Adapter 一覧」を管理用 gRPC で expose する設計だったが、新 proto 定義の負担が大きいため、**ローカル JSON ファイル経由** に切り替えた (`./run/active-adapters.json`)
+- 単一ホスト前提なら十分。複数ホスト分散運用に進む場合は再検討要
+- → 将来 Agent / Adapter 間に管理用 RPC を入れる場合、Cybozu 側 proto に Health / List を含めてもらえるとサンプル実装が楽になる
+
+### A.5 docker-compose の YAML アンカー活用
+
+- 複数 Agent コンテナを同じ Dockerfile で立てる場合、YAML アンカー (`x-agent-defaults: &agent-defaults`) が便利
+- 公式の Agent ドキュメントに「テーブルが多い場合の compose テンプレート例」が載っていると新規導入の障壁が下がる

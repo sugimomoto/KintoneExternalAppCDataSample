@@ -17,7 +17,7 @@ private val log = KotlinLogging.logger {}
  * HikariCP + 動的に読み込んだ JDBC Driver で接続を提供する。
  * `jdbc.yaml` の `driver-jar` に CData JDBC Driver の JAR パスを指定する想定。
  */
-class JdbcConnectionProvider(private val config: JdbcConfig) : AutoCloseable {
+class JdbcConnectionProvider(private val config: JdbcConfig) : ConnectionProvider {
 
     private val dataSource: HikariDataSource
 
@@ -37,7 +37,7 @@ class JdbcConnectionProvider(private val config: JdbcConfig) : AutoCloseable {
     }
 
     /** プールから接続を1つ借りる。`use {}` で自動返却。 */
-    fun connection(): Connection = dataSource.connection
+    override fun connection(): Connection = dataSource.connection
 
     override fun close() {
         log.info { "JDBC 接続プールを閉じる" }
