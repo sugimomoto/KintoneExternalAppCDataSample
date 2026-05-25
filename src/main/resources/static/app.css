@@ -726,6 +726,95 @@ body > footer.container {
 .center { text-align: center; }
 
 /* ============================================================
+   Help page
+   ============================================================ */
+.term-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+
+.term-card {
+  background: var(--clarity);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  padding: var(--sp-3) var(--sp-4);
+  border-left: 3px solid var(--agility);
+}
+
+.term-card h4 {
+  margin: 0 0 var(--sp-2);
+  font-size: 0.9375rem;
+  color: var(--resolve);
+}
+
+.term-card p {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--c-text);
+}
+
+.quickstart {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  counter-reset: quickstart;
+}
+
+.quickstart li {
+  padding: var(--sp-3) 0;
+  border-bottom: 1px dashed var(--c-border);
+}
+
+.quickstart li:last-child { border-bottom: none; }
+
+.page-list {
+  list-style: none;
+  padding: 0;
+  margin: var(--sp-2) 0 0;
+}
+
+.page-list li {
+  padding: var(--sp-2) 0;
+  border-bottom: 1px dashed var(--c-border);
+}
+
+.page-list li:last-child { border-bottom: none; }
+
+.faq h4 {
+  margin: var(--sp-4) 0 var(--sp-1);
+  font-size: 0.9375rem;
+  color: var(--resolve);
+}
+
+.faq h4:first-child { margin-top: 0; }
+
+.faq p {
+  margin: 0 0 var(--sp-2);
+  font-size: 0.8125rem;
+}
+
+.faq ul {
+  margin: var(--sp-1) 0 var(--sp-2) var(--sp-4);
+  font-size: 0.8125rem;
+}
+
+.link-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--sp-3);
+}
+
+.link-list li {
+  padding: var(--sp-1) 0;
+}
+
+.link-list a {
+  font-weight: 500;
+}
+
+/* ============================================================
    Mobile responsive
    ============================================================ */
 @media (max-width: 768px) {

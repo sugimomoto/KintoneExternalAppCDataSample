@@ -57,6 +57,7 @@ fun HTML.layout(
                     navItem("/syncs", "🔄 連携", currentPath)
                     navItem("/connections", "🔌 データソース", currentPath)
                     navItem("/drivers", "📦 ドライバー", currentPath)
+                    navItem("/help", "❓ ヘルプ", currentPath)
                 }
             }
         }

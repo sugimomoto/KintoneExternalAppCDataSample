@@ -3,6 +3,7 @@ package com.cdata.kintone.adapter.web
 import com.cdata.kintone.adapter.web.routes.connectKintoneRoutes
 import com.cdata.kintone.adapter.web.routes.connectionsRoutes
 import com.cdata.kintone.adapter.web.routes.driversRoutes
+import com.cdata.kintone.adapter.web.routes.helpRoutes
 import com.cdata.kintone.adapter.web.routes.runtimeRoutes
 import com.cdata.kintone.adapter.web.routes.syncLogsRoutes
 import com.cdata.kintone.adapter.web.routes.tableWizardRoutes
@@ -81,5 +82,6 @@ internal fun Application.module(context: AppContext) {
         connectionsRoutes(context)
         driversRoutes(context)
         runtimeRoutes(context)
+        helpRoutes(context)
     }
 }

@@ -78,6 +78,7 @@ fun HTML.dashboardView(ctx: AppContext) {
                     div(classes = "actions") {
                         a(href = "/syncs", classes = "button secondary") { +"連携一覧へ" }
                         a(href = "/syncs/new", classes = "button") { +"+ 新しい連携" }
+                        a(href = "/help", classes = "button outline") { +"❓ ヘルプを開く" }
                     }
                 }
             } else {
