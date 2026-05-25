@@ -1,441 +1,338 @@
-# kintone External App CData Adapter Sample
+# CData Kintone Adapter Console
 
 kintone「外部システムのアプリ化」機能における **Adapter のリファレンス実装**。
-**CData JDBC Driver** を介して、Salesforce 等の SaaS データを kintone アプリから直接参照・編集できます。
+**CData JDBC Driver** を介して、Salesforce / Google Sheets / Snowflake など
+250+ 種類のデータソースを kintone アプリから直接参照・編集できます。
+
+Web UI から連携 (Sync) を追加するだけで、Adapter (gRPC) と Agent コンテナが
+自動的に立ち上がり、kintone と接続されます。
 
 | 項目 | 内容 |
 |---|---|
-| 実装言語 | Kotlin 2.2.x |
-| サーバ | gRPC (Netty) on JVM 21 |
+| 実装言語 | Kotlin 2.2.x (JVM 21) |
+| サーバ | Ktor 3.x (Web UI / SSE) + gRPC (Netty) |
 | データ層 | CData JDBC Driver + HikariCP |
+| 設定ストア | YAML or SQLite (切替可) |
+| 配布形態 | Docker (推奨) / fat jar |
 | ライセンス | Apache License 2.0 |
 
-## クイックスタート（Salesforce で 30 分以内）
+---
+
+## アーキテクチャ
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Host (Linux / macOS / Windows + Docker Desktop)                │
+│                                                                 │
+│   ┌──────────────────────┐                                     │
+│   │  adapter-console     │  ← Web UI (8080) + Adapter (gRPC)   │
+│   │  (このサービス本体)   │     ports 18000-18099              │
+│   └──────────┬───────────┘                                     │
+│              │ docker.sock                                      │
+│              ▼                                                  │
+│   ┌──────────────────────┐  ┌──────────────────────┐           │
+│   │ kintone-agent-{sync} │  │ kintone-agent-{sync} │  ...      │
+│   │ (連携ごとに動的生成)  │  │                       │           │
+│   └──────────┬───────────┘  └──────────┬───────────┘           │
+└──────────────┼─────────────────────────┼───────────────────────┘
+               │ HTTPS                   │ HTTPS
+               ▼                         ▼
+            kintone (cybozu.com)
+```
+
+- **adapter-console**: Web UI + Adapter (gRPC) を同居させた本体コンテナ
+- **kintone-agent-{sync}**: 連携ごとに adapter-console が動的に作成・起動する
+  サイドカーコンテナ。kintone との通信を担当
+- Docker socket (`/var/run/docker.sock`) を adapter-console にマウントして
+  Agent コンテナの制御を行う
+
+---
+
+## クイックスタート (Docker / 推奨)
 
 ### 必要なもの
 
-- Java 21 LTS（`brew install openjdk@21`）
-- CData JDBC Driver for Salesforce（[CData サイト](https://www.cdata.com/jp/jdbc/) からトライアル取得可能）
-- kintone ワイドコース環境（「外部システムのアプリ化」機能の利用権限）
-- Salesforce 環境（Developer Edition で OK）
-- サイボウズ提供の Agent バイナリ（`kintone-data-connector-agent`）
-- grpcurl（任意、動作確認用）：`brew install grpcurl`
+- Docker Engine 20.10+ または Docker Desktop 4.20+
+- **サイボウズ社から受領した `kintone-data-connector-agent` バイナリ**
+  (Linux amd64 / arm64 用。公開レジストリでは配布されていません)
+- 利用したい CData JDBC Driver の jar
+  (トライアル取得: <https://www.cdata.com/jp/jdbc/>)
+- kintone ワイドコース環境
 
-### 1. ビルド
+### 1. リポジトリ取得と基本ディレクトリ作成
 
 ```bash
-# JAVA_HOME を Java 21 に向ける（Gradle 8.x が Java 25 未対応のため）
+git clone <repo-url> cdata-kintone-adapter
+cd cdata-kintone-adapter
+
+mkdir -p lib config agent run
+```
+
+### 2. JDBC Driver の配置
+
+利用するデータソースの JDBC Driver jar を `lib/` に置きます。
+
+```bash
+cp /path/to/cdata.jdbc.salesforce.jar lib/
+# トライアルライセンスがあれば lib/*.lic / *.txt も同梱
+```
+
+ライセンス (トライアル含む) のアクティベーションは起動後に Web UI の
+`/drivers` 画面から実行できます。
+
+### 3. Agent バイナリの受領と配置
+
+`kintone-data-connector-agent` は **サイボウズ社から個別に受領するプログラム本体**
+です。受領した tar.gz を展開し、対応アーキのバイナリを配置してください。
+
+```bash
+mkdir -p agent/bin/linux_amd64 agent/bin/linux_arm64
+
+tar -xzf kintone-data-connector-agent_v0.9.2_linux_amd64.tar.gz \
+    -C agent/bin/linux_amd64 --strip-components=1
+tar -xzf kintone-data-connector-agent_v0.9.2_linux_arm64.tar.gz \
+    -C agent/bin/linux_arm64 --strip-components=1
+
+chmod +x agent/bin/linux_*/kintone-data-connector-agent
+```
+
+### 4. Agent コンテナイメージのビルド
+
+adapter-console は Agent コンテナを `kintone-data-connector-agent:0.9.2`
+という名前のイメージから起動します。これは **管理者が同梱の Dockerfile で
+ローカルビルド** します (`docker pull` ではありません)。
+
+```bash
+docker compose -f agent/docker-compose.yml build
+# → kintone-data-connector-agent:0.9.2 が docker images に登録される
+```
+
+### 5. 鍵ペア生成と kintone 登録
+
+```bash
+cd agent
+openssl genrsa 2048 > private-key.pem
+openssl rsa -pubout -in private-key.pem -out public-key.pem
+chmod 600 private-key.pem
+cd ..
+```
+
+`public-key.pem` の内容を kintone 管理画面の「外部システムコネクター管理」
+に登録し、発行された JWT トークンを後で Web UI から保存します。
+
+### 6. adapter-console の起動
+
+```bash
+cp .env.example .env       # 必要に応じて編集
+
+docker compose build adapter-console
+docker compose up -d adapter-console
+docker compose logs -f adapter-console
+```
+
+ブラウザで <http://localhost:8080> を開き、ダッシュボードが表示されれば成功です。
+
+### 7. Web UI から連携を作成
+
+1. `/drivers` でドライバーをアクティベート
+2. `/connections` でデータソースの JDBC 接続文字列を保存
+3. `/syncs/new` で新しい連携を追加 (ウィザード)
+4. 連携詳細画面の「kintone と接続」で公開鍵 + トークンを設定 → Adapter + Agent が自動起動
+5. kintone 側で外部 App としてアプリ作成
+
+詳細は Web UI の `/help` ページ、または [docs/DOCKER-SETUP.md](docs/DOCKER-SETUP.md) を参照。
+
+---
+
+## 開発者向け: ホスト Java で起動 (Docker なし)
+
+Docker を使わず JVM 上で直接起動する場合。
+
+### 必要なもの
+
+- Java 21 LTS (`brew install openjdk@21`)
+- Gradle (リポジトリ同梱の wrapper を使う)
+
+### ビルドと起動
+
+```bash
+# JDK 21 を指定 (Gradle 8.x が Java 25 未対応のため)
 export JAVA_HOME=/opt/homebrew/opt/openjdk@21
 export PATH="$JAVA_HOME/bin:$PATH"
 
-# Fat JAR をビルド
 ./gradlew shadowJar
 # → build/libs/adapter-0.1.0-SNAPSHOT-all.jar
+
+java -jar build/libs/adapter-0.1.0-SNAPSHOT-all.jar web-ui --port 8080
 ```
 
-### 2. CData JDBC Driver の配置
+> このモードでは Docker socket が無いため Agent コンテナの動的制御は無効化され、
+> `agent/docker-compose.multi.yml` を手動で扱う必要があります。
 
-```bash
-mkdir -p lib
-# CData JDBC Driver for Salesforce をダウンロード・解凍し、以下に配置：
-cp /path/to/cdata.jdbc.salesforce.jar lib/
-cp /path/to/cdata.jdbc.salesforce.lic lib/  # ライセンスキー
-```
-
-> ⚠️ **重要**: `lib/*.jar` は fat jar に同梱されず、実行時に動的ロードされます（`compileOnly` 依存）。
-> これは CData JDBC Driver のライセンスファイル（`.lic`）が JAR と同じディレクトリに存在することを要求するためです。
-
-### 3. 設定ファイル準備
-
-```bash
-mkdir -p config
-cp config/server.yaml.example config/server.yaml
-cp config/jdbc.yaml.example config/jdbc.yaml
-cp config/capability.yaml.example config/capability.yaml
-```
-
-`config/jdbc.yaml` を編集し、**Salesforce の OAuth 接続文字列** を設定します：
-
-```yaml
-driver-class: cdata.jdbc.salesforce.SalesforceDriver
-driver-jar: ./lib/cdata.jdbc.salesforce.jar
-url: "jdbc:salesforce:AuthScheme=OAuth;InitiateOAuth=GETANDREFRESH;LoginURL=https://YOUR_ORG.my.salesforce.com/;OAuthSettingsLocation=./lib/cdata-oauth-salesforce.txt;"
-```
-
-**接続文字列の重要パラメータ**：
-
-| パラメータ | 説明 |
-|---|---|
-| `AuthScheme=OAuth` | OAuth 認証を選択（推奨。User/Password 認証は `AuthScheme=Basic`） |
-| `InitiateOAuth=GETANDREFRESH` | 初回ブラウザ認証 → トークン自動更新 |
-| `LoginURL` | Salesforce の My Domain URL（Developer Edition なら `https://orgfarm-xxx.develop.my.salesforce.com/`）|
-| `OAuthSettingsLocation` | リフレッシュトークン保存先（gitignore済み） |
-
-> 💡 **環境変数展開**: `${VAR_NAME}` を YAML 内に書けば実行時の環境変数で展開されます。
-
-### 4. table.yaml の自動生成（init-table）
-
-```bash
-# 対話式生成（多数のテーブルから選択）
-java -jar build/libs/adapter-0.1.0-SNAPSHOT-all.jar init-table
-
-# 特定テーブルを直接指定（Salesforce 等のように 1,000+ テーブルがある環境向け）
-java -jar build/libs/adapter-0.1.0-SNAPSHOT-all.jar init-table --table Account --non-interactive
-
-# → config/table.yaml が生成される
-```
-
-**初回 OAuth 認証**: `init-table` または `test-connection` 実行時にブラウザが自動で開き、Salesforce にログインして「許可」ボタンを押すとトークンが `lib/cdata-oauth-salesforce.txt` にキャッシュされます。以降は自動再認証。
-
-### 5. 接続テストと起動
-
-```bash
-# JDBC 接続確認
-java -jar build/libs/adapter-0.1.0-SNAPSHOT-all.jar test-connection
-
-# テーブル一覧確認
-java -jar build/libs/adapter-0.1.0-SNAPSHOT-all.jar list-tables
-
-# Adapter サーバ起動
-java -jar build/libs/adapter-0.1.0-SNAPSHOT-all.jar serve
-# → port 8083 で待ち受け
-```
-
-### 6. grpcurl で動作確認
-
-gRPC server reflection を有効化済みなので、**proto ファイル不要** で grpcurl から叩けます。
-
-```bash
-brew install grpcurl
-
-# サービス一覧
-grpcurl -plaintext localhost:8083 list
-
-# ヘルスチェック
-grpcurl -plaintext -d '{}' localhost:8083 grpc.health.v1.Health/Check
-# → {"status": "SERVING"}
-
-# Capability 確認
-grpcurl -plaintext -d '{}' localhost:8083 cybozu.data_connector.adapter.v1.AdapterService/GetCapability
-
-# Select (Salesforce Account 5件取得)
-grpcurl -plaintext -d '{
-  "payload": {
-    "fields": ["id", "name"],
-    "filterConditions": [{"allRecords": {}}],
-    "matchOperator": "MATCH_OPERATOR_ALL",
-    "sortConditions": [],
-    "offset": "0",
-    "limit": "5"
-  }
-}' localhost:8083 cybozu.data_connector.adapter.v1.AdapterService/Select
-```
-
-### 7. kintone Agent と接続
-
-詳細は [docs/E2E-SETUP.md](docs/E2E-SETUP.md) 参照。要点：
-
-1. `openssl genrsa 2048 > private-key.pem` で鍵生成
-2. `openssl rsa -pubout -in private-key.pem -out public-key.pem`
-3. kintone 管理画面の「外部システムコネクター管理」で公開鍵を登録、トークン取得
-4. `agent.json` に トークン + `"adapter_addr": "localhost:8083"` + `"adapter_plaintext": true` を設定
-5. Agent バイナリを起動
-6. kintone 側でコネクター接続 → アプリ作成
-
-macOS では Agent バイナリが提供されていないため、Docker Linux コンテナで動かす方法を [docs/AGENT-DOCKER.md](docs/AGENT-DOCKER.md) に記載。
-
-## Docker での Adapter 起動
-
-```bash
-# .env を作成して環境変数を設定（OAuth 利用なら主に未設定でOK、Basic 利用時のみ必要）
-cat > .env <<EOF
-SF_USER=your_user
-SF_PASSWORD=your_password
-SF_SECURITY_TOKEN=your_token
-EOF
-
-# 起動
-docker compose up -d
-
-# ログ確認
-docker compose logs -f adapter
-```
+---
 
 ## CLI サブコマンド一覧
 
-| サブコマンド | 説明 | 主なオプション |
+主に開発・運用補助用。通常運用は Web UI から完結します。
+
+| サブコマンド | 説明 |
+|---|---|
+| `web-ui` | ブラウザ管理コンソールを起動 (本体) |
+| `serve` | 単一テーブルの gRPC サーバを起動 |
+| `serve-all` | `config/tables/` 配下の全テーブルを 1 JVM で並行起動 |
+| `list-active` | 稼働中の Adapter 一覧を `./run/active-adapters.json` から表示 |
+| `init-table` | 対話式 `table.yaml` 生成 (`--non-interactive` で自動化) |
+| `list-tables` | 接続先データソースのテーブル一覧表示 |
+| `test-connection` | JDBC 接続テスト |
+| `migrate-to-sqlite` | YAML 設定を SQLite (`config/config.db`) に一括移行 |
+| `export-yaml` | SQLite データベースを YAML に書き出し (バックアップ) |
+| `migrate-config` / `migrate-to-multi-table` | レガシー単一テーブル → マルチテーブル構成への移行 |
+
+```bash
+java -jar build/libs/adapter-*-all.jar --help
+java -jar build/libs/adapter-*-all.jar <subcommand> --help
+```
+
+---
+
+## 主な画面 (Web UI)
+
+| 画面 | パス | 内容 |
 |---|---|---|
-| `serve` | 個別テーブルの gRPC サーバを起動 | `--config-dir <dir>`, `--table <name>`, `--tables a,b` |
-| `serve-all` | `config/tables/` 配下の全テーブルを 1 JVM で並行起動（フェーズ2-A） | `--config-dir <dir>` |
-| `web-ui` | ブラウザベース管理コンソール (Ktor) を起動（フェーズ2-B） | `--port`, `--bind-address`, `--config-dir`, `--lib-dir` |
-| `list-active` | 稼働中の Adapter 一覧を `./run/active-adapters.json` から表示 | `--state-file <file>` |
-| `migrate-config` | フェーズ1 構成（config 直下の YAML）を `config/tables/default/` に移行 | `--config-dir <dir>`, `--target <name>` |
-| `migrate-to-multi-table` | フェーズ1 構成を `config/tables/<name>/` + `config/jdbc/<shared>.yaml` に再配置 | `--table-name`, `--shared-jdbc-name` |
-| `migrate-to-sqlite` | YAML 設定を SQLite データベース (`config/config.db`) に一括移行 | `--config-dir`, `--sqlite-path`, `--force` |
-| `export-yaml` | SQLite データベースの内容を YAML として書き出し (バックアップ用) | `--sqlite-path`, `--out-dir` |
-| `init-table` | 対話式 `table.yaml` 生成（`--name` でフェーズ2-A 構成、`--jdbc-ref` で共通 jdbc 参照） | `--jdbc-config`, `--name`, `--jdbc-ref`, `--non-interactive`, `--table <name>` |
-| `list-tables` | 接続先データソースのテーブル一覧表示 | `--jdbc-config <file>` |
-| `test-connection` | JDBC 接続テスト | `--jdbc-config <file>` |
+| ダッシュボード | `/` | 稼働状況の KPI と稼働中連携の一覧 (SSE リアルタイム更新) |
+| 連携 (Syncs) | `/syncs` | 連携の CRUD・起動/停止・ログ表示 |
+| 新規連携ウィザード | `/syncs/new` | 4 ステップで連携を作成 |
+| kintone 接続 | `/syncs/{name}/connect` | 公開鍵 + トークン入力 → 1 ボタン全自動接続 |
+| ライブログ | `/syncs/{name}/logs` | Adapter + Agent ログを並列表示・SSE ストリーミング |
+| データソース | `/connections` | 共有 JDBC 接続文字列 (`sys_connection_props` 動的フォーム) |
+| ドライバー | `/drivers` | JDBC jar のアップロード + トライアルアクティベーション |
+| ヘルプ | `/help` | エンドユーザー向け操作ガイド |
 
-## Web UI クイックスタート（フェーズ2-C）
+---
 
-### Docker Compose で起動（推奨）
+## 設定ストアの切替 (YAML / SQLite)
 
-```bash
-docker compose up -d adapter-console
-# ブラウザで http://localhost:8080
-```
-
-連携 (Sync) の作成・kintone コネクター登録・Agent コンテナ起動はすべて Web UI から完結します。
-
-> **セキュリティ注意**: adapter-console は Docker socket (`/var/run/docker.sock`) をマウントして
-> Agent コンテナを動的制御します。Docker socket は実質ルート権限相当のため、本サンプルは
-> ローカル開発前提です。本番運用では Docker socket proxy 等の隔離手段を検討してください。
-
-### ホスト Java で起動（Docker なし）
+デフォルトは YAML。多数の連携を扱う場合は SQLite に移行可能。
 
 ```bash
-java -jar build/libs/adapter-*-all.jar web-ui --port 8080
-```
-
-この場合 Agent コンテナの動的制御は無効化され、`agent/tables/<name>/agent.json` の編集と
-`docker compose -f agent/docker-compose.multi.yml up -d` の手動操作が必要になります（Phase 2-B 方式）。
-
-### 主な画面
-
-- **ダッシュボード** (`/`): 稼働中の連携一覧（SSE リアルタイム更新）+ Phase 1 検出時の移行バナー
-- **連携 (Syncs)** (`/syncs`): 連携の CRUD、4 ステップ新規ウィザード、起動/停止/ログ表示
-- **kintone と接続** (`/syncs/<name>/connect`): 公開鍵コピー + 接続キー入力 + 1 ボタン全自動接続
-- **ログ** (`/syncs/<name>/logs`): Adapter と Agent のライブログを並列表示・検索・レベルフィルタ
-- **データソース接続** (`/connections`): 共通 JDBC 設定。`sys_connection_props` 動的フォーム
-- **ドライバー** (`/drivers`): JDBC JAR アップロード + トライアルアクティベーション
-
-ConfigSource 切替:
-```bash
-# YAML から SQLite に一括移行
+# YAML → SQLite に一括移行
 java -jar build/libs/adapter-*-all.jar migrate-to-sqlite
 
-# SQLite モードで起動 (config.db が存在すれば自動検出)
-java -jar build/libs/adapter-*-all.jar web-ui
-# または: CONFIG_SOURCE=sqlite java -jar ...
+# 起動時に CONFIG_SOURCE=sqlite を指定 (または config/config.db が存在すれば自動検出)
+CONFIG_SOURCE=sqlite java -jar build/libs/adapter-*-all.jar web-ui
 ```
 
-`--help` で詳細表示可：
+`config.db` を YAML に書き戻すバックアップ:
 
 ```bash
-java -jar build/libs/adapter-0.1.0-SNAPSHOT-all.jar --help
-java -jar build/libs/adapter-0.1.0-SNAPSHOT-all.jar init-table --help
+java -jar build/libs/adapter-*-all.jar export-yaml --out-dir ./config-backup
 ```
 
-## 設定ファイル
+---
 
-### フェーズ1（シングルテーブル、既存）
-
-4つの YAML ファイルを `config/` 直下に置く。後方互換のため引き続き動作する。
-
-| ファイル | 内容 | Git 管理推奨 |
-|---|---|---|
-| `config/server.yaml` | サーバの待ち受けポート等 | ✅ |
-| `config/jdbc.yaml` | JDBC 接続情報（機密含む） | ❌ `.gitignore` |
-| `config/table.yaml` | テーブル名・カラム定義（`init-table` で自動生成可） | △（環境依存） |
-| `config/capability.yaml` | サポート機能宣言・record-id-type | ✅ |
-
-### フェーズ2-A（マルチテーブル、推奨）
+## ディレクトリ構成
 
 ```
-config/
-├── jdbc/                          # 複数テーブルで共有する JDBC 設定
-│   ├── salesforce.yaml            # 機密: .gitignore
-│   ├── salesforce.yaml.example    # コミット可
-│   └── googlesheets.yaml.example
-└── tables/
-    ├── account/                   # テーブル単位のサブディレクトリ
-    │   ├── server.yaml            # port: 0 (auto) 推奨
-    │   ├── jdbc-ref.yaml          # name: salesforce (共通設定参照)
-    │   ├── table.yaml             # init-table で生成
-    │   └── capability.yaml
-    ├── contact/
-    │   └── …
-    └── googlesheets-orders/
-        ├── jdbc-ref.yaml          # name: googlesheets
-        └── …
+.
+├── src/                       # Kotlin ソース
+│   ├── main/                  # 本体 (Web UI / gRPC / Agent 制御 / CLI)
+│   ├── test/                  # 単体テスト (231 件)
+│   └── browserTest/           # Playwright E2E (23 件)
+├── lib/                       # JDBC Driver jar + ライセンス (gitignore)
+├── config/                    # 連携設定 (YAML or config.db)
+│   ├── jdbc/                  # 共有 JDBC 設定
+│   └── tables/                # 連携 (Sync) ごとの設定
+├── agent/                     # Agent コンテナ用ファイル群
+│   ├── bin/linux_<arch>/      # サイボウズ受領のバイナリ本体 (gitignore)
+│   ├── Dockerfile             # Agent コンテナイメージのビルド定義
+│   ├── docker-compose.yml     # 単体 Agent 起動 (開発用)
+│   ├── public-key.pem         # 公開鍵 (kintone へ登録)
+│   ├── private-key.pem        # 秘密鍵 (gitignore)
+│   └── tables/{name}/agent.json  # 連携ごとのトークン (gitignore)
+├── run/                       # 稼働状態 (active-adapters.json 等)
+├── docker-compose.yml         # 本体起動
+├── Dockerfile                 # adapter-console イメージ
+└── docs/                      # ドキュメント
 ```
 
-ポイント:
-- 各テーブルは独立した gRPC サーバとして起動（1 テーブル ↔ 1 Connector ↔ 1 Agent ↔ 1 kintone アプリ）
-- 共通 JDBC 設定は `config/jdbc/<name>.yaml` に置き、各テーブルから `jdbc-ref.yaml` で参照
-- ドライバーが異なる場合は `jdbc-ref` ではなくテーブル内に個別 `jdbc.yaml` を置く（同一 JVM 内で別 URLClassLoader 経由でロード）
+---
 
-#### フェーズ1 → フェーズ2-A への移行
+## トラブルシューティング
 
-```bash
-java -jar build/libs/adapter-*-all.jar migrate-config --config-dir ./config
-# → config/server.yaml 等が config/tables/default/ に移動
-```
+### 連携を開始すると 500 エラー
 
-### 他データソースへの切替・混在運用
+`docker logs adapter-console` で次を確認:
 
-CData JDBC Driver の jar を `lib/` に追加し、対応する `config/jdbc/<name>.yaml` を作成すれば、1 JVM 内で 250+ 種類のデータソースを混在運用できます（Google Sheets / SAP / Snowflake / Oracle SaaS 等）。OAuth キャッシュは `./run/oauth/<tableName>.txt` にテーブル別で自動分離されます。
-
-例: Salesforce 3 テーブル + Google Sheets 1 シート を 1 JVM で稼働させたい場合：
-
-```bash
-# 1. 共通設定を作成（example をコピー）
-cp config/jdbc/salesforce.yaml.example config/jdbc/salesforce.yaml
-cp config/jdbc/googlesheets.yaml.example config/jdbc/googlesheets.yaml
-
-# 2. テーブル設定を init-table で生成
-java -jar build/libs/adapter-*-all.jar init-table \
-  --jdbc-config config/jdbc/salesforce.yaml \
-  --name account --jdbc-ref salesforce --table Account --non-interactive
-
-# 3. serve-all で並行起動
-java -jar build/libs/adapter-*-all.jar serve-all
-```
-
-## ヘルスチェック
-
-gRPC 標準の `grpc.health.v1.Health` サービスを実装。Kubernetes liveness/readiness probe 等に利用可：
-
-```bash
-grpcurl -plaintext -d '{}' localhost:8083 grpc.health.v1.Health/Check
-# → {"status": "SERVING"}
-
-# AdapterService 単体のヘルス
-grpcurl -plaintext -d '{"service": "cybozu.data_connector.adapter.v1.AdapterService"}' \
-  localhost:8083 grpc.health.v1.Health/Check
-```
-
-## トラブルシュート
+- Agent コンテナイメージ (`kintone-data-connector-agent:0.9.2`) が
+  `docker images` にローカルビルド済みか
+  → 無ければ `docker compose -f agent/docker-compose.yml build`
+- `agent/bin/linux_<arch>/kintone-data-connector-agent` が存在し実行権限ありか
+- `HOST_AGENT_ROOT` 環境変数がホスト側の絶対パスを指しているか
 
 ### `What went wrong: 25.0.2` などの Java バージョンエラー
 
-Gradle 8.x が Java 25 に未対応。Java 21 LTS を使ってください：
+Gradle 8.x が Java 25 未対応。JDK 21 を使う:
 
 ```bash
 brew install openjdk@21
 export JAVA_HOME=/opt/homebrew/opt/openjdk@21
-export PATH="$JAVA_HOME/bin:$PATH"
 ```
 
 ### CData JDBC Driver のライセンスエラー
 
 ```bash
-cd lib
-java -jar cdata.jdbc.salesforce.jar -l
-# 名前 → メール → "TRIAL" の順で入力（順番注意）
+cd lib && java -jar cdata.jdbc.salesforce.jar -license
+# 名前 → メールアドレス → "TRIAL" の順で入力
 ```
 
-### `OAUTH [50001] タイムアウトしました`
+### `OAUTH [50001] タイムアウト`
 
-OAuth 初回認証で 60 秒以内にブラウザでログイン・許可しなかった場合に発生。
-**ターミナルから直接実行**してください（バックグラウンド実行ではブラウザ起動が確認できないため）：
+OAuth 初回認証で 60 秒以内にブラウザでログインしなかった場合。
+`test-connection` をターミナルから直接実行し、ブラウザで認証してください。
 
-```bash
-java -jar build/libs/adapter-0.1.0-SNAPSHOT-all.jar test-connection
-# → ブラウザが開く → ログイン → 「許可」クリック
-```
+### ドライバーアップロード時に画面が真っ白
 
-### `OAUTH [30004] Login failed: OAuthAccessToken is required`
+過去のバグ。最新版で修正済みなので `./gradlew shadowJar` で再ビルドしてください。
 
-`AuthScheme` が指定されていないか OAuth キャッシュ未取得。`AuthScheme=OAuth;InitiateOAuth=GETANDREFRESH;` を URL に追加。
+そのほか詳細は Web UI の [/help](http://localhost:8080/help) を参照。
 
-### `INVALID_LOGIN` (User/Password 認証時)
+---
 
-- セキュリティトークンが古い → Salesforce で再発行（パスワード変更時もリセット）
-- IP 制限・ロックアウト
-- Sandbox の場合は `LoginURL=https://test.salesforce.com;` を追加
-
-### `port already in use`
-
-`config/server.yaml` の `port` を変更するか、既存プロセスを停止：
-
-```bash
-lsof -ti:8083 | xargs kill
-```
-
-### kintone Agent から接続できない
-
-- Agent の `agent.json` で `"adapter_plaintext": true` になっているか確認
-- Adapter が `0.0.0.0:8083` で待ち受けているか確認（`config/server.yaml` の `bind-address`）
-- Agent と Adapter が同じネットワーク上にあるか確認
-
-## アーキテクチャ
-
-```
-┌─────────────┐    gRPC    ┌─────────┐  gRPC over HTTP/2  ┌──────────┐  JDBC  ┌──────────┐
-│   kintone   │ ────────► │  Agent  │ ─────────────────► │ Adapter  │ ─────► │  CData   │
-│  Connector  │           │ (cybozu  │                    │ (本実装) │        │   JDBC   │
-└─────────────┘           │ provided)│                    └──────────┘        │  Driver  │
-                          └─────────┘                                          └─────┬────┘
-                                                                                     │
-                                                                                ┌────▼─────┐
-                                                                                │ データソース │
-                                                                                │(Salesforce│
-                                                                                │  etc.)   │
-                                                                                └──────────┘
-```
-
-詳細は [docs/](docs/) 配下を参照。
-
-## 動作確認済み機能（実 Salesforce）
-
-| 機能 | RPC | 確認内容 |
-|---|---|---|
-| 認証 | - | OAuth (`AuthScheme=OAuth`) + LoginURL |
-| ケイパビリティ | GetCapability | record-id-type=TEXT、filterable/sortable fields |
-| スキーマ | GetSchema | Account 68カラムの定義返却 |
-| 件数取得 | Count | ACTUAL 戦略・フィルター付き両方 |
-| 一覧取得 | Select | フィールド絞込・filter（textContains）・sort・pagination |
-| 追加 | Insert | 単発・一括、TEXT ID 返却 |
-| 更新 | Update | 部分更新、recordIdEqual で WHERE |
-| 削除 | Delete | 単発・一括 |
-| ヘルスチェック | grpc.health.v1.Health | SERVING 状態返却 |
-
-## 開発
-
-- 開発ガイドライン（**TDD ベース**）: [docs/development-guidelines.md](docs/development-guidelines.md)
-- 機能設計: [docs/functional-design.md](docs/functional-design.md)
-- 技術仕様: [docs/architecture.md](docs/architecture.md)
-- リポジトリ構成: [docs/repository-structure.md](docs/repository-structure.md)
-- 用語集: [docs/glossary.md](docs/glossary.md)
-
-### テスト実行
+## テスト
 
 ```bash
 # 単体テスト (231 件、数秒で完了)
 ./gradlew test
-# JaCoCo カバレッジレポート: build/reports/jacoco/test/html/index.html
-```
+# JaCoCo: build/reports/jacoco/test/html/index.html
 
-### ブラウザ E2E テスト (Phase 2-C)
-
-Playwright + Chromium で Web UI を実ブラウザで操作するテスト群 (18 ケース)。
-初回実行時に Chromium バイナリ (~150MB) を自動ダウンロード。
-
-```bash
-# ヘッドレスで実行 (CI 想定、デフォルト)
+# Playwright E2E (23 件、初回は Chromium ~150MB を自動 DL)
 ./gradlew browserTest
 
-# ヘッドフル (画面表示あり、ローカルでのデバッグ用)
+# ヘッドフル (画面を見ながらデバッグ)
 PLAYWRIGHT_HEADLESS=false ./gradlew browserTest
 
-# レポート: build/reports/tests/browserTest/index.html
-```
-
-E2E テストは `./gradlew test` には含まれないので、CI では別ステップで実行する想定:
-
-```yaml
-# .github/workflows/ci.yml (例)
-- run: ./gradlew test
-- run: ./gradlew browserTest
-```
-
-### 静的解析
-
-```bash
+# 静的解析
 ./gradlew ktlintCheck detekt
 ```
+
+---
+
+## ドキュメント
+
+| ドキュメント | 内容 |
+|---|---|
+| [docs/DOCKER-SETUP.md](docs/DOCKER-SETUP.md) | **管理者向け Docker セットアップガイド** |
+| [docs/architecture.md](docs/architecture.md) | アーキテクチャ全体像 |
+| [docs/functional-design.md](docs/functional-design.md) | 機能設計 |
+| [docs/product-requirements.md](docs/product-requirements.md) | プロダクト要件 |
+| [docs/development-guidelines.md](docs/development-guidelines.md) | 開発ガイドライン (TDD ベース) |
+| [docs/repository-structure.md](docs/repository-structure.md) | リポジトリ構成 |
+| [docs/glossary.md](docs/glossary.md) | 用語集 |
+| [docs/E2E-SETUP.md](docs/E2E-SETUP.md) | 実 kintone との結合テスト手順 |
+| [agent/README.md](agent/README.md) | Agent コンテナ単体起動 (開発用) |
+| Web UI `/help` | エンドユーザー向け操作ガイド |
+
+---
 
 ## ライセンス
 
@@ -443,6 +340,9 @@ E2E テストは `./gradlew test` には含まれないので、CI では別ス�
 
 ## 注意事項
 
-- 本リポジトリは kintone の「外部システムのアプリ化」機能のサンプル実装です。**サイボウズの未公開情報を含む**ため、社外開示には注意してください
-- CData JDBC Driver は**別途ライセンス購入**が必要です（トライアルあり）
+- 本リポジトリは kintone「外部システムのアプリ化」機能のサンプル実装です。
+  **サイボウズの未公開情報を含む**ため、社外開示には注意してください
+- CData JDBC Driver は**別途ライセンス購入が必要**です (トライアルあり)
+- `kintone-data-connector-agent` は**サイボウズから個別に受領する必要があります**
+  (本リポジトリには同梱されていません)
 - 本サンプルは AS-IS で提供され、動作保証はありません
