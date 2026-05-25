@@ -17,6 +17,7 @@ import kotlinx.html.nav
 import kotlinx.html.script
 import kotlinx.html.small
 import kotlinx.html.span
+import kotlinx.html.strong
 import kotlinx.html.title
 import kotlinx.html.ul
 
@@ -45,7 +46,11 @@ fun HTML.layout(
         header(classes = "container") {
             nav {
                 ul {
-                    li { a(href = "/") { +"⚡ Adapter Console" } }
+                    li {
+                        a(href = "/") {
+                            strong { +"⚡ Adapter Console" }
+                        }
+                    }
                 }
                 ul {
                     navItem("/", "🏠 ダッシュボード", currentPath)
