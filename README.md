@@ -403,8 +403,32 @@ lsof -ti:8083 | xargs kill
 ### テスト実行
 
 ```bash
+# 単体テスト (231 件、数秒で完了)
 ./gradlew test
 # JaCoCo カバレッジレポート: build/reports/jacoco/test/html/index.html
+```
+
+### ブラウザ E2E テスト (Phase 2-C)
+
+Playwright + Chromium で Web UI を実ブラウザで操作するテスト群 (18 ケース)。
+初回実行時に Chromium バイナリ (~150MB) を自動ダウンロード。
+
+```bash
+# ヘッドレスで実行 (CI 想定、デフォルト)
+./gradlew browserTest
+
+# ヘッドフル (画面表示あり、ローカルでのデバッグ用)
+PLAYWRIGHT_HEADLESS=false ./gradlew browserTest
+
+# レポート: build/reports/tests/browserTest/index.html
+```
+
+E2E テストは `./gradlew test` には含まれないので、CI では別ステップで実行する想定:
+
+```yaml
+# .github/workflows/ci.yml (例)
+- run: ./gradlew test
+- run: ./gradlew browserTest
 ```
 
 ### 静的解析

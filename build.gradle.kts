@@ -132,6 +132,35 @@ tasks.test {
     finalizedBy(tasks.jacocoTestReport)
 }
 
+// ===== Phase 2-C: ブラウザ E2E テスト (Playwright) =====
+// `./gradlew browserTest` で実行。default の test タスクには含めない (重いため)。
+sourceSets {
+    create("browserTest") {
+        kotlin.srcDir("src/browserTest/kotlin")
+        resources.srcDir("src/browserTest/resources")
+        compileClasspath += sourceSets["main"].output + sourceSets["test"].output
+        runtimeClasspath += output + compileClasspath
+    }
+}
+
+configurations["browserTestImplementation"].extendsFrom(configurations.testImplementation.get())
+configurations["browserTestRuntimeOnly"].extendsFrom(configurations.testRuntimeOnly.get())
+
+dependencies {
+    "browserTestImplementation"("com.microsoft.playwright:playwright:1.49.0")
+}
+
+tasks.register<Test>("browserTest") {
+    description = "ブラウザベースの E2E テストを実行 (Playwright)"
+    group = "verification"
+    testClassesDirs = sourceSets["browserTest"].output.classesDirs
+    classpath = sourceSets["browserTest"].runtimeClasspath
+    useJUnitPlatform()
+    // ローカル: ヘッドフル可、CI: ヘッドレス。環境変数で切替
+    systemProperty("playwright.headless", System.getenv("PLAYWRIGHT_HEADLESS") ?: "true")
+    shouldRunAfter(tasks.test)
+}
+
 tasks.jacocoTestReport {
     dependsOn(tasks.test)
     reports {
