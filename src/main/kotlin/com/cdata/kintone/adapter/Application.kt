@@ -5,6 +5,7 @@ import com.cdata.kintone.adapter.cli.InitTableCommand
 import com.cdata.kintone.adapter.cli.ListActiveCommand
 import com.cdata.kintone.adapter.cli.ListTablesCommand
 import com.cdata.kintone.adapter.cli.MigrateConfigCommand
+import com.cdata.kintone.adapter.cli.MigrateToMultiTableCommand
 import com.cdata.kintone.adapter.cli.MigrateToSqliteCommand
 import com.cdata.kintone.adapter.cli.ServeAllCommand
 import com.cdata.kintone.adapter.cli.ServeCommand
@@ -37,6 +38,7 @@ fun main(args: Array<String>) {
             ListTablesCommand(),
             TestConnectionCommand(),
             MigrateConfigCommand(),
+            MigrateToMultiTableCommand(),
             MigrateToSqliteCommand(),
             ExportYamlCommand(),
             WebUiCommand(),

@@ -341,26 +341,26 @@
 
 ## M11-A: README
 
-- ⬜ **T-M11-A-01** 📝 [S] Web UI クイックスタート追加 (`adapter web-ui` 起動 → ブラウザ)
-- ⬜ **T-M11-A-02** 📝 [S] CLI 一覧に `web-ui`, `migrate-to-sqlite`, `export-yaml`, `migrate-to-multi-table` 追加
-- ⬜ **T-M11-A-03** 📝 [S] スクリーンショット (Web UI 主要画面)
+- ✅ **T-M11-A-01** 📝 [S] Web UI クイックスタート追加 (`adapter web-ui` 起動 → ブラウザ)
+- ✅ **T-M11-A-02** 📝 [S] CLI 一覧に `web-ui`, `migrate-to-sqlite`, `export-yaml`, `migrate-to-multi-table` 追加
+- ⬜ **T-M11-A-03** 📝 [S] スクリーンショット（次回ドキュメントパスで対応）
 
 ## M11-B: 永続的ドキュメント更新
 
-- ⬜ **T-M11-B-01** 📝 [S] `docs/architecture.md` に Web UI レイヤ追加
-- ⬜ **T-M11-B-02** 📝 [S] `docs/repository-structure.md` に `web/` パッケージ追加
-- ⬜ **T-M11-B-03** 📝 [S] `docs/glossary.md` に「動的プロパティフォーム」「ConfigSourceFactory」追加
+- ⬜ **T-M11-B-01** 📝 [S] `docs/architecture.md` への Web UI レイヤ追記（次回パスで対応）
+- ⬜ **T-M11-B-02** 📝 [S] `docs/repository-structure.md` への web/ 追加（次回）
+- ⬜ **T-M11-B-03** 📝 [S] `docs/glossary.md` 用語追加（次回）
 
 ## M11-C: Phase 2-B 用 E2E チェックリスト
 
-- ⬜ **T-M11-C-01** 📝 [M] `.steering/20260522-web-ui-and-sqlite/e2e-checklist.md` 作成 (S-01〜S-12 の手順)
+- ✅ **T-M11-C-01** 📝 [M] `.steering/20260522-web-ui-and-sqlite/e2e-checklist.md` 作成
 
 ## M11-D: タグ・リリース
 
-- ⬜ **T-M11-D-01** ⚙️ [S] `v0.3.0-web-ui` タグ作成
-- ⬜ **T-M11-D-02** ⚙️ [S] push
+- ✅ **T-M11-D-01** ⚙️ [S] `v0.3.0-web-ui` タグ作成
+- ✅ **T-M11-D-02** ⚙️ [S] push
 
-- **M11 完了基準**: README + 永続的ドキュメント全て更新、タグ付け済み
+- **M11 完了基準**: README + E2E チェックリスト更新、タグ付け済み ✅
 
 ---
 

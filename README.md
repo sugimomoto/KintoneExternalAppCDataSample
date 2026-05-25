@@ -167,11 +167,38 @@ docker compose logs -f adapter
 |---|---|---|
 | `serve` | 個別テーブルの gRPC サーバを起動 | `--config-dir <dir>`, `--table <name>`, `--tables a,b` |
 | `serve-all` | `config/tables/` 配下の全テーブルを 1 JVM で並行起動（フェーズ2-A） | `--config-dir <dir>` |
+| `web-ui` | ブラウザベース管理コンソール (Ktor) を起動（フェーズ2-B） | `--port`, `--bind-address`, `--config-dir`, `--lib-dir` |
 | `list-active` | 稼働中の Adapter 一覧を `./run/active-adapters.json` から表示 | `--state-file <file>` |
 | `migrate-config` | フェーズ1 構成（config 直下の YAML）を `config/tables/default/` に移行 | `--config-dir <dir>`, `--target <name>` |
+| `migrate-to-multi-table` | フェーズ1 構成を `config/tables/<name>/` + `config/jdbc/<shared>.yaml` に再配置 | `--table-name`, `--shared-jdbc-name` |
+| `migrate-to-sqlite` | YAML 設定を SQLite データベース (`config/config.db`) に一括移行 | `--config-dir`, `--sqlite-path`, `--force` |
+| `export-yaml` | SQLite データベースの内容を YAML として書き出し (バックアップ用) | `--sqlite-path`, `--out-dir` |
 | `init-table` | 対話式 `table.yaml` 生成（`--name` でフェーズ2-A 構成、`--jdbc-ref` で共通 jdbc 参照） | `--jdbc-config`, `--name`, `--jdbc-ref`, `--non-interactive`, `--table <name>` |
 | `list-tables` | 接続先データソースのテーブル一覧表示 | `--jdbc-config <file>` |
 | `test-connection` | JDBC 接続テスト | `--jdbc-config <file>` |
+
+## Web UI クイックスタート（フェーズ2-B）
+
+```bash
+java -jar build/libs/adapter-*-all.jar web-ui --port 8080
+# ブラウザで http://127.0.0.1:8080/
+```
+
+主な画面:
+- **Dashboard** (`/`): 稼働中 Adapter 一覧（SSE でリアルタイム更新）、Phase 1 構成検出時の移行バナー
+- **Tables** (`/tables`): テーブル設定 CRUD、4 ステップ新規ウィザード、起動/停止
+- **Connections** (`/connections`): 共通 JDBC 設定 CRUD、`sys_connection_props` ベース動的フォーム、接続テスト
+- **Drivers** (`/drivers`): JAR アップロード、トライアルアクティベーション
+
+ConfigSource 切替:
+```bash
+# YAML から SQLite に一括移行
+java -jar build/libs/adapter-*-all.jar migrate-to-sqlite
+
+# SQLite モードで起動 (config.db が存在すれば自動検出)
+java -jar build/libs/adapter-*-all.jar web-ui
+# または: CONFIG_SOURCE=sqlite java -jar ...
+```
 
 `--help` で詳細表示可：
 
