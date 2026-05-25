@@ -160,6 +160,12 @@ fun HTML.helpView(ctx: AppContext) {
             h3 { +"関連リンク" }
             ul(classes = "link-list") {
                 li {
+                    strong { +"管理者向け: " }
+                    +"Docker でこのサービスをセットアップする手順は "
+                    code { +"docs/DOCKER-SETUP.md" }
+                    +" を参照してください (リポジトリに同梱)。"
+                }
+                li {
                     a(href = "https://www.cdata.com/jdbc/", target = "_blank") {
                         +"CData JDBC Drivers (製品サイト)"
                     }
