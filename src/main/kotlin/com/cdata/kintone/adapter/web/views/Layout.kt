@@ -36,7 +36,7 @@ fun HTML.layout(
     head {
         meta(charset = "utf-8")
         meta(name = "viewport", content = "width=device-width, initial-scale=1")
-        title { +"$pageTitle — Adapter Console" }
+        title { +"$pageTitle — CData Kintone Adapter Console" }
         link(rel = "stylesheet", href = "/static/pico.min.css")
         link(rel = "stylesheet", href = "/static/app.css")
         script(src = "/static/htmx.min.js") {}
@@ -48,7 +48,7 @@ fun HTML.layout(
                 ul {
                     li {
                         a(href = "/") {
-                            strong { +"⚡ Adapter Console" }
+                            strong { +"⚡ CData Kintone Adapter Console" }
                         }
                     }
                 }
@@ -65,7 +65,7 @@ fun HTML.layout(
         }
         footer(classes = "container") {
             small {
-                +"Adapter Console v0.4.0  |  ConfigSource: ${mode.name.lowercase()}  |  稼働中: $activeCount 件  |  © 2026 CData Software Japan"
+                +"CData Kintone Adapter Console v0.4.0  |  ConfigSource: ${mode.name.lowercase()}  |  稼働中: $activeCount 件  |  © 2026 CData Software Japan"
             }
         }
     }

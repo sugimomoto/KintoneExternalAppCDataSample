@@ -13,7 +13,7 @@ class DashboardE2ETest : BrowserTestBase() {
     @Test
     fun `E2E-01 ダッシュボードが表示される (連携 0 件)`() {
         page.navigate(baseUrl)
-        assertEquals("ダッシュボード — Adapter Console", page.title())
+        assertEquals("ダッシュボード — CData Kintone Adapter Console", page.title())
         assertTrue(page.locator("h2").innerText().contains("ダッシュボード"))
         // 連携 0 件のメッセージ
         val activeText = page.locator("h3").allInnerTexts().joinToString("\n")

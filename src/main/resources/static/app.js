@@ -1,4 +1,4 @@
-// Adapter Console - SSE で active-adapters をブラウザの全テーブル行に反映する。
+// CData Kintone Adapter Console - SSE で active-adapters をブラウザの全テーブル行に反映する。
 (function () {
     const table = document.getElementById("active-adapters-table");
     if (!table || typeof EventSource === "undefined") return;
