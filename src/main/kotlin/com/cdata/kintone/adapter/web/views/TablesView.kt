@@ -24,6 +24,7 @@ import kotlinx.html.role
 import kotlinx.html.script
 import kotlinx.html.section
 import kotlinx.html.small
+import kotlinx.html.span
 import kotlinx.html.summary
 import kotlinx.html.table
 import kotlinx.html.tbody
@@ -45,12 +46,21 @@ fun HTML.tablesListView(ctx: AppContext) {
         activeCount = active.size,
         currentPath = "/syncs",
     ) {
-        h2 { +"連携 (${tableNames.size} 件)" }
-        p { a(href = "/syncs/new", classes = "button") { +"+ 新しい連携" } }
+        div(classes = "action-bar") {
+            h2 { +"連携 (${tableNames.size} 件)" }
+            a(href = "/syncs/new", classes = "button") { +"+ 新しい連携" }
+        }
 
         if (tableNames.isEmpty()) {
             article {
-                p { +"連携がまだ登録されていません。「+ 新しい連携」から作成してください。" }
+                div(classes = "empty-state") {
+                    div(classes = "icon") { +"🔄" }
+                    h3 { +"まだ連携がありません" }
+                    p { +"データソースのテーブルを kintone と連携する設定を追加しましょう。" }
+                    div(classes = "actions") {
+                        a(href = "/syncs/new", classes = "button") { +"+ 新しい連携を追加" }
+                    }
+                }
             }
         } else {
             table(classes = "striped") {
@@ -367,23 +377,23 @@ fun HTML.tableEditView(ctx: AppContext, name: String, set: TableConfigSet) {
 private fun kotlinx.html.FlowContent.tableActions(name: String, isActive: Boolean) {
     if (isActive) {
         form(action = "/syncs/$name/stop", method = FormMethod.post, classes = "inline-form") {
-            button(type = ButtonType.submit, classes = "secondary") { +"Stop" }
+            button(type = ButtonType.submit, classes = "secondary") { +"⏸ 停止" }
         }
     } else {
         form(action = "/syncs/$name/start", method = FormMethod.post, classes = "inline-form") {
-            button(type = ButtonType.submit) { +"Start" }
+            button(type = ButtonType.submit) { +"▶ 開始" }
         }
     }
 }
 
 private fun kotlinx.html.FlowContent.statusBadge(active: Boolean, port: Int?) {
     if (active) {
-        small(classes = "status-badge serving") {
-            +"●Running"
-            port?.let { +" on $it" }
+        span(classes = "status-badge serving") {
+            +"稼働中"
+            port?.let { +" (port $it)" }
         }
     } else {
-        small(classes = "status-badge stopped") { +"○Stopped" }
+        span(classes = "status-badge stopped") { +"停止中" }
     }
 }
 

@@ -2,18 +2,21 @@ package com.cdata.kintone.adapter.web.views
 
 import com.cdata.kintone.adapter.runtime.AdapterStatus
 import com.cdata.kintone.adapter.web.AppContext
+import kotlinx.html.ButtonType
+import kotlinx.html.FormMethod
 import kotlinx.html.HTML
 import kotlinx.html.a
 import kotlinx.html.article
 import kotlinx.html.button
+import kotlinx.html.code
 import kotlinx.html.div
 import kotlinx.html.form
 import kotlinx.html.h2
 import kotlinx.html.h3
 import kotlinx.html.id
 import kotlinx.html.p
-import kotlinx.html.role
 import kotlinx.html.small
+import kotlinx.html.span
 import kotlinx.html.table
 import kotlinx.html.tbody
 import kotlinx.html.td
@@ -26,6 +29,9 @@ import java.time.format.DateTimeFormatter
 
 fun HTML.dashboardView(ctx: AppContext) {
     val active = ctx.runner.listActive()
+    val totalSyncs = ctx.configSource.listTables().size
+    val totalConnections = ctx.configSource.listSharedJdbcConfigs().size
+    val totalDrivers = ctx.driverManager.listDrivers().size
     val phase1Detected = ctx.configDir.resolve("server.yaml").toFile().exists() &&
         !ctx.configDir.resolve("tables").toFile().exists()
 
@@ -35,15 +41,29 @@ fun HTML.dashboardView(ctx: AppContext) {
         activeCount = active.size,
         currentPath = "/",
     ) {
-        h2 { +"ダッシュボード" }
+        // ヒーローセクション (KPI 表示)
+        div(classes = "hero") {
+            h2 { +"ダッシュボード" }
+            p(classes = "lead") {
+                +"連携の状態を一目で確認。新しい連携の追加・既存連携の管理がここからできます。"
+            }
+            div(classes = "kpis") {
+                kpiCard(active.size.toString(), "稼働中")
+                kpiCard(totalSyncs.toString(), "連携 (合計)")
+                kpiCard(totalConnections.toString(), "データソース接続")
+                kpiCard(totalDrivers.toString(), "ドライバー")
+            }
+        }
 
         if (phase1Detected) {
             article(classes = "warning-banner") {
                 p {
-                    +"⚠ Phase 1 構成を検出: config/ 直下に server.yaml 等があります。"
+                    +"⚠ Phase 1 構成を検出しました: "
+                    code { +"config/server.yaml" }
+                    +" 等が直下にあります。マルチテーブル構成への移行をおすすめします。"
                 }
-                form(action = "/migrate/phase1-to-tables", method = kotlinx.html.FormMethod.post) {
-                    button(type = kotlinx.html.ButtonType.submit) { +"Migrate to multi-table" }
+                form(action = "/migrate/phase1-to-tables", method = FormMethod.post) {
+                    button(type = ButtonType.submit) { +"新階層に移行する" }
                 }
             }
         }
@@ -51,7 +71,15 @@ fun HTML.dashboardView(ctx: AppContext) {
         article {
             h3 { +"稼働中の連携 (${active.size} 件)" }
             if (active.isEmpty()) {
-                p { +"稼働中の Adapter はありません。Tables 画面で個別に起動するか、`adapter serve-all` を実行してください。" }
+                div(classes = "empty-state") {
+                    div(classes = "icon") { +"💤" }
+                    h3 { +"稼働中の連携はありません" }
+                    p { +"連携画面から「開始」ボタンを押すか、新しい連携を追加してください。" }
+                    div(classes = "actions") {
+                        a(href = "/syncs", classes = "button secondary") { +"連携一覧へ" }
+                        a(href = "/syncs/new", classes = "button") { +"+ 新しい連携" }
+                    }
+                }
             } else {
                 activeAdaptersTable(active)
             }
@@ -61,10 +89,17 @@ fun HTML.dashboardView(ctx: AppContext) {
             h3 { +"クイックアクション" }
             div(classes = "quick-actions") {
                 a(href = "/syncs/new", classes = "button") { +"+ 新しい連携" }
+                a(href = "/connections/new", classes = "button secondary") { +"+ データソース接続を追加" }
                 a(href = "/drivers", classes = "button secondary") { +"ドライバー管理" }
-                a(href = "/connections/new", classes = "button secondary") { +"+ 新しいデータソース接続" }
             }
         }
+    }
+}
+
+private fun kotlinx.html.FlowContent.kpiCard(value: String, label: String) {
+    div(classes = "kpi") {
+        div(classes = "kpi-label") { +label }
+        div(classes = "kpi-value") { +value }
     }
 }
 
@@ -73,27 +108,31 @@ internal fun kotlinx.html.FlowContent.activeAdaptersTable(active: List<AdapterSt
         attributes["id"] = "active-adapters-table"
         thead {
             tr {
-                th { +"Name" }
-                th { +"Port" }
-                th { +"Started" }
-                th { +"Status" }
+                th { +"名前" }
+                th { +"ポート" }
+                th { +"開始時刻" }
+                th { +"状態" }
             }
         }
         tbody {
             active.forEach { row ->
                 tr {
                     attributes["data-table"] = row.tableName
-                    td { +row.tableName }
-                    td { +row.port.toString() }
                     td {
-                        +(if (row.startedAt > 0) {
-                            FORMATTER.format(Instant.ofEpochMilli(row.startedAt))
-                        } else {
-                            "-"
-                        })
+                        a(href = "/syncs/${row.tableName}") { +row.tableName }
+                    }
+                    td { code { +row.port.toString() } }
+                    td {
+                        small(classes = "muted") {
+                            +(if (row.startedAt > 0) {
+                                FORMATTER.format(Instant.ofEpochMilli(row.startedAt))
+                            } else {
+                                "-"
+                            })
+                        }
                     }
                     td(classes = "status") {
-                        small(classes = "status-badge serving") { +row.status }
+                        span(classes = "status-badge serving") { +"稼働中" }
                     }
                 }
             }

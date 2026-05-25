@@ -27,7 +27,7 @@ class DashboardE2ETest : BrowserTestBase() {
         // ヘッダの最初は ⚙ Adapter Console、その他はナビ
         assertTrue(navLabels.any { it.contains("ダッシュボード") }, "ナビに 'ダッシュボード'")
         assertTrue(navLabels.any { it.contains("連携") }, "ナビに '連携'")
-        assertTrue(navLabels.any { it.contains("データソース接続") }, "ナビに 'データソース接続'")
+        assertTrue(navLabels.any { it.contains("データソース") }, "ナビに 'データソース'")
         assertTrue(navLabels.any { it.contains("ドライバー") }, "ナビに 'ドライバー'")
     }
 
@@ -36,6 +36,6 @@ class DashboardE2ETest : BrowserTestBase() {
         page.navigate(baseUrl)
         assertTrue(page.locator("text=+ 新しい連携").count() > 0)
         assertTrue(page.locator("text=ドライバー管理").count() > 0)
-        assertTrue(page.locator("text=+ 新しいデータソース接続").count() > 0)
+        assertTrue(page.locator("text=データソース接続を追加").count() > 0)
     }
 }

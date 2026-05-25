@@ -14,9 +14,9 @@
                 const statusCell = row.querySelector(".status");
                 if (!statusCell) return;
                 if (a) {
-                    statusCell.innerHTML = `<small class="status-badge serving">●Running on ${a.port}</small>`;
+                    statusCell.innerHTML = `<span class="status-badge serving">稼働中 (port ${a.port})</span>`;
                 } else {
-                    statusCell.innerHTML = `<small class="status-badge stopped">○Stopped</small>`;
+                    statusCell.innerHTML = `<span class="status-badge stopped">停止中</span>`;
                 }
             });
         } catch (err) {

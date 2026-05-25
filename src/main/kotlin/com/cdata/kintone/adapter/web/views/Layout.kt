@@ -45,13 +45,13 @@ fun HTML.layout(
         header(classes = "container") {
             nav {
                 ul {
-                    li { a(href = "/") { +"⚙ Adapter Console v0.4.0" } }
+                    li { a(href = "/") { +"⚡ Adapter Console" } }
                 }
                 ul {
-                    navItem("/", "ダッシュボード", currentPath)
-                    navItem("/syncs", "連携 (Syncs)", currentPath)
-                    navItem("/connections", "データソース接続", currentPath)
-                    navItem("/drivers", "ドライバー", currentPath)
+                    navItem("/", "🏠 ダッシュボード", currentPath)
+                    navItem("/syncs", "🔄 連携", currentPath)
+                    navItem("/connections", "🔌 データソース", currentPath)
+                    navItem("/drivers", "📦 ドライバー", currentPath)
                 }
             }
         }
@@ -60,7 +60,7 @@ fun HTML.layout(
         }
         footer(classes = "container") {
             small {
-                +"ConfigSource: ${mode.name.lowercase()}  |  Adapters: $activeCount active  |  © 2026 CData Software Japan"
+                +"Adapter Console v0.4.0  |  ConfigSource: ${mode.name.lowercase()}  |  稼働中: $activeCount 件  |  © 2026 CData Software Japan"
             }
         }
     }
