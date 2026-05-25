@@ -1,5 +1,6 @@
 package com.cdata.kintone.adapter.web.routes
 
+import com.cdata.kintone.adapter.agent.AgentConfig
 import com.cdata.kintone.adapter.config.ConfigFileMissingException
 import com.cdata.kintone.adapter.metadata.RecordIdType
 import com.cdata.kintone.adapter.web.AppContext
@@ -86,6 +87,33 @@ fun Route.tablesRoutes(ctx: AppContext) {
         runCatching { ctx.runner.stopOne(name) }
         runCatching { ctx.runner.startOne(name) }
         call.respondRedirect(call.request.headers["Referer"] ?: "/tables/$name")
+    }
+
+    post("/tables/{name}/agent") {
+        val name = call.parameters["name"]!!
+        val form = call.receiveParameters()
+        val token = form["token"]?.trim()
+            ?: return@post call.respondText("token required", status = HttpStatusCode.BadRequest)
+        val adapterAddr = form["adapter_addr"]?.trim()
+            ?: return@post call.respondText("adapter_addr required", status = HttpStatusCode.BadRequest)
+        val plaintext = form["adapter_plaintext"] == "on"
+        val privateKeyPath = form["private_key_path"]?.takeIf { it.isNotBlank() } ?: "/opt/agent/private-key.pem"
+        ctx.agentConfigManager.save(
+            name,
+            AgentConfig(
+                token = token,
+                adapterAddr = adapterAddr,
+                adapterPlaintext = plaintext,
+                privateKeyPath = privateKeyPath,
+            ),
+        )
+        call.respondRedirect("/tables/$name")
+    }
+
+    post("/tables/{name}/agent/delete") {
+        val name = call.parameters["name"]!!
+        ctx.agentConfigManager.delete(name)
+        call.respondRedirect("/tables/$name")
     }
 }
 

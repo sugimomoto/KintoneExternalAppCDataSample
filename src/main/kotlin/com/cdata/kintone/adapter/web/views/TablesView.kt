@@ -28,6 +28,7 @@ import kotlinx.html.summary
 import kotlinx.html.table
 import kotlinx.html.tbody
 import kotlinx.html.td
+import kotlinx.html.textArea
 import kotlinx.html.th
 import kotlinx.html.thead
 import kotlinx.html.tr
@@ -87,6 +88,7 @@ fun HTML.tablesListView(ctx: AppContext) {
 
 fun HTML.tableDetailView(ctx: AppContext, name: String, set: TableConfigSet) {
     val active = ctx.runner.listActive().firstOrNull { it.tableName == name }
+    val agentConfig = ctx.agentConfigManager.load(name)
 
     layout(
         pageTitle = name,
@@ -171,6 +173,91 @@ fun HTML.tableDetailView(ctx: AppContext, name: String, set: TableConfigSet) {
                 }
                 li { +"Filterable: "; code { +set.capability.filterableFields.joinToString(", ") } }
                 li { +"Sortable: "; code { +set.capability.sortableFields.joinToString(", ") } }
+            }
+        }
+        agentSection(ctx, name, set, agentConfig)
+    }
+}
+
+private fun kotlinx.html.FlowContent.agentSection(
+    ctx: AppContext,
+    name: String,
+    set: com.cdata.kintone.adapter.config.TableConfigSet,
+    agentConfig: com.cdata.kintone.adapter.agent.AgentConfig?,
+) {
+    section {
+        h3 { +"kintone Agent" }
+        p {
+            small {
+                +"このテーブルに対応する kintone Agent コンテナの設定 ("
+                code { +ctx.agentConfigManager.pathFor(name).toString() }
+                +") を編集します。kintone でコネクタを登録して取得した JWT トークンをここに設定してください。"
+            }
+        }
+
+        val portForAgent = if (set.server.port == 0) "<dynamic>" else set.server.port.toString()
+        val defaultAdapterAddr = "host.docker.internal:$portForAgent"
+
+        form(action = "/tables/$name/agent", method = FormMethod.post) {
+            label {
+                +"Token (kintone Connector で発行された JWT):"
+                textArea {
+                    this.name = "token"
+                    rows = "3"
+                    required = true
+                    placeholder = "eyJhbGciOi..."
+                    +(agentConfig?.token ?: "")
+                }
+            }
+            label {
+                +"Adapter Address (Agent コンテナから見た Adapter の host:port):"
+                input(type = kotlinx.html.InputType.text) {
+                    this.name = "adapter_addr"
+                    required = true
+                    value = agentConfig?.adapterAddr ?: defaultAdapterAddr
+                }
+            }
+            label {
+                input(type = kotlinx.html.InputType.checkBox) {
+                    this.name = "adapter_plaintext"
+                    checked = agentConfig?.adapterPlaintext ?: set.server.plaintext
+                }
+                +" Adapter plaintext (TLS なし)"
+            }
+            label {
+                +"Private Key Path (コンテナ内):"
+                input(type = kotlinx.html.InputType.text) {
+                    this.name = "private_key_path"
+                    value = agentConfig?.privateKeyPath ?: "/opt/agent/private-key.pem"
+                }
+            }
+            div(classes = "action-bar") {
+                button(type = ButtonType.submit, classes = "primary") { +"Save agent.json" }
+                if (agentConfig != null) {
+                    form(action = "/tables/$name/agent/delete", method = FormMethod.post, classes = "inline-form") {
+                        attributes["onsubmit"] = "return confirm('agent.json を削除しますか？')"
+                        button(type = ButtonType.submit, classes = "secondary outline") { +"Delete agent.json" }
+                    }
+                }
+            }
+        }
+
+        details {
+            summary { +"docker-compose スニペット (agent/docker-compose.multi.yml に追記)" }
+            code(classes = "stdout-debug") { +ctx.agentConfigManager.composeSnippet(name) }
+        }
+
+        if (agentConfig != null) {
+            p {
+                small {
+                    +"✅ agent.json 保存済み: "
+                    code { +ctx.agentConfigManager.pathFor(name).toString() }
+                    +" — docker compose で kintone-agent-$name を (再) 起動してください。"
+                }
+            }
+        } else {
+            p {
+                small { +"⚠ agent.json 未設定。kintone との接続には設定が必要です。" }
             }
         }
     }

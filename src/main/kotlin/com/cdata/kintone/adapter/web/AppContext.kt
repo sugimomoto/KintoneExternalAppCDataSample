@@ -1,5 +1,6 @@
 package com.cdata.kintone.adapter.web
 
+import com.cdata.kintone.adapter.agent.AgentConfigManager
 import com.cdata.kintone.adapter.config.ConfigSource
 import com.cdata.kintone.adapter.config.ConfigSourceFactory
 import com.cdata.kintone.adapter.jdbc.JdbcConnectionPropertyInspector
@@ -21,6 +22,7 @@ class AppContext(
     val configDir: Path,
     val libDir: Path,
     val connectionPropertyInspector: JdbcConnectionPropertyInspector,
+    val agentConfigManager: AgentConfigManager,
 ) : AutoCloseable {
 
     override fun close() {
@@ -31,6 +33,7 @@ class AppContext(
         fun create(
             configDir: Path = Path.of("./config"),
             libDir: Path = Path.of("./lib"),
+            agentRoot: Path = Path.of("./agent"),
         ): AppContext {
             val mode = ConfigSourceFactory.detectMode(configDir)
             val source = ConfigSourceFactory.create(mode, configDir)
@@ -46,6 +49,7 @@ class AppContext(
                 configDir = configDir,
                 libDir = libDir,
                 connectionPropertyInspector = JdbcConnectionPropertyInspector(libDir),
+                agentConfigManager = AgentConfigManager(agentRoot),
             )
         }
     }
