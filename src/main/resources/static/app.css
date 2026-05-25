@@ -124,3 +124,52 @@
   padding: 0.5rem;
   font-size: 0.85em;
 }
+
+/* Phase 2-C: ライブログ表示 */
+.log-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.log-pane {
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78em;
+  padding: 0.5rem;
+  height: 480px;
+  overflow-y: auto;
+  border-radius: 0.25rem;
+}
+
+.log-line {
+  white-space: pre-wrap;
+  word-break: break-all;
+  padding: 0.05rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.log-line.lvl-ERROR { color: #fca5a5; }
+.log-line.lvl-WARN { color: #fcd34d; }
+.log-line.lvl-INFO { color: #cbd5e1; }
+.log-line.lvl-DEBUG { color: #64748b; }
+
+.log-filters {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* 接続成功バナー */
+.success-banner {
+  background: #d1fae5;
+  border-left: 4px solid #059669;
+}
+
+.public-key-display {
+  display: block;
+  max-height: 200px;
+  overflow-y: auto;
+}

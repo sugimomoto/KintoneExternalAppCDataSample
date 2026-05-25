@@ -1,11 +1,40 @@
-.git
-.gradle
-build
-.idea
+# Build artifacts
+.gradle/
+build/
+out/
+*.class
+
+# IDE
+.idea/
 *.iml
-reference
-lib/help
-docs
-.steering
-.claude
-README.md
+.vscode/
+
+# Git
+.git/
+.gitignore
+
+# Logs
+*.log
+logs/
+
+# Runtime state
+run/
+
+# Test artifacts
+/reference/
+
+# Local secrets (Dockerfile では使わない)
+.env
+.env.local
+
+# Dev tools
+.proto/
+.claude/
+.steering/
+docs/
+agent/bin/
+
+# Existing user-mounted files (compose で別途マウント)
+config/
+lib/
+agent/

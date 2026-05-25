@@ -40,27 +40,27 @@ fun HTML.tablesListView(ctx: AppContext) {
     val active = ctx.runner.listActive().associateBy { it.tableName }
 
     layout(
-        pageTitle = "Tables",
+        pageTitle = "連携 (Syncs)",
         mode = ctx.configSourceMode,
         activeCount = active.size,
-        currentPath = "/tables",
+        currentPath = "/syncs",
     ) {
-        h2 { +"Tables (${tableNames.size})" }
-        p { a(href = "/tables/new", classes = "button") { +"+ New Table" } }
+        h2 { +"連携 (${tableNames.size} 件)" }
+        p { a(href = "/syncs/new", classes = "button") { +"+ 新しい連携" } }
 
         if (tableNames.isEmpty()) {
             article {
-                p { +"テーブルがまだ登録されていません。「+ New Table」から作成してください。" }
+                p { +"連携がまだ登録されていません。「+ 新しい連携」から作成してください。" }
             }
         } else {
             table(classes = "striped") {
                 thead {
                     tr {
-                        th { +"Name" }
-                        th { +"DB Table" }
-                        th { +"JDBC" }
-                        th { +"Status" }
-                        th { +"Action" }
+                        th { +"名前" }
+                        th { +"接続先テーブル" }
+                        th { +"データソース" }
+                        th { +"状態" }
+                        th { +"操作" }
                     }
                 }
                 tbody {
@@ -69,7 +69,7 @@ fun HTML.tablesListView(ctx: AppContext) {
                         val isActive = active.containsKey(name)
                         tr {
                             attributes["data-table"] = name
-                            td { a(href = "/tables/$name") { +name } }
+                            td { a(href = "/syncs/$name") { +name } }
                             td { +(set?.table?.name ?: "-") }
                             td { +driverDescription(set) }
                             td(classes = "status") {
@@ -94,7 +94,7 @@ fun HTML.tableDetailView(ctx: AppContext, name: String, set: TableConfigSet) {
         pageTitle = name,
         mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
-        currentPath = "/tables",
+        currentPath = "/syncs",
     ) {
         h2 {
             +"$name "
@@ -102,10 +102,12 @@ fun HTML.tableDetailView(ctx: AppContext, name: String, set: TableConfigSet) {
         }
         div(classes = "action-bar") {
             tableActions(name, active != null)
-            a(href = "/tables/$name/edit", classes = "button secondary") { +"Edit" }
-            form(action = "/tables/$name/delete", method = FormMethod.post, classes = "inline-form") {
-                attributes["onsubmit"] = "return confirm('テーブル \"$name\" を削除しますか？稼働中なら自動停止します。')"
-                button(type = ButtonType.submit, classes = "secondary outline") { +"Delete" }
+            a(href = "/syncs/$name/connect", classes = "button") { +"kintone と接続 →" }
+            a(href = "/syncs/$name/logs", classes = "button secondary outline") { +"ログを見る" }
+            a(href = "/syncs/$name/edit", classes = "button secondary") { +"編集" }
+            form(action = "/syncs/$name/delete", method = FormMethod.post, classes = "inline-form") {
+                attributes["onsubmit"] = "return confirm('連携 \"$name\" を削除しますか？稼働中の Adapter + Agent コンテナも停止・削除します。')"
+                button(type = ButtonType.submit, classes = "secondary outline") { +"削除" }
             }
         }
 
@@ -198,7 +200,7 @@ private fun kotlinx.html.FlowContent.agentSection(
         val portForAgent = if (set.server.port == 0) "<dynamic>" else set.server.port.toString()
         val defaultAdapterAddr = "host.docker.internal:$portForAgent"
 
-        form(action = "/tables/$name/agent", method = FormMethod.post) {
+        form(action = "/syncs/$name/agent", method = FormMethod.post) {
             label {
                 +"Token (kintone Connector で発行された JWT):"
                 textArea {
@@ -234,7 +236,7 @@ private fun kotlinx.html.FlowContent.agentSection(
             div(classes = "action-bar") {
                 button(type = ButtonType.submit, classes = "primary") { +"Save agent.json" }
                 if (agentConfig != null) {
-                    form(action = "/tables/$name/agent/delete", method = FormMethod.post, classes = "inline-form") {
+                    form(action = "/syncs/$name/agent/delete", method = FormMethod.post, classes = "inline-form") {
                         attributes["onsubmit"] = "return confirm('agent.json を削除しますか？')"
                         button(type = ButtonType.submit, classes = "secondary outline") { +"Delete agent.json" }
                     }
@@ -268,10 +270,10 @@ fun HTML.tableEditView(ctx: AppContext, name: String, set: TableConfigSet) {
         pageTitle = "Edit $name",
         mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
-        currentPath = "/tables",
+        currentPath = "/syncs",
     ) {
         h2 { +"Edit table: $name" }
-        form(action = "/tables/$name", method = FormMethod.post) {
+        form(action = "/syncs/$name", method = FormMethod.post) {
             // Ktor 標準は GET/POST のみ。実装は POST + _method=put で扱うか、POST のみで素直に
             input(type = kotlinx.html.InputType.hidden, name = "_method") { value = "put" }
 
@@ -348,7 +350,7 @@ fun HTML.tableEditView(ctx: AppContext, name: String, set: TableConfigSet) {
             }
 
             div(classes = "action-bar") {
-                a(href = "/tables/$name", classes = "button secondary") { +"Cancel" }
+                a(href = "/syncs/$name", classes = "button secondary") { +"Cancel" }
                 button(type = ButtonType.submit, name = "action", classes = "primary") {
                     value = "save"
                     +"Save"
@@ -364,11 +366,11 @@ fun HTML.tableEditView(ctx: AppContext, name: String, set: TableConfigSet) {
 
 private fun kotlinx.html.FlowContent.tableActions(name: String, isActive: Boolean) {
     if (isActive) {
-        form(action = "/tables/$name/stop", method = FormMethod.post, classes = "inline-form") {
+        form(action = "/syncs/$name/stop", method = FormMethod.post, classes = "inline-form") {
             button(type = ButtonType.submit, classes = "secondary") { +"Stop" }
         }
     } else {
-        form(action = "/tables/$name/start", method = FormMethod.post, classes = "inline-form") {
+        form(action = "/syncs/$name/start", method = FormMethod.post, classes = "inline-form") {
             button(type = ButtonType.submit) { +"Start" }
         }
     }

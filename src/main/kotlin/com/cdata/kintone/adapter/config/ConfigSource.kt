@@ -37,6 +37,17 @@ interface ConfigSource {
 
     /** 共通 JDBC 設定を削除する。参照中のテーブルがある場合は実装側の判断で拒否してよい。 */
     fun deleteSharedJdbcConfig(name: String)
+
+    /**
+     * jdbc-ref で共通 JDBC を参照する形でテーブル設定を保存する。
+     * Phase 2-C で ConfigSource インターフェースに昇格。
+     *
+     * デフォルト実装は通常の saveTableSet にフォールバック（inline JDBC として保存）。
+     * jdbc-ref のセマンティクスをサポートする実装はこのメソッドを override する。
+     */
+    fun saveTableSetWithRef(tableName: String, set: TableConfigSet, jdbcRef: String) {
+        saveTableSet(tableName, set)
+    }
 }
 
 /**

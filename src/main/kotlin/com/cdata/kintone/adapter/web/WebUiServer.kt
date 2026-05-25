@@ -1,8 +1,10 @@
 package com.cdata.kintone.adapter.web
 
+import com.cdata.kintone.adapter.web.routes.connectKintoneRoutes
 import com.cdata.kintone.adapter.web.routes.connectionsRoutes
 import com.cdata.kintone.adapter.web.routes.driversRoutes
 import com.cdata.kintone.adapter.web.routes.runtimeRoutes
+import com.cdata.kintone.adapter.web.routes.syncLogsRoutes
 import com.cdata.kintone.adapter.web.routes.tableWizardRoutes
 import com.cdata.kintone.adapter.web.routes.tablesRoutes
 import com.cdata.kintone.adapter.web.views.dashboardView
@@ -71,8 +73,10 @@ internal fun Application.module(context: AppContext) {
             }
             call.respondBytes(resource.readAllBytes(), contentType)
         }
-        // 順序重要: tableWizardRoutes が /tables/new, POST /tables を担当するため tablesRoutes より先
+        // 順序重要: tableWizardRoutes が /syncs/new, POST /syncs を担当するため tablesRoutes より先
         tableWizardRoutes(context)
+        connectKintoneRoutes(context)
+        syncLogsRoutes(context)
         tablesRoutes(context)
         connectionsRoutes(context)
         driversRoutes(context)

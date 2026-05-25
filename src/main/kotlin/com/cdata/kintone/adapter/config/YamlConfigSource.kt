@@ -80,6 +80,19 @@ class YamlConfigSource(
         writeYaml(tableDir.resolve("jdbc.yaml"), set.jdbc, serializer<JdbcConfig>())
         writeYaml(tableDir.resolve("table.yaml"), set.table, serializer<TableConfig>())
         writeYaml(tableDir.resolve("capability.yaml"), set.capability, serializer<CapabilityConfig>())
+        // jdbc-ref が残っている場合は削除して inline と排他にする
+        Files.deleteIfExists(tableDir.resolve("jdbc-ref.yaml"))
+    }
+
+    override fun saveTableSetWithRef(tableName: String, set: TableConfigSet, jdbcRef: String) {
+        val tableDir = configDir.resolve("tables").resolve(tableName)
+        Files.createDirectories(tableDir)
+        writeYaml(tableDir.resolve("server.yaml"), set.server, serializer<ServerConfig>())
+        writeYaml(tableDir.resolve("jdbc-ref.yaml"), JdbcRef(jdbcRef), serializer<JdbcRef>())
+        writeYaml(tableDir.resolve("table.yaml"), set.table, serializer<TableConfig>())
+        writeYaml(tableDir.resolve("capability.yaml"), set.capability, serializer<CapabilityConfig>())
+        // inline jdbc.yaml が残っている場合は削除
+        Files.deleteIfExists(tableDir.resolve("jdbc.yaml"))
     }
 
     override fun deleteTable(tableName: String) {

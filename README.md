@@ -177,18 +177,38 @@ docker compose logs -f adapter
 | `list-tables` | 接続先データソースのテーブル一覧表示 | `--jdbc-config <file>` |
 | `test-connection` | JDBC 接続テスト | `--jdbc-config <file>` |
 
-## Web UI クイックスタート（フェーズ2-B）
+## Web UI クイックスタート（フェーズ2-C）
+
+### Docker Compose で起動（推奨）
+
+```bash
+docker compose up -d adapter-console
+# ブラウザで http://localhost:8080
+```
+
+連携 (Sync) の作成・kintone コネクター登録・Agent コンテナ起動はすべて Web UI から完結します。
+
+> **セキュリティ注意**: adapter-console は Docker socket (`/var/run/docker.sock`) をマウントして
+> Agent コンテナを動的制御します。Docker socket は実質ルート権限相当のため、本サンプルは
+> ローカル開発前提です。本番運用では Docker socket proxy 等の隔離手段を検討してください。
+
+### ホスト Java で起動（Docker なし）
 
 ```bash
 java -jar build/libs/adapter-*-all.jar web-ui --port 8080
-# ブラウザで http://127.0.0.1:8080/
 ```
 
-主な画面:
-- **Dashboard** (`/`): 稼働中 Adapter 一覧（SSE でリアルタイム更新）、Phase 1 構成検出時の移行バナー
-- **Tables** (`/tables`): テーブル設定 CRUD、4 ステップ新規ウィザード、起動/停止
-- **Connections** (`/connections`): 共通 JDBC 設定 CRUD、`sys_connection_props` ベース動的フォーム、接続テスト
-- **Drivers** (`/drivers`): JAR アップロード、トライアルアクティベーション
+この場合 Agent コンテナの動的制御は無効化され、`agent/tables/<name>/agent.json` の編集と
+`docker compose -f agent/docker-compose.multi.yml up -d` の手動操作が必要になります（Phase 2-B 方式）。
+
+### 主な画面
+
+- **ダッシュボード** (`/`): 稼働中の連携一覧（SSE リアルタイム更新）+ Phase 1 検出時の移行バナー
+- **連携 (Syncs)** (`/syncs`): 連携の CRUD、4 ステップ新規ウィザード、起動/停止/ログ表示
+- **kintone と接続** (`/syncs/<name>/connect`): 公開鍵コピー + 接続キー入力 + 1 ボタン全自動接続
+- **ログ** (`/syncs/<name>/logs`): Adapter と Agent のライブログを並列表示・検索・レベルフィルタ
+- **データソース接続** (`/connections`): 共通 JDBC 設定。`sys_connection_props` 動的フォーム
+- **ドライバー** (`/drivers`): JDBC JAR アップロード + トライアルアクティベーション
 
 ConfigSource 切替:
 ```bash

@@ -45,13 +45,13 @@ fun HTML.layout(
         header(classes = "container") {
             nav {
                 ul {
-                    li { a(href = "/") { +"⚙ Adapter Console v0.3.0" } }
+                    li { a(href = "/") { +"⚙ Adapter Console v0.4.0" } }
                 }
                 ul {
-                    navItem("/", "Dashboard", currentPath)
-                    navItem("/tables", "Tables", currentPath)
-                    navItem("/connections", "Connections", currentPath)
-                    navItem("/drivers", "Drivers", currentPath)
+                    navItem("/", "ダッシュボード", currentPath)
+                    navItem("/syncs", "連携 (Syncs)", currentPath)
+                    navItem("/connections", "データソース接続", currentPath)
+                    navItem("/drivers", "ドライバー", currentPath)
                 }
             }
         }

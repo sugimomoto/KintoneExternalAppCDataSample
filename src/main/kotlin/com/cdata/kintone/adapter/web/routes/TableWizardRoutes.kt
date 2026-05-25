@@ -29,13 +29,13 @@ import io.ktor.server.routing.post
 
 fun Route.tableWizardRoutes(ctx: AppContext) {
 
-    get("/tables/new") {
+    get("/syncs/new") {
         call.respondHtml { wizardStep1View(ctx) }
     }
 
-    get("/tables/new/step2") {
+    get("/syncs/new/step2") {
         val connectionName = call.request.queryParameters["connection"]
-            ?: return@get call.respondRedirect("/tables/new")
+            ?: return@get call.respondRedirect("/syncs/new")
         val jdbc = ctx.configSource.loadSharedJdbcConfig(connectionName)
             ?: return@get call.respondText("Connection not found", status = HttpStatusCode.NotFound)
         val tables = JdbcConnectionProvider(jdbc).use { provider ->
@@ -46,13 +46,13 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
         call.respondHtml { wizardStep2View(ctx, connectionName, tables) }
     }
 
-    get("/tables/new/step3") {
+    get("/syncs/new/step3") {
         val connectionName = call.request.queryParameters["connection"]
-            ?: return@get call.respondRedirect("/tables/new")
+            ?: return@get call.respondRedirect("/syncs/new")
         val tableLabel = call.request.queryParameters["table"]
-            ?: return@get call.respondRedirect("/tables/new")
+            ?: return@get call.respondRedirect("/syncs/new")
         val configName = call.request.queryParameters["configName"]
-            ?: return@get call.respondRedirect("/tables/new")
+            ?: return@get call.respondRedirect("/syncs/new")
         val jdbc = ctx.configSource.loadSharedJdbcConfig(connectionName)
             ?: return@get call.respondText("Connection not found", status = HttpStatusCode.NotFound)
         val tableName = tableLabel.substringAfter(".")
@@ -64,7 +64,7 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
         call.respondHtml { wizardStep3View(ctx, connectionName, tableLabel, configName, columns) }
     }
 
-    post("/tables/new/step4") {
+    post("/syncs/new/step4") {
         val form = call.receiveParameters()
         val connectionName = form["connection"]!!
         val tableLabel = form["table"]!!
@@ -103,7 +103,7 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
         }
     }
 
-    post("/tables") {
+    post("/syncs") {
         val form = call.receiveParameters()
         val connectionName = form["connection"]!!
         val tableLabel = form["table"]!!
@@ -151,14 +151,24 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
             ),
         )
 
-        // SQLite 側は jdbc-ref を使う方が綺麗だが、ConfigSource 共通 API では未対応。
-        // 次フェーズで saveTableSetWithRef を ConfigSource interface に昇格させる。
-        ctx.configSource.saveTableSet(configName, set)
+        // Phase 2-C: connectionName が共通 JDBC として登録されていれば jdbc-ref で保存。
+        // そうでなければ inline JDBC として保存。
+        if (connectionName in ctx.configSource.listSharedJdbcConfigs()) {
+            ctx.configSource.saveTableSetWithRef(configName, set, jdbcRef = connectionName)
+        } else {
+            ctx.configSource.saveTableSet(configName, set)
+        }
 
+        // 「Save & Connect」を押した場合は kintone 接続画面へ自動遷移
+        if (form["andConnect"] == "true") {
+            runCatching { ctx.runner.startOne(configName) }
+            call.respondRedirect("/syncs/$configName/connect")
+            return@post
+        }
         if (form["andStart"] == "true") {
             runCatching { ctx.runner.startOne(configName) }
         }
-        call.respondRedirect("/tables/$configName")
+        call.respondRedirect("/syncs/$configName")
     }
 }
 

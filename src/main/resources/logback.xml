@@ -6,6 +6,9 @@
         </encoder>
     </appender>
 
+    <!-- Phase 2-C: Web UI のライブログ表示用。メモリリングバッファ。 -->
+    <appender name="WEB" class="com.cdata.kintone.adapter.log.WebLogAppender"/>
+
     <logger name="com.cdata.kintone.adapter" level="${LOG_LEVEL:-INFO}"/>
     <logger name="com.zaxxer.hikari" level="WARN"/>
     <logger name="io.netty" level="WARN"/>
@@ -13,5 +16,6 @@
 
     <root level="WARN">
         <appender-ref ref="STDOUT"/>
+        <appender-ref ref="WEB"/>
     </root>
 </configuration>

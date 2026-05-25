@@ -1,9 +1,53 @@
+# Phase 2-C 完成版 docker-compose.yml
+# 利用方法:
+#   docker compose up -d adapter-console
+#   → ブラウザで http://localhost:8080
+# 連携 (Sync) は Web UI で追加。Agent コンテナは adapter-console が動的に作成する。
+
 services:
-  adapter:
+  adapter-console:
     build:
       context: .
       dockerfile: Dockerfile
-    image: cdata-kintone-adapter:0.1.0-SNAPSHOT
+    image: cdata-kintone-adapter:0.4.0
+    container_name: adapter-console
+    ports:
+      - "8080:8080"                       # Web UI
+      # Sync 用 Adapter ポート (Web UI が動的に採番)
+      - "18000-18099:18000-18099"
+    volumes:
+      - ./config:/app/config
+      - ./lib:/app/lib:ro
+      - ./agent:/app/agent
+      - ./run:/app/run
+      # Agent コンテナを制御するため Docker socket をマウント
+      # セキュリティ注意: Docker socket は実質ルート権限。本サンプルは localhost 利用前提。
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Agent コンテナ作成時の bind マウント解決用 (ホスト上の絶対パス)
+      HOST_AGENT_ROOT: ${PWD}/agent
+      CONFIG_SOURCE: ${CONFIG_SOURCE:-yaml}
+      # データソース用環境変数 (.env から読み込み)
+      SF_USER: ${SF_USER:-}
+      SF_PASSWORD: ${SF_PASSWORD:-}
+      SF_SECURITY_TOKEN: ${SF_SECURITY_TOKEN:-}
+      SF_LOGIN_URL: ${SF_LOGIN_URL:-}
+      GS_SPREADSHEET_ID: ${GS_SPREADSHEET_ID:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+# === レガシー: Phase 1 互換の単一 Adapter コンテナ ===
+# 既存環境との互換用に残置。Phase 2-D で削除予定。
+# docker compose --profile legacy up adapter-legacy
+  adapter-legacy:
+    profiles:
+      - legacy
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cdata-kintone-adapter:0.4.0
     container_name: cdata-kintone-adapter
     ports:
       - "8083:8083"
@@ -12,8 +56,9 @@ services:
       - ./lib:/app/lib:ro
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      # CData JDBC Driver の接続情報を環境変数で渡す
-      SF_USER: ${SF_USER}
-      SF_PASSWORD: ${SF_PASSWORD}
-      SF_SECURITY_TOKEN: ${SF_SECURITY_TOKEN}
+      SF_USER: ${SF_USER:-}
+      SF_PASSWORD: ${SF_PASSWORD:-}
+      SF_SECURITY_TOKEN: ${SF_SECURITY_TOKEN:-}
+    entrypoint: ["java", "-jar", "/app/adapter.jar"]
+    command: ["serve", "--config-dir", "/app/config"]
     restart: unless-stopped

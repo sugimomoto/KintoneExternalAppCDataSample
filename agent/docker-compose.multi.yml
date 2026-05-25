@@ -45,6 +45,13 @@ services:
       - ./tables/gs-opportunity/agent.json:/opt/agent/agent.json:ro
       - ./private-key.pem:/opt/agent/private-key.pem:ro
 
+  kintone-agent-GoogleAccount:
+    <<: *agent-defaults
+    container_name: kintone-agent-GoogleAccount
+    volumes:
+      - ./tables/GoogleAccount/agent.json:/opt/agent/agent.json:ro
+      - ./private-key.pem:/opt/agent/private-key.pem:ro
+
   # 新しいテーブルを追加する場合は、以下のテンプレートをコピーする
   # kintone-agent-<TABLE>:
   #   <<: *agent-defaults

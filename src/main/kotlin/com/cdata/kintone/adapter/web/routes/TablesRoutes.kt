@@ -17,25 +17,32 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 
 fun Route.tablesRoutes(ctx: AppContext) {
-    get("/tables") {
+    // Phase 2-B 互換: 旧 /tables/* URL からの 301 リダイレクト
+    get("/tables") { call.respondRedirect("/syncs", permanent = true) }
+    get("/tables/{name...}") {
+        val rest = call.parameters.getAll("name")?.joinToString("/") ?: ""
+        call.respondRedirect("/syncs/$rest", permanent = true)
+    }
+
+    get("/syncs") {
         call.respondHtml { tablesListView(ctx) }
     }
 
-    get("/tables/{name}") {
+    get("/syncs/{name}") {
         val name = call.parameters["name"]!!
         val set = runCatching { ctx.configSource.loadTableSet(name) }.getOrNull()
             ?: return@get call.respondText("Not found: $name", status = HttpStatusCode.NotFound)
         call.respondHtml { tableDetailView(ctx, name, set) }
     }
 
-    get("/tables/{name}/edit") {
+    get("/syncs/{name}/edit") {
         val name = call.parameters["name"]!!
         val set = runCatching { ctx.configSource.loadTableSet(name) }.getOrNull()
             ?: return@get call.respondText("Not found: $name", status = HttpStatusCode.NotFound)
         call.respondHtml { tableEditView(ctx, name, set) }
     }
 
-    post("/tables/{name}") {
+    post("/syncs/{name}") {
         val name = call.parameters["name"]!!
         val original = runCatching { ctx.configSource.loadTableSet(name) }.getOrNull()
             ?: return@post call.respondText("Not found: $name", status = HttpStatusCode.NotFound)
@@ -49,47 +56,68 @@ fun Route.tablesRoutes(ctx: AppContext) {
                 runCatching { ctx.runner.startOne(name) }
             }
         }
-        call.respondRedirect("/tables/$name")
+        call.respondRedirect("/syncs/$name")
     }
 
-    post("/tables/{name}/delete") {
+    post("/syncs/{name}/delete") {
         val name = call.parameters["name"]!!
+        // 1. Adapter プロセス停止
         runCatching { ctx.runner.stopOne(name) }
+        // 2. Agent コンテナ削除 (停止 + remove)
+        ctx.agentContainerManager?.let { mgr ->
+            runCatching { mgr.stop(name) }
+            runCatching { mgr.remove(name, force = true) }
+        }
+        // 3. agent.json も削除
+        runCatching { ctx.agentConfigManager.delete(name) }
+        // 4. 設定削除
         ctx.configSource.deleteTable(name)
-        call.respondRedirect("/tables")
+        call.respondRedirect("/syncs")
     }
 
-    post("/tables/{name}/start") {
+    /** Adapter + Agent コンテナを統合で起動する。 */
+    post("/syncs/{name}/start") {
         val name = call.parameters["name"]!!
         try {
             ctx.runner.startOne(name)
+            if (ctx.agentConfigManager.load(name) != null && ctx.agentContainerManager != null) {
+                ctx.agentContainerManager.ensureCreated(name)
+                ctx.agentContainerManager.start(name)
+            }
         } catch (e: ConfigFileMissingException) {
             return@post call.respondText("Not found: $name", status = HttpStatusCode.NotFound)
         } catch (e: IllegalStateException) {
-            // 既に起動中
+            ctx.agentContainerManager?.let { runCatching { it.start(name) } }
         } catch (e: Exception) {
             return@post call.respondText(
                 "起動失敗: ${e.message}",
                 status = HttpStatusCode.InternalServerError,
             )
         }
-        call.respondRedirect(call.request.headers["Referer"] ?: "/tables")
+        call.respondRedirect(call.request.headers["Referer"] ?: "/syncs")
     }
 
-    post("/tables/{name}/stop") {
+    /** Adapter + Agent コンテナを統合で停止する。 */
+    post("/syncs/{name}/stop") {
         val name = call.parameters["name"]!!
+        ctx.agentContainerManager?.let { runCatching { it.stop(name) } }
         ctx.runner.stopOne(name)
-        call.respondRedirect(call.request.headers["Referer"] ?: "/tables")
+        call.respondRedirect(call.request.headers["Referer"] ?: "/syncs")
     }
 
-    post("/tables/{name}/restart") {
+    post("/syncs/{name}/restart") {
         val name = call.parameters["name"]!!
+        ctx.agentContainerManager?.let { runCatching { it.stop(name) } }
         runCatching { ctx.runner.stopOne(name) }
         runCatching { ctx.runner.startOne(name) }
-        call.respondRedirect(call.request.headers["Referer"] ?: "/tables/$name")
+        ctx.agentContainerManager?.let {
+            runCatching { it.ensureCreated(name) }
+            runCatching { it.start(name) }
+        }
+        call.respondRedirect(call.request.headers["Referer"] ?: "/syncs/$name")
     }
 
-    post("/tables/{name}/agent") {
+    post("/syncs/{name}/agent") {
         val name = call.parameters["name"]!!
         val form = call.receiveParameters()
         val token = form["token"]?.trim()
@@ -107,13 +135,13 @@ fun Route.tablesRoutes(ctx: AppContext) {
                 privateKeyPath = privateKeyPath,
             ),
         )
-        call.respondRedirect("/tables/$name")
+        call.respondRedirect("/syncs/$name")
     }
 
-    post("/tables/{name}/agent/delete") {
+    post("/syncs/{name}/agent/delete") {
         val name = call.parameters["name"]!!
         ctx.agentConfigManager.delete(name)
-        call.respondRedirect("/tables/$name")
+        call.respondRedirect("/syncs/$name")
     }
 }
 

@@ -30,12 +30,12 @@ fun HTML.dashboardView(ctx: AppContext) {
         !ctx.configDir.resolve("tables").toFile().exists()
 
     layout(
-        pageTitle = "Dashboard",
+        pageTitle = "ダッシュボード",
         mode = ctx.configSourceMode,
         activeCount = active.size,
         currentPath = "/",
     ) {
-        h2 { +"Dashboard" }
+        h2 { +"ダッシュボード" }
 
         if (phase1Detected) {
             article(classes = "warning-banner") {
@@ -49,7 +49,7 @@ fun HTML.dashboardView(ctx: AppContext) {
         }
 
         article {
-            h3 { +"Active Adapters (${active.size})" }
+            h3 { +"稼働中の連携 (${active.size} 件)" }
             if (active.isEmpty()) {
                 p { +"稼働中の Adapter はありません。Tables 画面で個別に起動するか、`adapter serve-all` を実行してください。" }
             } else {
@@ -58,11 +58,11 @@ fun HTML.dashboardView(ctx: AppContext) {
         }
 
         article {
-            h3 { +"Quick Actions" }
+            h3 { +"クイックアクション" }
             div(classes = "quick-actions") {
-                a(href = "/tables/new", classes = "button") { +"+ New Table" }
-                a(href = "/drivers", classes = "button secondary") { +"Manage Drivers" }
-                a(href = "/connections/new", classes = "button secondary") { +"+ New Connection" }
+                a(href = "/syncs/new", classes = "button") { +"+ 新しい連携" }
+                a(href = "/drivers", classes = "button secondary") { +"ドライバー管理" }
+                a(href = "/connections/new", classes = "button secondary") { +"+ 新しいデータソース接続" }
             }
         }
     }

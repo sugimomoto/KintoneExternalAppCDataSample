@@ -77,6 +77,10 @@ dependencies {
     // SQLite (フェーズ2-B: SqliteConfigSource 用)
     implementation("org.xerial:sqlite-jdbc:3.46.1.0")
 
+    // Docker SDK (フェーズ2-C: Agent コンテナを Docker Engine API で制御)
+    implementation("com.github.docker-java:docker-java-core:3.4.0")
+    implementation("com.github.docker-java:docker-java-transport-httpclient5:3.4.0")
+
     // Web UI (フェーズ2-B: Ktor サーバ + kotlinx.html + SSE)
     val ktorVersion = "3.0.1"
     implementation("io.ktor:ktor-server-netty:$ktorVersion")

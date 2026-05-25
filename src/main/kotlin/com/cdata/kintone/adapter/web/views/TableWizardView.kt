@@ -44,7 +44,7 @@ fun HTML.wizardStep1View(ctx: AppContext) {
         pageTitle = "New Table — Step 1",
         mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
-        currentPath = "/tables",
+        currentPath = "/syncs",
     ) {
         h2 { +"New Table — Step 1 of 4: Select Connection" }
         wizardSteps(1)
@@ -60,7 +60,7 @@ fun HTML.wizardStep1View(ctx: AppContext) {
             return@layout
         }
 
-        form(action = "/tables/new/step2", method = FormMethod.get) {
+        form(action = "/syncs/new/step2", method = FormMethod.get) {
             connections.forEach { conn ->
                 label {
                     input(type = InputType.radio, name = "connection") {
@@ -71,7 +71,7 @@ fun HTML.wizardStep1View(ctx: AppContext) {
                 }
             }
             div(classes = "action-bar") {
-                a(href = "/tables", classes = "button secondary") { +"Cancel" }
+                a(href = "/syncs", classes = "button secondary") { +"Cancel" }
                 button(type = ButtonType.submit) { +"Next →" }
             }
         }
@@ -83,13 +83,13 @@ fun HTML.wizardStep2View(ctx: AppContext, connectionName: String, tables: List<T
         pageTitle = "New Table — Step 2",
         mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
-        currentPath = "/tables",
+        currentPath = "/syncs",
     ) {
         h2 { +"New Table — Step 2 of 4: Select Table" }
         wizardSteps(2)
         p { +"Via connection: "; code { +connectionName } }
 
-        form(action = "/tables/new/step3", method = FormMethod.get) {
+        form(action = "/syncs/new/step3", method = FormMethod.get) {
             input(type = InputType.hidden, name = "connection") { value = connectionName }
 
             p { +"Found ${tables.size} tables (showing first 100)" }
@@ -113,7 +113,7 @@ fun HTML.wizardStep2View(ctx: AppContext, connectionName: String, tables: List<T
                 }
             }
             div(classes = "action-bar") {
-                a(href = "/tables/new", classes = "button secondary") { +"← Back" }
+                a(href = "/syncs/new", classes = "button secondary") { +"← Back" }
                 button(type = ButtonType.submit) { +"Next →" }
             }
         }
@@ -131,7 +131,7 @@ fun HTML.wizardStep3View(
         pageTitle = "New Table — Step 3",
         mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
-        currentPath = "/tables",
+        currentPath = "/syncs",
     ) {
         h2 { +"New Table — Step 3 of 4: Select Columns" }
         wizardSteps(3)
@@ -140,7 +140,7 @@ fun HTML.wizardStep3View(
             +" / "; code { +tableName }
         }
 
-        form(action = "/tables/new/step4", method = FormMethod.post) {
+        form(action = "/syncs/new/step4", method = FormMethod.post) {
             input(type = InputType.hidden, name = "connection") { value = connectionName }
             input(type = InputType.hidden, name = "table") { value = tableName }
             input(type = InputType.hidden, name = "configName") { value = configName }
@@ -171,7 +171,7 @@ fun HTML.wizardStep3View(
             }
 
             div(classes = "action-bar") {
-                a(href = "/tables/new", classes = "button secondary") { +"← Back to Step 1" }
+                a(href = "/syncs/new", classes = "button secondary") { +"← Back to Step 1" }
                 button(type = ButtonType.submit) { +"Next →" }
             }
         }
@@ -197,12 +197,12 @@ fun HTML.wizardStep4View(
         pageTitle = "New Table — Step 4",
         mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
-        currentPath = "/tables",
+        currentPath = "/syncs",
     ) {
         h2 { +"New Table — Step 4 of 4: Mapping & Capability" }
         wizardSteps(4)
 
-        form(action = "/tables", method = FormMethod.post) {
+        form(action = "/syncs", method = FormMethod.post) {
             input(type = InputType.hidden, name = "connection") { value = connectionName }
             input(type = InputType.hidden, name = "table") { value = tableName }
             input(type = InputType.hidden, name = "configName") { value = configName }
@@ -289,14 +289,18 @@ fun HTML.wizardStep4View(
             }
 
             div(classes = "action-bar") {
-                a(href = "/tables/new", classes = "button secondary") { +"← Back to Step 1" }
-                button(type = ButtonType.submit, name = "andStart", classes = "primary") {
+                a(href = "/syncs/new", classes = "button secondary") { +"← 最初に戻る" }
+                button(type = ButtonType.submit, name = "andStart", classes = "secondary") {
                     value = "false"
-                    +"Save"
+                    +"保存のみ"
                 }
                 button(type = ButtonType.submit, name = "andStart") {
                     value = "true"
-                    +"Save & Start"
+                    +"保存して起動"
+                }
+                button(type = ButtonType.submit, name = "andConnect", classes = "primary") {
+                    value = "true"
+                    +"保存して kintone と接続 ▶"
                 }
             }
         }

@@ -57,7 +57,7 @@ class SqliteConfigSource(
      * 共通 JDBC を参照する形でテーブルを保存する。
      * Web UI が「Use shared JDBC reference」を選んだ時に使う。
      */
-    fun saveTableSetWithRef(tableName: String, set: TableConfigSet, jdbcRef: String) {
+    override fun saveTableSetWithRef(tableName: String, set: TableConfigSet, jdbcRef: String) {
         saveTableInternal(tableName, set, jdbcRef = jdbcRef, inlineJdbc = null)
     }
 
