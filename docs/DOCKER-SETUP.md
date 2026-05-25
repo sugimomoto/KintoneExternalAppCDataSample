@@ -84,7 +84,56 @@ java -jar lib/cdata.jdbc.salesforce.jar -license
 
 ライセンスファイル (`.lic` / `.txt`) も `lib/` 内に置かれます。
 
-### 3.2 `.env` の作成
+### 3.2 kintone Agent バイナリの受領と配置
+
+**Agent (`kintone-data-connector-agent`) のプログラム本体はサイボウズ社から
+個別に受領する必要があります。** 公開レジストリでは配布されていません。
+
+受領した zip / tar を展開し、対応アーキ (Linux amd64 / arm64) のバイナリを
+`agent/bin/linux_<arch>/kintone-data-connector-agent` に配置してください。
+
+```bash
+# サイボウズから受領したファイル例:
+#   kintone-data-connector-agent_v0.9.2_linux_amd64.tar.gz
+#   kintone-data-connector-agent_v0.9.2_linux_arm64.tar.gz
+
+mkdir -p agent/bin/linux_amd64 agent/bin/linux_arm64
+
+tar -xzf kintone-data-connector-agent_v0.9.2_linux_amd64.tar.gz \
+    -C agent/bin/linux_amd64 --strip-components=1
+tar -xzf kintone-data-connector-agent_v0.9.2_linux_arm64.tar.gz \
+    -C agent/bin/linux_arm64 --strip-components=1
+
+chmod +x agent/bin/linux_amd64/kintone-data-connector-agent
+chmod +x agent/bin/linux_arm64/kintone-data-connector-agent
+```
+
+> **配置されているか確認:**
+> `ls agent/bin/linux_amd64/kintone-data-connector-agent` でファイルが
+> 見えれば OK。Apple Silicon Mac でホスト実行する場合は `arm64` 側のみで構いません。
+
+### 3.3 Agent コンテナイメージのビルド
+
+adapter-console は Agent コンテナを名前付きイメージ
+`kintone-data-connector-agent:0.9.2` から起動します。
+このイメージは **管理者が同梱の `agent/Dockerfile` でローカルにビルド** します
+(=`docker pull` ではありません)。
+
+```bash
+docker compose -f agent/docker-compose.yml build
+# → kintone-data-connector-agent:0.9.2 が docker images に登録される
+
+docker images | grep kintone-data-connector-agent
+# kintone-data-connector-agent   0.9.2   <id>   ... MB
+```
+
+Dockerfile は配置済みのバイナリを `/usr/local/bin/` に COPY するだけの
+軽量な内容です。`agent/Dockerfile` を参照してください。
+
+> **マルチアーキ環境で運用する場合**は `docker buildx build --platform linux/amd64,linux/arm64`
+> でビルドし、社内レジストリに push して各ホストで `docker pull` する運用が便利です。
+
+### 3.4 `.env` の作成
 
 ```bash
 cp .env.example .env
@@ -100,10 +149,21 @@ vi .env
 | `HOST_AGENT_ROOT` | Agent コンテナの bind マウント解決に使うホスト絶対パス (compose 経由なら自動) |
 | `SF_USER` 等 | 各データソースの環境変数 (オプション) |
 
-### 3.3 Agent 公開鍵
+### 3.5 Agent 鍵ペアの生成と kintone 登録
 
-kintone 側で発行する公開鍵を `agent/public-key.pem` に保存します。
-詳しい取得手順は Web UI `/help` の「クイックスタート」を参照してください。
+Agent と kintone は公開鍵認証で通信します。鍵ペアをローカル生成し、
+公開鍵を kintone 側に登録してください。
+
+```bash
+cd agent
+openssl genrsa 2048 > private-key.pem
+openssl rsa -pubout -in private-key.pem -out public-key.pem
+chmod 600 private-key.pem
+```
+
+kintone の「外部システムコネクター管理」で `public-key.pem` を貼り付け、
+発行された JWT トークンを後で Web UI から登録します。詳細は
+[`agent/README.md`](../agent/README.md) を参照してください。
 
 ---
 
@@ -196,7 +256,11 @@ Docker socket がマウントされていません。`docker-compose.yml` の
 
 `docker logs adapter-console` で次を確認:
 
-- Agent イメージ (`kintone-data-connector-agent:0.9.2`) が `docker images` に存在するか
+- Agent イメージ (`kintone-data-connector-agent:0.9.2`) が `docker images` に
+  ローカルビルド済みで存在するか
+  → 無ければ `docker compose -f agent/docker-compose.yml build` を実行
+- `agent/bin/linux_<arch>/kintone-data-connector-agent` バイナリが
+  存在し実行権限があるか (サイボウズから受領したバイナリ本体)
 - 既存の `kintone-agent-<syncName>` が `Exited` で残っていないか
   → `docker rm kintone-agent-<syncName>`
 - `HOST_AGENT_ROOT` の絶対パスがホスト側に実在するか

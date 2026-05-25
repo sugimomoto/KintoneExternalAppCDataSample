@@ -140,7 +140,16 @@ fun HTML.helpView(ctx: AppContext) {
                 }
                 ul {
                     li { +"Docker Desktop が起動していない / "; code { +"/var/run/docker.sock" }; +" が見えない" }
-                    li { +"Agent コンテナイメージ ("; code { +"kintone-data-connector-agent:0.9.2" }; +") が pull されていない" }
+                    li {
+                        +"Agent コンテナイメージ ("
+                        code { +"kintone-data-connector-agent:0.9.2" }
+                        +") がローカルビルドされていない"
+                        +" — サイボウズ社から受領した Agent バイナリを "
+                        code { +"agent/bin/linux_<arch>/" }
+                        +" に配置し、"
+                        code { +"docker compose -f agent/docker-compose.yml build" }
+                        +" を実行してください"
+                    }
                     li { +"既存の Agent コンテナ名と衝突している (一度 "; code { +"docker rm" }; +" で削除)" }
                 }
                 h4 { +"接続テストで「Login failed」になる" }
@@ -164,6 +173,15 @@ fun HTML.helpView(ctx: AppContext) {
                     +"Docker でこのサービスをセットアップする手順は "
                     code { +"docs/DOCKER-SETUP.md" }
                     +" を参照してください (リポジトリに同梱)。"
+                }
+                li {
+                    strong { +"Agent バイナリの入手: " }
+                    +"kintone-data-connector-agent はサイボウズ社から個別に受領するプログラムです。"
+                    +" 公開レジストリでは配布されていません。受領後 "
+                    code { +"agent/bin/linux_<arch>/" }
+                    +" に配置し、同梱の "
+                    code { +"agent/Dockerfile" }
+                    +" で自前ビルドします。"
                 }
                 li {
                     a(href = "https://www.cdata.com/jdbc/", target = "_blank") {
