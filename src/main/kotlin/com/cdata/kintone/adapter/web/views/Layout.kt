@@ -37,7 +37,9 @@ fun HTML.layout(
         meta(name = "viewport", content = "width=device-width, initial-scale=1")
         title { +"$pageTitle — Adapter Console" }
         link(rel = "stylesheet", href = "/static/pico.min.css")
+        link(rel = "stylesheet", href = "/static/app.css")
         script(src = "/static/htmx.min.js") {}
+        script(src = "/static/app.js") {}
     }
     body {
         header(classes = "container") {

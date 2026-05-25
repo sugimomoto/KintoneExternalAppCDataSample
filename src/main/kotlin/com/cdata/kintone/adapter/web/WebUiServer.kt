@@ -1,5 +1,10 @@
 package com.cdata.kintone.adapter.web
 
+import com.cdata.kintone.adapter.web.routes.connectionsRoutes
+import com.cdata.kintone.adapter.web.routes.driversRoutes
+import com.cdata.kintone.adapter.web.routes.runtimeRoutes
+import com.cdata.kintone.adapter.web.routes.tableWizardRoutes
+import com.cdata.kintone.adapter.web.routes.tablesRoutes
 import com.cdata.kintone.adapter.web.views.dashboardView
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.http.ContentType
@@ -15,6 +20,7 @@ import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
+import io.ktor.server.sse.SSE
 import org.slf4j.event.Level
 
 private val log = KotlinLogging.logger {}
@@ -49,6 +55,7 @@ internal fun Application.module(context: AppContext) {
         level = Level.INFO
         filter { call -> call.request.local.uri.startsWith("/static/").not() }
     }
+    install(SSE)
     routing {
         get("/") {
             call.respondHtml { dashboardView(context) }
@@ -64,6 +71,11 @@ internal fun Application.module(context: AppContext) {
             }
             call.respondBytes(resource.readAllBytes(), contentType)
         }
-        // 他のルートは M5+ で順次追加
+        // 順序重要: tableWizardRoutes が /tables/new, POST /tables を担当するため tablesRoutes より先
+        tableWizardRoutes(context)
+        tablesRoutes(context)
+        connectionsRoutes(context)
+        driversRoutes(context)
+        runtimeRoutes(context)
     }
 }
