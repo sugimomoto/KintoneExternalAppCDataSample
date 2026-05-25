@@ -55,9 +55,10 @@ Web UI から連携 (Sync) を追加するだけで、Adapter (gRPC) と Agent �
 - Docker Engine 20.10+ または Docker Desktop 4.20+
 - **サイボウズ社から受領した `kintone-data-connector-agent` バイナリ**
   (Linux amd64 / arm64 用。公開レジストリでは配布されていません)
-- 利用したい CData JDBC Driver の jar
-  (トライアル取得: <https://www.cdata.com/jp/jdbc/>)
 - kintone ワイドコース環境
+
+> 利用する CData JDBC Driver jar は起動後に Web UI からアップロードできるため、
+> 事前準備は不要です。トライアル取得は <https://www.cdata.com/jp/jdbc/> から。
 
 ### 1. リポジトリ取得と基本ディレクトリ作成
 
@@ -68,19 +69,7 @@ cd cdata-kintone-adapter
 mkdir -p lib config agent run
 ```
 
-### 2. JDBC Driver の配置
-
-利用するデータソースの JDBC Driver jar を `lib/` に置きます。
-
-```bash
-cp /path/to/cdata.jdbc.salesforce.jar lib/
-# トライアルライセンスがあれば lib/*.lic / *.txt も同梱
-```
-
-ライセンス (トライアル含む) のアクティベーションは起動後に Web UI の
-`/drivers` 画面から実行できます。
-
-### 3. Agent バイナリの受領と配置
+### 2. Agent バイナリの受領と配置
 
 `kintone-data-connector-agent` は **サイボウズ社から個別に受領するプログラム本体**
 です。受領した tar.gz を展開し、対応アーキのバイナリを配置してください。
@@ -96,7 +85,7 @@ tar -xzf kintone-data-connector-agent_v0.9.2_linux_arm64.tar.gz \
 chmod +x agent/bin/linux_*/kintone-data-connector-agent
 ```
 
-### 4. Agent コンテナイメージのビルド
+### 3. Agent コンテナイメージのビルド
 
 adapter-console は Agent コンテナを `kintone-data-connector-agent:0.9.2`
 という名前のイメージから起動します。これは **管理者が同梱の Dockerfile で
@@ -107,7 +96,7 @@ docker compose -f agent/docker-compose.yml build
 # → kintone-data-connector-agent:0.9.2 が docker images に登録される
 ```
 
-### 5. 鍵ペア生成と kintone 登録
+### 4. 鍵ペア生成と kintone 登録
 
 ```bash
 cd agent
@@ -120,7 +109,7 @@ cd ..
 `public-key.pem` の内容を kintone 管理画面の「外部システムコネクター管理」
 に登録し、発行された JWT トークンを後で Web UI から保存します。
 
-### 6. adapter-console の起動
+### 5. adapter-console の起動
 
 ```bash
 cp .env.example .env       # 必要に応じて編集
@@ -132,9 +121,9 @@ docker compose logs -f adapter-console
 
 ブラウザで <http://localhost:8080> を開き、ダッシュボードが表示されれば成功です。
 
-### 7. Web UI から連携を作成
+### 6. Web UI から連携を作成
 
-1. `/drivers` でドライバーをアクティベート
+1. `/drivers` で JDBC Driver jar をアップロード → アクティベート
 2. `/connections` でデータソースの JDBC 接続文字列を保存
 3. `/syncs/new` で新しい連携を追加 (ウィザード)
 4. 連携詳細画面の「kintone と接続」で公開鍵 + トークンを設定 → Adapter + Agent が自動起動

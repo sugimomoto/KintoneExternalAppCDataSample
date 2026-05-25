@@ -17,7 +17,8 @@ services:
       - "18000-18099:18000-18099"
     volumes:
       - ./config:/app/config
-      - ./lib:/app/lib:ro
+      # Web UI からドライバー JAR をアップロードするため rw でマウント
+      - ./lib:/app/lib
       - ./agent:/app/agent
       - ./run:/app/run
       # Agent コンテナを制御するため Docker socket をマウント

@@ -63,26 +63,26 @@ cd cdata-kintone-adapter
 mkdir -p lib config agent run
 ```
 
-### 3.1 CData JDBC Driver の配置
+### 3.1 CData JDBC Driver
 
-利用するデータソースの JDBC Driver jar を `lib/` に配置します。
+JDBC Driver jar は **起動後に Web UI (`/drivers`) からアップロード** できるため、
+事前準備は不要です (`lib/` ディレクトリだけ用意しておけば OK)。
 
 ```bash
 ls lib/
-# cdata.jdbc.salesforce.jar
-# cdata.jdbc.googlesheets.jar
-# ...
+# (空でOK。Web UI からアップロードすると ./lib/ に保存される)
 ```
 
-ライセンス (トライアル含む) のアクティベーションは Web UI の `/drivers` から
-画面操作で実行できます。CLI でアクティベートする場合は次を参照:
+トライアルライセンスのアクティベーションも `/drivers` 画面で完結します。
+CLI でアクティベートしたい場合のみ:
 
 ```bash
 java -jar lib/cdata.jdbc.salesforce.jar -license
 # → 名前 / メールアドレス / Trial を入力
 ```
 
-ライセンスファイル (`.lic` / `.txt`) も `lib/` 内に置かれます。
+> `docker-compose.yml` の `./lib` マウントは **rw** で行われます (Web UI からの
+> アップロードがホスト側に書き込まれるため)。
 
 ### 3.2 kintone Agent バイナリの受領と配置
 
