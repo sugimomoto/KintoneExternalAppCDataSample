@@ -96,18 +96,18 @@ docker compose -f agent/docker-compose.yml build
 # → kintone-data-connector-agent:0.9.2 が docker images に登録される
 ```
 
-### 4. 鍵ペア生成と kintone 登録
+### 4. 鍵ペアの生成
 
-```bash
-cd agent
-openssl genrsa 2048 > private-key.pem
-openssl rsa -pubout -in private-key.pem -out public-key.pem
-chmod 600 private-key.pem
-cd ..
-```
+**鍵ペアは起動後に Web UI から 1 ボタンで生成できる**ため、事前準備は不要です。
+公開鍵はそのまま画面でコピー / ダウンロードして kintone に登録します。
 
-`public-key.pem` の内容を kintone 管理画面の「外部システムコネクター管理」
-に登録し、発行された JWT トークンを後で Web UI から保存します。
+> 自前で OpenSSL を使って生成したい場合は次のコマンドも利用できます:
+> ```bash
+> cd agent
+> openssl genrsa 2048 > private-key.pem
+> openssl rsa -pubout -in private-key.pem -out public-key.pem
+> chmod 600 private-key.pem
+> ```
 
 ### 5. adapter-console の起動
 
@@ -126,8 +126,11 @@ docker compose logs -f adapter-console
 1. `/drivers` で JDBC Driver jar をアップロード → アクティベート
 2. `/connections` でデータソースの JDBC 接続文字列を保存
 3. `/syncs/new` で新しい連携を追加 (ウィザード)
-4. 連携詳細画面の「kintone と接続」で公開鍵 + トークンを設定 → Adapter + Agent が自動起動
-5. kintone 側で外部 App としてアプリ作成
+4. 連携詳細画面の「kintone と接続」で **「🔑 鍵ペアを生成する」** ボタンを押す
+   → `agent/public-key.pem` / `private-key.pem` が生成されます (秘密鍵は画面に出ません)
+5. 画面に表示された公開鍵を kintone 管理画面のコネクター登録に貼り付け、トークンを取得
+6. 取得したトークンを画面に入力 → Adapter + Agent コンテナが自動起動
+7. kintone 側で外部 App としてアプリ作成
 
 詳細は Web UI の `/help` ページ、または [docs/DOCKER-SETUP.md](docs/DOCKER-SETUP.md) を参照。
 

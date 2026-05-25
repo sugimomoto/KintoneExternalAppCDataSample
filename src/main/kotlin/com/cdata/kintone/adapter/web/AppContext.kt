@@ -3,6 +3,7 @@ package com.cdata.kintone.adapter.web
 import com.cdata.kintone.adapter.agent.AgentConfigManager
 import com.cdata.kintone.adapter.agent.AgentContainerManager
 import com.cdata.kintone.adapter.agent.AgentControlMode
+import com.cdata.kintone.adapter.agent.KeyPairGeneratorService
 import com.cdata.kintone.adapter.agent.PublicKeyManager
 import com.cdata.kintone.adapter.agent.SyncConnectionService
 import com.cdata.kintone.adapter.config.ConfigSource
@@ -34,6 +35,7 @@ class AppContext(
     /** Docker socket が利用可能な場合のみ非 null。 */
     val agentContainerManager: AgentContainerManager?,
     val publicKeyManager: PublicKeyManager,
+    val keyPairGeneratorService: KeyPairGeneratorService,
     val syncConnectionService: SyncConnectionService,
 ) : AutoCloseable {
 
@@ -78,6 +80,10 @@ class AppContext(
                 agentControlMode = controlMode,
                 agentContainerManager = containerMgr,
                 publicKeyManager = PublicKeyManager(agentRoot.resolve("public-key.pem")),
+                keyPairGeneratorService = KeyPairGeneratorService(
+                    privateKeyPath = agentRoot.resolve("private-key.pem"),
+                    publicKeyPath = agentRoot.resolve("public-key.pem"),
+                ),
                 syncConnectionService = SyncConnectionService(source, runner, agentConfigMgr, containerMgr),
             )
         }

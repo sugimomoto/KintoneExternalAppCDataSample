@@ -25,7 +25,13 @@ import kotlinx.html.unsafe
 /**
  * `/syncs/{name}/connect` — kintone との接続を 1 ボタンで確立する画面。
  */
-fun HTML.connectKintoneView(ctx: AppContext, syncName: String, message: String? = null, error: String? = null) {
+fun HTML.connectKintoneView(
+    ctx: AppContext,
+    syncName: String,
+    message: String? = null,
+    error: String? = null,
+    infoMessage: String? = null,
+) {
     val publicKey = ctx.publicKeyManager.read()
     val fingerprint = ctx.publicKeyManager.fingerprint()
 
@@ -45,6 +51,12 @@ fun HTML.connectKintoneView(ctx: AppContext, syncName: String, message: String? 
             return@layout
         }
 
+        infoMessage?.let { msg ->
+            article(classes = "success-banner") {
+                p { +"✅ $msg" }
+            }
+        }
+
         error?.let { err ->
             article(classes = "warning-banner") {
                 p { +"⚠ $err" }
@@ -57,12 +69,18 @@ fun HTML.connectKintoneView(ctx: AppContext, syncName: String, message: String? 
             if (publicKey == null) {
                 article(classes = "warning-banner") {
                     p {
-                        +"公開鍵 ("
-                        code { +ctx.publicKeyManager.pathString() }
-                        +") が見つかりません。"
+                        +"鍵ペアがまだ生成されていません。下のボタンで生成してください。"
+                        +" 秘密鍵は adapter-console 側に保存され、画面には表示されません。"
                     }
-                    p {
-                        +"`scripts/generate-keypair.sh` 等で公開鍵を生成してから戻ってきてください。"
+                    form(action = "/syncs/$syncName/keypair/generate", method = FormMethod.post) {
+                        button(type = ButtonType.submit) { +"🔑 鍵ペアを生成する" }
+                    }
+                    small(classes = "muted") {
+                        +"保存先: "
+                        code { +ctx.publicKeyManager.pathString() }
+                        +" (公開鍵) / 同ディレクトリの "
+                        code { +"private-key.pem" }
+                        +" (秘密鍵, パーミッション 600)"
                     }
                 }
             } else {

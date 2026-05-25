@@ -1,5 +1,6 @@
 package com.cdata.kintone.adapter.web.routes
 
+import com.cdata.kintone.adapter.agent.KeyPairGeneratorService
 import com.cdata.kintone.adapter.agent.SyncConnectionService
 import com.cdata.kintone.adapter.web.AppContext
 import com.cdata.kintone.adapter.web.views.connectKintoneView
@@ -10,6 +11,7 @@ import io.ktor.server.html.respondHtml
 import io.ktor.server.request.receiveParameters
 import io.ktor.server.response.header
 import io.ktor.server.response.respondBytes
+import io.ktor.server.response.respondRedirect
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
@@ -28,7 +30,14 @@ fun Route.connectKintoneRoutes(ctx: AppContext) {
     /** kintone 接続画面 (KC-03)。 */
     get("/syncs/{name}/connect") {
         val syncName = call.parameters["name"]!!
-        call.respondHtml { connectKintoneView(ctx, syncName) }
+        val keypairFlag = call.request.queryParameters["keypair"]
+        val (infoMessage, error) = when (keypairFlag) {
+            "generated" -> "RSA 2048 ビットの鍵ペアを生成しました。公開鍵を kintone に登録してください。" to null
+            "already-exists" -> null to "既に鍵ペアが存在します。誤上書きを防ぐため生成をスキップしました。"
+            "failed" -> null to "鍵生成に失敗しました。サーバログを確認してください。"
+            else -> null to null
+        }
+        call.respondHtml { connectKintoneView(ctx, syncName, infoMessage = infoMessage, error = error) }
     }
 
     /** 「接続して開始」 1 ボタン処理。 */
@@ -54,6 +63,17 @@ fun Route.connectKintoneRoutes(ctx: AppContext) {
                     connectKintoneView(ctx, syncName, error = result.reason)
                 }
         }
+    }
+
+    /** Agent 用 RSA 鍵ペアを生成 (公開鍵が無いときに UI から呼ばれる)。 */
+    post("/syncs/{name}/keypair/generate") {
+        val syncName = call.parameters["name"]!!
+        val flag = when (ctx.keyPairGeneratorService.generate()) {
+            KeyPairGeneratorService.GenerationResult.Success -> "generated"
+            KeyPairGeneratorService.GenerationResult.AlreadyExists -> "already-exists"
+            is KeyPairGeneratorService.GenerationResult.Failed -> "failed"
+        }
+        call.respondRedirect("/syncs/$syncName/connect?keypair=$flag")
     }
 
     /** kintone ドメイン保存 (Phase 2-D で永続化、現状はリダイレクトのみ)。 */

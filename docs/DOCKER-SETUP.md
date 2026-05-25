@@ -149,21 +149,26 @@ vi .env
 | `HOST_AGENT_ROOT` | Agent コンテナの bind マウント解決に使うホスト絶対パス (compose 経由なら自動) |
 | `SF_USER` 等 | 各データソースの環境変数 (オプション) |
 
-### 3.5 Agent 鍵ペアの生成と kintone 登録
+### 3.5 Agent 鍵ペア
 
-Agent と kintone は公開鍵認証で通信します。鍵ペアをローカル生成し、
-公開鍵を kintone 側に登録してください。
+Agent と kintone は公開鍵認証で通信しますが、**鍵ペアは起動後に Web UI から
+1 ボタンで生成できる**ため、事前準備は不要です。
 
-```bash
-cd agent
-openssl genrsa 2048 > private-key.pem
-openssl rsa -pubout -in private-key.pem -out public-key.pem
-chmod 600 private-key.pem
-```
+連携詳細画面 (`/syncs/{name}/connect`) の Step 1 で「🔑 鍵ペアを生成する」を
+押すと、adapter-console プロセスが `agent/public-key.pem` と
+`agent/private-key.pem` (パーミッション 600) をホストに書き出します。
+秘密鍵は画面に表示されません。
 
-kintone の「外部システムコネクター管理」で `public-key.pem` を貼り付け、
-発行された JWT トークンを後で Web UI から登録します。詳細は
-[`agent/README.md`](../agent/README.md) を参照してください。
+その後、画面に表示される公開鍵を kintone 「外部システムコネクター管理」に
+貼り付け、発行された JWT トークンを Web UI で保存してください。
+
+> OpenSSL CLI で自前生成する場合:
+> ```bash
+> cd agent
+> openssl genrsa 2048 > private-key.pem
+> openssl rsa -pubout -in private-key.pem -out public-key.pem
+> chmod 600 private-key.pem
+> ```
 
 ---
 
