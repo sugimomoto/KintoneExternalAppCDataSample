@@ -8,7 +8,6 @@ import com.cdata.kintone.adapter.web.views.driversListView
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.PartData
 import io.ktor.http.content.forEachPart
-import io.ktor.http.content.streamProvider
 import io.ktor.server.html.respondHtml
 import io.ktor.server.request.receiveMultipart
 import io.ktor.server.request.receiveParameters
@@ -17,6 +16,7 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
+import io.ktor.utils.io.jvm.javaio.toInputStream
 
 fun Route.driversRoutes(ctx: AppContext) {
     get("/drivers") {
@@ -31,7 +31,7 @@ fun Route.driversRoutes(ctx: AppContext) {
                 is PartData.FileItem -> {
                     val filename = part.originalFileName ?: "uploaded.jar"
                     try {
-                        part.streamProvider().use { stream ->
+                        part.provider().toInputStream().use { stream ->
                             val info = ctx.driverManager.upload(filename, stream)
                             uploadedFilename = info.filename
                         }
