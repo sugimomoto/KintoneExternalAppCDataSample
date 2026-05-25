@@ -132,27 +132,27 @@
 
 ## M4-A: 依存追加と CLI
 
-- ⬜ **T-M4-A-01** ⚙️ [S] `build.gradle.kts` に Ktor 依存追加 (`ktor-server-netty`, `ktor-server-html-builder`, `ktor-server-sse`, `ktor-server-call-logging`)
-- ⬜ **T-M4-A-02** ⚙️ [S] `WebUiCommand` を作成 (clikt サブコマンド `web-ui --port 8080`)
-- ⬜ **T-M4-A-03** ⚙️ [S] `Application.kt` に登録
+- ✅ **T-M4-A-01** ⚙️ [S] `build.gradle.kts` に Ktor 3.0.1 依存追加
+- ✅ **T-M4-A-02** ⚙️ [S] `WebUiCommand` を作成 (`adapter web-ui --port 8080`)
+- ✅ **T-M4-A-03** ⚙️ [S] `Application.kt` に登録
 
 ## M4-B: Ktor アプリケーション
 
-- ⬜ **T-M4-B-01** 🔴🟢 [S] `WebUiServer.start(port)` で Ktor サーバが起動するテスト (TestApplication)
-- ⬜ **T-M4-B-02** 🔴🟢 [S] `GET /` で 200 + ダッシュボード HTML
-- ⬜ **T-M4-B-03** 🟢 [S] `bindAddress = 127.0.0.1` デフォルト
-- ⬜ **T-M4-B-04** ⚙️ [S] Call logging 有効化
-- ⬜ **T-M4-B-05** ⚙️ [S] 静的アセット配信 `/static/htmx.min.js`, `/static/pico.min.css`
+- ⬜ **T-M4-B-01** 🔴🟢 [S] TestApplication ベースの単体テスト（M5-M9 を含めた段階で追加）
+- ✅ **T-M4-B-02** ✅ [S] `GET /` で 200 + ダッシュボード HTML
+- ✅ **T-M4-B-03** 🟢 [S] `bindAddress = 127.0.0.1` デフォルト
+- ✅ **T-M4-B-04** ⚙️ [S] CallLogging 有効化
+- ✅ **T-M4-B-05** ⚙️ [S] 静的アセット配信 `/static/{filename}` (resources/static)
 
 ## M4-C: 共通レイアウト + ダッシュボード
 
-- ⬜ **T-M4-C-01** 🟢 [S] `Layout.kt`: ヘッダー (Adapter Console) + ナビ (Tables/Connections/Drivers) + フッター
-- ⬜ **T-M4-C-02** 🟢 [S] `DashboardView.kt`: 稼働中 Adapter テーブル + Quick Actions
-- ⬜ **T-M4-C-03** 🟢 [S] フッターに ConfigSource モード表示 (yaml/sqlite)
-- ⬜ **T-M4-C-04** 🟢 [S] Phase 1 構成検出時の移行バナー表示
-- ⬜ **T-M4-C-05** ✅ [S] ブラウザで `localhost:8080` を開いてダッシュボードが見える
+- ✅ **T-M4-C-01** 🟢 [S] `Layout.kt`: ヘッダー + ナビ (Dashboard/Tables/Connections/Drivers) + フッター
+- ✅ **T-M4-C-02** 🟢 [S] `DashboardView.kt`: 稼働中 Adapter テーブル + Quick Actions
+- ✅ **T-M4-C-03** 🟢 [S] フッターに ConfigSource モード表示 (yaml/sqlite)
+- ✅ **T-M4-C-04** 🟢 [S] Phase 1 構成検出時の移行バナー表示 (POST /migrate/phase1-to-tables のフォームは M10 で実装)
+- ✅ **T-M4-C-05** ✅ [S] ブラウザで `localhost:8090` を開いてダッシュボードが表示・静的アセットも 200
 
-- **M4 完了基準**: `adapter web-ui` でサーバ起動、ダッシュボード画面が表示される
+- **M4 完了基準**: `adapter web-ui` でサーバ起動、ダッシュボード画面が表示される ✅
 
 ---
 

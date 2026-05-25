@@ -9,6 +9,7 @@ import com.cdata.kintone.adapter.cli.MigrateToSqliteCommand
 import com.cdata.kintone.adapter.cli.ServeAllCommand
 import com.cdata.kintone.adapter.cli.ServeCommand
 import com.cdata.kintone.adapter.cli.TestConnectionCommand
+import com.cdata.kintone.adapter.cli.WebUiCommand
 import com.github.ajalt.clikt.core.NoOpCliktCommand
 import com.github.ajalt.clikt.core.subcommands
 
@@ -38,6 +39,7 @@ fun main(args: Array<String>) {
             MigrateConfigCommand(),
             MigrateToSqliteCommand(),
             ExportYamlCommand(),
+            WebUiCommand(),
         )
         .main(args)
 }

@@ -77,6 +77,15 @@ dependencies {
     // SQLite (フェーズ2-B: SqliteConfigSource 用)
     implementation("org.xerial:sqlite-jdbc:3.46.1.0")
 
+    // Web UI (フェーズ2-B: Ktor サーバ + kotlinx.html + SSE)
+    val ktorVersion = "3.0.1"
+    implementation("io.ktor:ktor-server-netty:$ktorVersion")
+    implementation("io.ktor:ktor-server-html-builder:$ktorVersion")
+    implementation("io.ktor:ktor-server-call-logging:$ktorVersion")
+    implementation("io.ktor:ktor-server-content-negotiation:$ktorVersion")
+    implementation("io.ktor:ktor-server-sse:$ktorVersion")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
+
     // CData JDBC Driver（ローカル参照）
     // lib/ 配下に配置済みの JAR を参照する。compileOnly にして fat jar に同梱せず、
     // 実行時は JdbcConnectionProvider が URLClassLoader 経由で動的ロードする。
