@@ -28,6 +28,15 @@ interface ConfigSource {
      * `jdbc-ref` 解決時に使う。見つからなければ null。
      */
     fun loadSharedJdbcConfig(name: String): JdbcConfig?
+
+    /** 共通 JDBC 設定の名前一覧。フェーズ2-B Web UI の Connections 画面で使用。 */
+    fun listSharedJdbcConfigs(): List<String>
+
+    /** 共通 JDBC 設定を保存する。Web UI / migrate-to-sqlite から呼ばれる。 */
+    fun saveSharedJdbcConfig(name: String, config: JdbcConfig)
+
+    /** 共通 JDBC 設定を削除する。参照中のテーブルがある場合は実装側の判断で拒否してよい。 */
+    fun deleteSharedJdbcConfig(name: String)
 }
 
 /**

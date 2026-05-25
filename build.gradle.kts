@@ -74,6 +74,9 @@ dependencies {
     // 接続プール
     implementation("com.zaxxer:HikariCP:5.1.0")
 
+    // SQLite (フェーズ2-B: SqliteConfigSource 用)
+    implementation("org.xerial:sqlite-jdbc:3.46.1.0")
+
     // CData JDBC Driver（ローカル参照）
     // lib/ 配下に配置済みの JAR を参照する。compileOnly にして fat jar に同梱せず、
     // 実行時は JdbcConnectionProvider が URLClassLoader 経由で動的ロードする。

@@ -1,9 +1,11 @@
 package com.cdata.kintone.adapter
 
+import com.cdata.kintone.adapter.cli.ExportYamlCommand
 import com.cdata.kintone.adapter.cli.InitTableCommand
 import com.cdata.kintone.adapter.cli.ListActiveCommand
 import com.cdata.kintone.adapter.cli.ListTablesCommand
 import com.cdata.kintone.adapter.cli.MigrateConfigCommand
+import com.cdata.kintone.adapter.cli.MigrateToSqliteCommand
 import com.cdata.kintone.adapter.cli.ServeAllCommand
 import com.cdata.kintone.adapter.cli.ServeCommand
 import com.cdata.kintone.adapter.cli.TestConnectionCommand
@@ -34,6 +36,8 @@ fun main(args: Array<String>) {
             ListTablesCommand(),
             TestConnectionCommand(),
             MigrateConfigCommand(),
+            MigrateToSqliteCommand(),
+            ExportYamlCommand(),
         )
         .main(args)
 }

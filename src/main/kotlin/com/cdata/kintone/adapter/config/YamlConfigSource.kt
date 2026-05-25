@@ -96,6 +96,29 @@ class YamlConfigSource(
         return loadOne(path, serializer<JdbcConfig>())
     }
 
+    override fun listSharedJdbcConfigs(): List<String> {
+        val jdbcDir = configDir.resolve("jdbc")
+        if (!jdbcDir.exists() || !jdbcDir.isDirectory()) return emptyList()
+        return Files.list(jdbcDir).use { stream ->
+            stream
+                .filter { it.fileName.toString().endsWith(".yaml") }
+                .filter { !it.fileName.toString().endsWith(".yaml.example") }
+                .map { it.fileName.toString().removeSuffix(".yaml") }
+                .sorted()
+                .toList()
+        }
+    }
+
+    override fun saveSharedJdbcConfig(name: String, config: JdbcConfig) {
+        val path = configDir.resolve("jdbc").resolve("$name.yaml")
+        writeYaml(path, config, serializer<JdbcConfig>())
+    }
+
+    override fun deleteSharedJdbcConfig(name: String) {
+        val path = configDir.resolve("jdbc").resolve("$name.yaml")
+        Files.deleteIfExists(path)
+    }
+
     /**
      * 指定テーブル名のディレクトリパスを解決する。
      * "default" の場合、フェーズ1 互換で `configDir` 自体を返す可能性あり。

@@ -166,4 +166,7 @@ private class FakeConfigSource(
     override fun saveTableSet(tableName: String, set: TableConfigSet) = error("not used")
     override fun deleteTable(tableName: String) = error("not used")
     override fun loadSharedJdbcConfig(name: String): JdbcConfig? = null
+    override fun listSharedJdbcConfigs(): List<String> = emptyList()
+    override fun saveSharedJdbcConfig(name: String, config: JdbcConfig) = error("not used")
+    override fun deleteSharedJdbcConfig(name: String) = error("not used")
 }

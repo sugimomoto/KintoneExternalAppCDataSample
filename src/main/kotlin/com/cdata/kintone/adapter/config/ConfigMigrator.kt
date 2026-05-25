@@ -78,5 +78,22 @@ class ConfigMigrator(private val configDir: Path) {
             "table.yaml",
             "capability.yaml",
         )
+
+        /**
+         * 任意の [ConfigSource] から別の [ConfigSource] へ、共通 JDBC とテーブル設定を
+         * 一括コピーする。`migrate-to-sqlite` / `export-yaml` の核となる処理。
+         *
+         * 注意: jdbc-ref 構造は維持されず、コピー先では「共通 JDBC + テーブル毎の解決済 JDBC」
+         * として保存される（TableConfigSet が ref/inline の区別を持たないため）。
+         * 実行時の挙動は等価。
+         */
+        fun copyAll(from: ConfigSource, to: ConfigSource) {
+            for (name in from.listSharedJdbcConfigs()) {
+                from.loadSharedJdbcConfig(name)?.let { to.saveSharedJdbcConfig(name, it) }
+            }
+            for (name in from.listTables()) {
+                to.saveTableSet(name, from.loadTableSet(name))
+            }
+        }
     }
 }
