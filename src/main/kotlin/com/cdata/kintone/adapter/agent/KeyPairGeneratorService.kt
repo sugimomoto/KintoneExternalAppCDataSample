@@ -4,7 +4,6 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
-import java.nio.file.attribute.PosixFilePermission
 import java.nio.file.attribute.PosixFilePermissions
 import java.security.KeyPairGenerator
 import java.util.Base64
@@ -68,15 +67,9 @@ class KeyPairGeneratorService(
     }
 
     private fun applyPrivateKeyPermissions(path: Path) {
-        val fs = path.fileSystem
-        if (!fs.supportedFileAttributeViews().contains("posix")) return
+        if (!path.fileSystem.supportedFileAttributeViews().contains("posix")) return
         runCatching {
-            Files.setPosixFilePermissions(
-                path,
-                PosixFilePermissions.fromString("rw-------").toSet(),
-            )
+            Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rw-------"))
         }.onFailure { log.warn(it) { "Failed to chmod 600 on $path" } }
     }
-
-    private fun Set<PosixFilePermission>.toSet(): Set<PosixFilePermission> = this
 }

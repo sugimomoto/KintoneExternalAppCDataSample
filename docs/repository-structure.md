@@ -153,9 +153,12 @@ KintoneExternalAppCDataSample/
 │
 └ scripts/                         # 開発支援スクリプト
    ├ test-adapter.sh              # curl で各 RPC をテスト
-   ├ start-agent.sh               # Agent をローカル起動
-   └ generate-keypair.sh          # 認証用鍵ペア生成
+   ├ restart-stack.sh             # Adapter / Agent の再起動補助
+   └ phase2a-smoke.sh             # マルチテーブル起動の動作確認
 ```
+
+> 認証用鍵ペアは Web UI (`/syncs/{name}/connect` の Step 1) から
+> 「🔑 鍵ペアを生成する」ボタンで生成できるため、スクリプトでの提供は廃止しました。
 
 ---
 

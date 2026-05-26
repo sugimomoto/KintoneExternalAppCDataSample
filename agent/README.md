@@ -1,7 +1,14 @@
 # kintone Agent Docker
 
 `kintone-data-connector-agent` を Docker コンテナで起動するための構成。
-macOS など Agent バイナリが提供されていないプラットフォームでも、Linux コンテナ経由で kintone Agent を動作させられる。
+macOS など Agent バイナリが直接実行できないホストでも、Linux コンテナ経由で動作させられる。
+
+> **注意**: `kintone-data-connector-agent` のプログラム本体はサイボウズ社から
+> 個別に受領するバイナリです。公開レジストリでは配布されていません。
+> 受領した tar を `bin/linux_<arch>/` に展開してから本ドキュメントの手順を進めてください。
+>
+> 通常運用では本ファイルではなく adapter-console を介した Web UI から
+> Agent コンテナが自動制御されます。本ファイルは Agent 単体起動 (開発・デバッグ用) の手順です。
 
 ## 構成
 
@@ -9,16 +16,20 @@ macOS など Agent バイナリが提供されていないプラットフォー�
 agent/
 ├ Dockerfile             # Debian slim ベースの Linux コンテナ
 ├ bin/
-│  ├ linux_amd64/kintone-data-connector-agent  # x86_64 用
-│  └ linux_arm64/kintone-data-connector-agent  # arm64 用（Apple Silicon）
+│  ├ linux_amd64/kintone-data-connector-agent  # x86_64 用 (サイボウズ受領, .gitignore)
+│  └ linux_arm64/kintone-data-connector-agent  # arm64 用 (サイボウズ受領, .gitignore)
 ├ agent.json.example     # 設定例（.gitignore 済みの実体: agent.json）
 ├ private-key.pem        # 秘密鍵（.gitignore 済み）
+├ public-key.pem         # 公開鍵 (kintone へ登録)
 └ README.md              # このファイル
 ```
 
 ## セットアップ手順
 
 ### 1. 鍵ペア生成
+
+**通常は adapter-console の Web UI から生成します** (`/syncs/{name}/connect` の Step 1 で
+「🔑 鍵ペアを生成する」ボタン)。CLI で生成したい場合のみ以下:
 
 ```bash
 cd agent

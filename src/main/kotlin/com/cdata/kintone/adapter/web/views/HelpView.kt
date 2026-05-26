@@ -9,7 +9,6 @@ import kotlinx.html.div
 import kotlinx.html.h2
 import kotlinx.html.h3
 import kotlinx.html.h4
-import kotlinx.html.kbd
 import kotlinx.html.li
 import kotlinx.html.ol
 import kotlinx.html.p
@@ -195,7 +194,7 @@ fun HTML.helpView(ctx: AppContext) {
                     }
                 }
                 li {
-                    a(href = "/static/pico.min.css", target = "_blank") {
+                    a(href = "https://picocss.com/", target = "_blank") {
                         +"Pico.css (UI フレームワーク)"
                     }
                 }
@@ -203,9 +202,6 @@ fun HTML.helpView(ctx: AppContext) {
             small(classes = "muted") {
                 +"バージョン v0.4.0 · ConfigSource: "
                 code { +ctx.configSourceMode.name.lowercase() }
-                +" · ショートカット: "
-                kbd { +"⌘+R" }
-                +" でリロード"
             }
         }
     }

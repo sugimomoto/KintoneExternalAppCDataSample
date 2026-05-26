@@ -174,9 +174,8 @@ fun HTML.connectKintoneView(
 }
 
 /**
- * SQLite/YAML に永続化するのは Phase 2-D 送り。
- * 現状は環境変数 KINTONE_DOMAIN や application preferences (簡易) から読む。
- * 未設定なら空文字列。
+ * kintone ドメインを環境変数 `KINTONE_DOMAIN` から読み出す。
+ * 設定ストアへの永続化は未実装。未設定なら空文字列を返す。
  */
 private fun readKintoneDomain(): String =
     System.getenv("KINTONE_DOMAIN") ?: ""

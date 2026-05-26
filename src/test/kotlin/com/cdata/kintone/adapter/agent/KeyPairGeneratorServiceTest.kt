@@ -10,7 +10,9 @@ import java.nio.file.Path
 import java.nio.file.attribute.PosixFilePermissions
 import java.security.KeyFactory
 import java.security.interfaces.RSAPrivateKey
+import java.security.interfaces.RSAPublicKey
 import java.security.spec.PKCS8EncodedKeySpec
+import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
 import kotlin.io.path.exists
 import kotlin.io.path.readText
@@ -59,6 +61,25 @@ class KeyPairGeneratorServiceTest {
         assertEquals("already there", pub.readText())
         assertTrue(!priv.exists())
     }
+
+    @Test
+    fun `generated public key parses as SPKI RSA and matches private key modulus`(@TempDir dir: Path) {
+        val priv = dir.resolve("private-key.pem")
+        val pub = dir.resolve("public-key.pem")
+        KeyPairGeneratorService(priv, pub).generate()
+
+        val rsaPriv = KeyFactory.getInstance("RSA")
+            .generatePrivate(PKCS8EncodedKeySpec(decodePem(priv.readText()))) as RSAPrivateKey
+        val rsaPub = KeyFactory.getInstance("RSA")
+            .generatePublic(X509EncodedKeySpec(decodePem(pub.readText()))) as RSAPublicKey
+
+        assertEquals(2048, rsaPub.modulus.bitLength())
+        assertEquals(rsaPriv.modulus, rsaPub.modulus)
+    }
+
+    private fun decodePem(pem: String): ByteArray = Base64.getDecoder().decode(
+        pem.lines().filterNot { it.startsWith("-----") || it.isBlank() }.joinToString(""),
+    )
 
     @Test
     fun `private key receives POSIX 0600 permissions on supporting filesystem`(@TempDir dir: Path) {

@@ -6,7 +6,6 @@ import com.cdata.kintone.adapter.web.AppContext
 import com.cdata.kintone.adapter.web.views.connectKintoneView
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
-import io.ktor.http.headers
 import io.ktor.server.html.respondHtml
 import io.ktor.server.request.receiveParameters
 import io.ktor.server.response.header
@@ -76,12 +75,13 @@ fun Route.connectKintoneRoutes(ctx: AppContext) {
         call.respondRedirect("/syncs/$syncName/connect?keypair=$flag")
     }
 
-    /** kintone ドメイン保存 (Phase 2-D で永続化、現状はリダイレクトのみ)。 */
+    /**
+     * kintone ドメインの永続化エンドポイント (未実装スタブ)。
+     * 現状は環境変数 KINTONE_DOMAIN を使う運用のため、何も保存しない。
+     */
     post("/syncs/{name}/connect/save-domain") {
-        val syncName = call.parameters["name"]!!
-        // TODO: KintonePreferences 実装で永続化
         call.respondText(
-            "ドメイン永続化は Phase 2-D で実装予定です。当面は環境変数 KINTONE_DOMAIN をご利用ください。",
+            "ドメインは現状 KINTONE_DOMAIN 環境変数から読み込んでいます。永続化は未実装です。",
             status = HttpStatusCode.OK,
         )
     }
