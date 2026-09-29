@@ -6,6 +6,8 @@ import com.cdata.kintone.adapter.config.JdbcReferenceIndex
 import com.cdata.kintone.adapter.config.PoolConfig
 import com.cdata.kintone.adapter.jdbc.JdbcConnectionPropertyInspector
 import com.cdata.kintone.adapter.jdbc.JdbcConnectionProvider
+import com.cdata.kintone.adapter.jdbc.authSchemeDefaultOf
+import com.cdata.kintone.adapter.jdbc.OAuthCapability
 import com.cdata.kintone.adapter.web.AppContext
 import com.cdata.kintone.adapter.web.views.BlockedDelete
 import com.cdata.kintone.adapter.web.views.connectionFormView
@@ -20,6 +22,7 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
+import kotlinx.html.article
 import kotlinx.html.code
 import kotlinx.html.div
 import kotlinx.html.p
@@ -118,7 +121,10 @@ fun Route.connectionsRoutes(ctx: AppContext) {
             ),
         )
         ctx.configSource.saveSharedJdbcConfig(name, config)
-        call.respondRedirect("/connections")
+        // OAuth 接続は保存しただけでは使えない。認可ウィザードは保存済み設定の
+        // 読み書きを前提にしているため (#34)、名前が確定したこの時点が唯一の
+        // 合流点になる。必要な次の一歩へそのまま繋ぐ (Issue #43)。
+        call.respondRedirect(nextPathAfterCreate(ctx, name, config, driverClass, jarFilename))
     }
 
     post("/connections/{name}") {
@@ -179,13 +185,20 @@ fun Route.connectionsRoutes(ctx: AppContext) {
                 }
             }
         }
-        val html = createHTML().div {
-            if (result.isSuccess) {
-                p { +"●Connected: ${result.getOrNull()}" }
-            } else {
-                // 例外メッセージに接続文字列が含まれる場合があるため必ずマスクを通す。
-                // メッセージはロケール依存なので分類はしない (#19 の方針)。
-                p { +"●Failed: ${ConnectionStringMasker.mask(result.exceptionOrNull()?.message ?: "")}" }
+        // 結果はテーブルの外の共有バナーに入るため、どの接続のものか分かるように
+        // 名前を含める。成功・失敗は既存のバナークラスで出し分ける (Issue #42)。
+        val html = createHTML().article(
+            classes = if (result.isSuccess) "success-banner" else "warning-banner",
+        ) {
+            p {
+                code { +name }
+                if (result.isSuccess) {
+                    +" 接続成功: ${result.getOrNull()}"
+                } else {
+                    // 例外メッセージに接続文字列が含まれる場合があるため必ずマスクを通す。
+                    // メッセージはロケール依存なので分類はしない (#19 の方針)。
+                    +" 接続失敗: ${ConnectionStringMasker.mask(result.exceptionOrNull()?.message ?: "")}"
+                }
             }
         }
         call.respondText(html, io.ktor.http.ContentType.Text.Html)
@@ -232,3 +245,30 @@ private fun buildUrlFromValues(
  */
 private fun referenceMapOf(ctx: AppContext): Map<String, String?> =
     ctx.configSource.listTables().associateWith { ctx.configSource.sharedJdbcRefOf(it) }
+
+/**
+ * 新規作成の保存後に送る先。
+ *
+ * ブラウザ認可が必要な接続だけ認可ウィザードへ送る。判定は編集画面の OAuth 導線と
+ * 同じ [OAuthCapability.requiresBrowserAuthorization] を通すので基準がずれない。
+ *
+ * 編集保存では呼ばない。編集画面には既に導線があり、保存のたびに飛ばされるのは煩わしい。
+ */
+private fun nextPathAfterCreate(
+    ctx: AppContext,
+    name: String,
+    config: JdbcConfig,
+    driverClass: String,
+    jarFilename: String,
+): String {
+    // #27 以降、既定値は接続文字列に保存されないため既定値も見る必要がある。
+    // fetchProperties はキャッシュされるので保存のたびに接続を張ることはない。
+    val authSchemeDefault = runCatching {
+        authSchemeDefaultOf(ctx.connectionPropertyInspector.fetchProperties(driverClass, jarFilename))
+    }.getOrNull()
+    return if (OAuthCapability.requiresBrowserAuthorization(config.url, authSchemeDefault)) {
+        "/connections/$name/oauth"
+    } else {
+        "/connections"
+    }
+}
