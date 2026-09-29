@@ -102,7 +102,7 @@ fun HTML.helpView(ctx: AppContext) {
                 li {
                     strong { +"4. kintone と接続 " }
                     span(classes = "muted") { +"— " }
-                    +"連携の詳細画面から「kintone と接続」を選び、Step 1 で「🔑 鍵ペアを生成する」を押します。"
+                    +"連携の詳細画面から「kintone と接続」を選び、Step 1 で「鍵ペアを生成する」を押します。"
                     +" 表示された公開鍵を kintone 管理画面に登録 → 発行された JWT トークンを入力すると、"
                     +" Adapter と Agent コンテナが自動的に立ち上がります。"
                 }

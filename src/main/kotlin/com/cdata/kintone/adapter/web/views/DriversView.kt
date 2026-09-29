@@ -12,6 +12,7 @@ import kotlinx.html.a
 import kotlinx.html.article
 import kotlinx.html.button
 import kotlinx.html.code
+import kotlinx.html.div
 import kotlinx.html.form
 import kotlinx.html.h2
 import kotlinx.html.h3
@@ -31,14 +32,18 @@ import kotlinx.html.tr
 fun HTML.driversListView(ctx: AppContext) {
     val drivers = ctx.driverManager.listDrivers()
     layout(
-        pageTitle = "Drivers",
+        pageTitle = "ドライバー",
         activeCount = ctx.runner.listActive().size,
         currentPath = "/drivers",
     ) {
-        h2 { +"JDBC Drivers in ${ctx.libDir} (${drivers.size})" }
+        h2 { +"ドライバー (${drivers.size} 件)" }
+        small(classes = "muted") {
+            +"配置先: "
+            code { +ctx.libDir.toString() }
+        }
 
         section {
-            h3 { +"Upload new driver" }
+            h3 { +"ドライバーを追加" }
             form(
                 action = "/drivers/upload",
                 method = FormMethod.post,
@@ -48,42 +53,52 @@ fun HTML.driversListView(ctx: AppContext) {
                     accept = ".jar"
                     required = true
                 }
-                button(type = ButtonType.submit) { +"⬆ Upload" }
+                button(type = ButtonType.submit) { +"↑ アップロード" }
             }
             small { +"※ .jar 拡張子 + JAR Magic Number (PK\\x03\\x04) 検証あり。最大 50 MB。" }
         }
 
         if (drivers.isEmpty()) {
             article {
-                p { +"ドライバがまだ配置されていません。" }
+                p { +"ドライバーがまだ配置されていません。" }
             }
         } else {
-            table(classes = "striped") {
-                thead {
-                    tr {
-                        th { +"Filename" }
-                        th { +"Driver Class" }
-                        th { +"License" }
-                        th { +"Size" }
-                        th { +"Action" }
-                    }
-                }
-                tbody {
-                    drivers.forEach { d ->
+            div(classes = "table-scroll") {
+                table(classes = "striped") {
+                    thead {
                         tr {
-                            td { code { +d.filename } }
-                            td { code { +(d.driverClass ?: "(unknown)") } }
-                            td { licenseBadge(d.licenseStatus) }
-                            td { +"${d.sizeBytes / 1024} KB" }
-                            td {
-                                if (d.licenseStatus == LicenseStatus.NOT_ACTIVATED) {
-                                    a(href = "/drivers/${d.filename}/activate", classes = "button outline") {
-                                        +"Activate Trial"
-                                    }
+                            th { +"ファイル名" }
+                            th { +"ドライバークラス" }
+                            th { +"ライセンス" }
+                            th { +"サイズ" }
+                            th { +"操作" }
+                        }
+                    }
+                    tbody {
+                        drivers.forEach { d ->
+                            tr {
+                                td { code { +d.filename } }
+                                td(classes = "cell-truncate") {
+                                    val driverClass = d.driverClass ?: "(不明)"
+                                    attributes["title"] = driverClass
+                                    code { +driverClass }
                                 }
-                                form(action = "/drivers/${d.filename}/delete", method = FormMethod.post, classes = "inline-form") {
-                                    attributes["onsubmit"] = "return confirm('${d.filename} を削除しますか？')"
-                                    button(type = ButtonType.submit, classes = "secondary outline") { +"Delete" }
+                                td { licenseBadge(d.licenseStatus) }
+                                td { +"${d.sizeBytes / 1024} KB" }
+                                td(classes = "cell-actions") {
+                                    if (d.licenseStatus == LicenseStatus.NOT_ACTIVATED) {
+                                        a(href = "/drivers/${d.filename}/activate", classes = "button secondary") {
+                                            +"トライアルを有効化"
+                                        }
+                                    }
+                                    form(
+                                        action = "/drivers/${d.filename}/delete",
+                                        method = FormMethod.post,
+                                        classes = "inline-form",
+                                    ) {
+                                        attributes["onsubmit"] = "return confirm('${d.filename} を削除しますか？')"
+                                        button(type = ButtonType.submit, classes = "danger") { +"削除" }
+                                    }
                                 }
                             }
                         }
@@ -96,11 +111,11 @@ fun HTML.driversListView(ctx: AppContext) {
 
 fun HTML.driverActivateView(ctx: AppContext, filename: String) {
     layout(
-        pageTitle = "Activate $filename",
+        pageTitle = "トライアルを有効化: $filename",
         activeCount = ctx.runner.listActive().size,
         currentPath = "/drivers",
     ) {
-        h2 { +"Activate trial license" }
+        h2 { +"トライアルライセンスを有効化" }
         article {
             p {
                 +"対象: "; code { +filename }
@@ -113,29 +128,29 @@ fun HTML.driverActivateView(ctx: AppContext, filename: String) {
             }
             form(action = "/drivers/$filename/activate", method = FormMethod.post) {
                 label {
-                    +"Name:"
+                    +"お名前:"
                     input(type = InputType.text, name = "name") {
                         required = true
-                        placeholder = "Taro Yamada"
+                        placeholder = "山田 太郎"
                     }
                 }
                 label {
-                    +"Email:"
+                    +"メールアドレス:"
                     input(type = InputType.email, name = "email") {
                         required = true
                         placeholder = "you@example.com"
                     }
                 }
                 label {
-                    +"Product Key:"
+                    +"プロダクトキー:"
                     input(type = InputType.text, name = "product_key") {
                         value = "TRIAL"
                         readonly = true
                     }
                 }
-                p {
-                    a(href = "/drivers", classes = "button secondary") { +"Cancel" }
-                    button(type = ButtonType.submit) { +"Activate" }
+                div(classes = "action-bar") {
+                    a(href = "/drivers", classes = "button secondary outline") { +"キャンセル" }
+                    button(type = ButtonType.submit) { +"有効化" }
                 }
             }
         }
@@ -150,11 +165,11 @@ fun HTML.driverActivateResultView(
     stdout: String,
 ) {
     layout(
-        pageTitle = "Activate result",
+        pageTitle = "有効化の結果",
         activeCount = ctx.runner.listActive().size,
         currentPath = "/drivers",
     ) {
-        h2 { +"Activation Result" }
+        h2 { +"有効化の結果" }
         article(classes = if (success) "" else "warning-banner") {
             p {
                 if (success) +"✅ " else +"❌ "
@@ -162,12 +177,12 @@ fun HTML.driverActivateResultView(
             }
             if (!success) {
                 p {
-                    small { +"stdout (debug):" }
+                    small { +"標準出力 (デバッグ用):" }
                 }
                 code(classes = "stdout-debug") { +stdout }
             }
-            p {
-                a(href = "/drivers", classes = "button") { +"Back to Drivers" }
+            div(classes = "action-bar") {
+                a(href = "/drivers", classes = "button secondary outline") { +"← ドライバー一覧に戻る" }
             }
         }
     }
@@ -175,9 +190,10 @@ fun HTML.driverActivateResultView(
 
 private fun kotlinx.html.FlowContent.licenseBadge(status: LicenseStatus) {
     val (cls, label) = when (status) {
-        LicenseStatus.ACTIVATED -> "status-badge serving" to "●Activated"
-        LicenseStatus.NOT_ACTIVATED -> "status-badge stopped" to "○Not activated"
-        LicenseStatus.UNKNOWN -> "status-badge" to "Unknown"
+        // ラベルに ● / ○ を入れない。.status-badge::before が既にドットを描画するため二重になる。
+        LicenseStatus.ACTIVATED -> "status-badge serving" to "有効"
+        LicenseStatus.NOT_ACTIVATED -> "status-badge stopped" to "未有効化"
+        LicenseStatus.UNKNOWN -> "status-badge unknown" to "不明"
     }
     span(classes = cls) { +label }
 }

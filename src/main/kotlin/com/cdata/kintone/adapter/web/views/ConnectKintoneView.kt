@@ -45,7 +45,9 @@ fun HTML.connectKintoneView(
         message?.let { msg ->
             article(classes = "success-banner") {
                 p { +"✅ $msg" }
-                p { a(href = "/syncs/$syncName", classes = "button") { +"連携の詳細を見る →" } }
+                div(classes = "action-bar") {
+                    a(href = "/syncs/$syncName", classes = "button") { +"連携の詳細を見る →" }
+                }
             }
             return@layout
         }
@@ -72,7 +74,7 @@ fun HTML.connectKintoneView(
                         +" 秘密鍵は adapter-console 側に保存され、画面には表示されません。"
                     }
                     form(action = "/syncs/$syncName/keypair/generate", method = FormMethod.post) {
-                        button(type = ButtonType.submit) { +"🔑 鍵ペアを生成する" }
+                        button(type = ButtonType.submit) { +"鍵ペアを生成する" }
                     }
                     small(classes = "muted") {
                         +"保存先: "
@@ -87,14 +89,14 @@ fun HTML.connectKintoneView(
                 div(classes = "public-key-display") {
                     code(classes = "stdout-debug") { +publicKey }
                 }
-                p {
+                div(classes = "action-bar") {
                     button(type = ButtonType.button, classes = "secondary") {
                         attributes["onclick"] = "copyPublicKey()"
-                        +"📋 公開鍵をコピー"
+                        +"公開鍵をコピー"
                     }
                     a(href = "/syncs/$syncName/public-key.pem", classes = "button secondary outline") {
                         attributes["download"] = "public-key.pem"
-                        +"⬇ ダウンロード"
+                        +"↓ ダウンロード"
                     }
                 }
                 fingerprint?.let { fp ->
@@ -118,12 +120,16 @@ fun HTML.connectKintoneView(
                         value = readKintoneDomain()
                     }
                 }
-                button(type = ButtonType.submit, classes = "secondary outline") { +"保存して開く" }
+                button(type = ButtonType.submit, classes = "secondary") { +"保存して開く" }
             }
             val domain = readKintoneDomain()
             if (domain.isNotBlank()) {
-                p {
-                    a(href = "https://$domain/k/admin/system/admin/dataConnector.html", target = "_blank", classes = "button secondary") {
+                div(classes = "action-bar") {
+                    a(
+                        href = "https://$domain/k/admin/system/admin/dataConnector.html",
+                        target = "_blank",
+                        classes = "button secondary outline",
+                    ) {
                         +"kintone 管理画面を開く ↗"
                     }
                 }
@@ -149,8 +155,8 @@ fun HTML.connectKintoneView(
                         +" Adapter 起動 / agent.json 保存 / Agent コンテナ作成・起動 / kintone との疎通確認。"
                     }
                 }
-                p {
-                    button(type = ButtonType.submit, classes = "primary") { +"接続して開始 ▶" }
+                div(classes = "action-bar") {
+                    button(type = ButtonType.submit) { +"接続して開始 ▶" }
                     a(href = "/syncs/$syncName", classes = "button secondary outline") { +"キャンセル" }
                 }
             }

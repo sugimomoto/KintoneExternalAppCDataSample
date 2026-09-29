@@ -25,6 +25,7 @@
   --color-warning: #b85c00;
   --color-warning-soft: #fff4e0;
   --color-danger:  #b1262b;
+  --color-danger-hover: #8e1e22;
   --color-danger-soft: #fbe8e9;
   --color-info:    var(--resolve);
   --color-info-soft: #e3eaf3;
@@ -57,6 +58,11 @@
   --sh-md: 0 4px 10px rgba(21, 21, 28, 0.06), 0 1px 2px rgba(21, 21, 28, 0.04);
   --sh-lg: 0 10px 20px rgba(21, 21, 28, 0.08);
 
+  /* === Focus ring === */
+  --focus-ring:        0 0 0 3px rgba(255, 229, 0, 0.35);   /* Agility 黄 */
+  --focus-ring-danger: 0 0 0 3px rgba(177, 38, 43, 0.30);   /* danger 赤 */
+  --focus-outline:     var(--depth);
+
   /* === Pico 上書き === */
   --pico-primary: var(--depth);
   --pico-primary-hover: var(--depth-soft);
@@ -87,6 +93,8 @@
     --color-warning-soft: #3a2410;
     --color-danger-soft: #3a1818;
     --color-info-soft: #0d2a3a;
+
+    --focus-outline: var(--clarity);
   }
 }
 
@@ -239,10 +247,62 @@ table tbody td {
 table.striped tbody tr:nth-child(even) td { background: var(--c-surface-2); }
 table tbody tr:hover td { background: var(--clarity); }
 
+/* 横溢れ対策: 収まらないときはページ全体ではなくテーブル内をスクロールさせる */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 長い値のセル (JDBC 接続文字列など) を 1 行省略表示にする。
+   td に max-width を付けても table-layout: auto では
+   「サジェスト」扱いで無視されうるため、内側のブロック要素側で
+   セルの最小コンテンツ幅そのものを縮める。全文は title 属性で参照する。 */
+.cell-truncate > code,
+.cell-truncate > span {
+  display: block;
+  max-width: 24rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 操作列: ボタンが縦に折り返さないようにする */
+td.cell-actions {
+  white-space: nowrap;
+}
+
 /* ============================================================
    Buttons (CData accent: Agility = primary CTA)
+
+   バリアントは 4 種。意味を固定して使う (docs/development-guidelines.md 3.4)。
+
+     クラスなし          primary … その行で次にやるべき主要操作。1 アクション行に最大 1 つ
+     .secondary          副次操作 (編集 / 開始 / 停止 / 有効化 / 一覧へ)
+     .secondary.outline  補助・参照系 (ログを見る / キャンセル / 戻る / 外部リンク)
+     .danger             破壊的操作 (削除)
+
+   primary は「クラスを付けない状態」。`.primary` というクラスは定義しない。
+   `.outline` 単独は他バリアントと明度差が大きく浮くため views からは使わない。
+
+   ⚠ セレクタの詳細度に注意。Pico は次のルールでフォーム要素を整形する。
+
+     [role="button"], [type="button"], [type="reset"], [type="submit"], button {
+       padding / font-size / font-weight / border-radius / line-height
+     }
+     [type="button"], [type="reset"], [type="submit"] { margin-bottom: var(--pico-spacing) }
+     button[type="submit"], input:not(...), select, textarea { width: 100% }
+
+   `<button type="submit">` に対して一致する最も詳細度の高いセレクタは
+   `[type="submit"]` = **(0,1,0)** なので、`button` = (0,0,1) で書くと**全部負ける**。
+   実際に高さが a.button の 27px に対し button が 44px になっていた。
+
+   そのため下のセレクタは **すべての項目を (0,1,0) 以上**にしてある。
+   `button` 単体や `input[type=...]` だけを並べた形に戻さないこと。
    ============================================================ */
-button, .button, a.button, input[type="button"], input[type="submit"] {
+button[type="submit"], button[type="button"], button[type="reset"],
+button:not([type]),
+input[type="submit"], input[type="button"],
+.button, a.button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -258,9 +318,16 @@ button, .button, a.button, input[type="button"], input[type="submit"] {
   transition: all 0.12s ease;
   line-height: 1.3;
   white-space: nowrap;
+  /* Pico の `[type="submit"] { margin-bottom: var(--pico-spacing) }` を打ち消す。
+     これが無いとアクションバー内で submit ボタンだけ 12.25px 上にずれる。 */
+  margin: 0;
+  /* Pico の `button[type="submit"] { width: 100% }` を打ち消す。
+     これが無いと submit ボタンだけが全幅の帯になり、隣の a.button と幅が揃わない。
+     モバイルでの全幅化はファイル末尾の media query 側で行う。 */
+  width: auto;
 }
 
-/* Primary: Agility 黄 + Depth 文字 */
+/* Primary: Agility 黄 + Depth 文字 (クラスなし) */
 button:not(.secondary):not(.outline):not(.danger),
 .button:not(.secondary):not(.outline):not(.danger),
 a.button:not(.secondary):not(.outline):not(.danger) {
@@ -288,7 +355,7 @@ button.secondary:hover, .button.secondary:hover, a.button.secondary:hover {
   text-decoration: none;
 }
 
-/* Outline: Resolve 系 */
+/* Outline: Resolve 系 (views からは使わない。将来の特殊枠用に定義のみ残す) */
 button.outline, .button.outline {
   background: transparent;
   color: var(--resolve);
@@ -314,11 +381,43 @@ a.button.secondary.outline:hover {
   text-decoration: none;
 }
 
-/* Danger */
-button.danger, .button.danger {
+/* Danger: 破壊的操作。hover でも赤系を保ち、白文字のコントラストを維持する */
+button.danger, .button.danger, a.button.danger {
   background: var(--color-danger);
-  color: white;
+  color: #ffffff;
   border-color: var(--color-danger);
+}
+button.danger:hover, .button.danger:hover, a.button.danger:hover {
+  background: var(--color-danger-hover);
+  border-color: var(--color-danger-hover);
+  color: #ffffff;
+  text-decoration: none;
+}
+button.danger:active, .button.danger:active, a.button.danger:active {
+  background: var(--color-danger-hover);
+  border-color: var(--color-danger-hover);
+}
+
+/* Focus: キーボード操作時のみリングを出す (マウスクリックでは残さない) */
+button:focus-visible, .button:focus-visible, a.button:focus-visible,
+input[type="button"]:focus-visible, input[type="submit"]:focus-visible {
+  outline: 2px solid var(--focus-outline);
+  outline-offset: 1px;
+  box-shadow: var(--focus-ring);
+}
+
+button.danger:focus-visible, .button.danger:focus-visible,
+a.button.danger:focus-visible {
+  box-shadow: var(--focus-ring-danger);
+}
+
+/* Disabled: 押せないことを見た目で示す */
+button:disabled, .button:disabled,
+button[aria-disabled="true"], .button[aria-disabled="true"],
+a.button[aria-disabled="true"], .button.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 /* ============================================================
@@ -352,7 +451,7 @@ input[type="text"]:focus, input[type="email"]:focus, input[type="password"]:focu
 input[type="number"]:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--depth);
-  box-shadow: 0 0 0 3px rgba(255, 229, 0, 0.35);
+  box-shadow: var(--focus-ring);
 }
 
 input[type="checkbox"], input[type="radio"] { accent-color: var(--depth); }
@@ -398,6 +497,13 @@ small.description, label small {
 .status-badge.stopped {
   background: var(--c-surface-3);
   color: var(--c-text-muted);
+}
+
+/* 状態を判定できなかった場合 (.serving / .stopped に対する第 3 の状態)。
+   実際に判定失敗を意味するため、注意を促す警告系トークンを当てる。 */
+.status-badge.unknown {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
 }
 
 @keyframes pulse {
@@ -446,12 +552,6 @@ small.description, label small {
 
 .inline-form { display: inline-block; margin: 0; }
 .inline-form button { margin: 0; }
-
-.quick-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-}
 
 /* ============================================================
    Dashboard hero + KPIs (CData accent)
@@ -833,7 +933,20 @@ body > footer.container {
   .log-grid { grid-template-columns: 1fr; }
   .hero { padding: var(--sp-4); }
   .hero h2 { font-size: 1.125rem; }
+  /* 画面幅に対して 24rem は広すぎるため縮める。
+     テーブル自体は .table-scroll 内でスクロールするので操作列にも到達できる。 */
+  .cell-truncate > code,
+  .cell-truncate > span { max-width: 12rem; }
   .action-bar { flex-direction: column; align-items: stretch; }
   .action-bar > * { width: 100%; justify-content: center; }
   .action-bar form { width: 100%; }
+  /* `button[type="submit"] { width: auto }` (詳細度 0,1,1) が
+     `.action-bar > *` (詳細度 0,1,0) に勝ってしまうため、
+     同じ詳細度以上で縦積み時の全幅を取り戻す。 */
+  .action-bar > button, .action-bar > .button, .action-bar > input[type="submit"],
+  .action-bar > form button, .action-bar > form .button,
+  .inline-form > button {
+    width: 100%;
+    justify-content: center;
+  }
 }

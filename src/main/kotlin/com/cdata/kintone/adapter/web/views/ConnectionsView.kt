@@ -43,39 +43,53 @@ import kotlinx.html.tr
 fun HTML.connectionsListView(ctx: AppContext) {
     val names = ctx.configSource.listSharedJdbcConfigs()
     layout(
-        pageTitle = "Connections",
+        pageTitle = "データソース",
         activeCount = ctx.runner.listActive().size,
         currentPath = "/connections",
     ) {
-        h2 { +"JDBC Connections (${names.size})" }
-        p { a(href = "/connections/new", classes = "button") { +"+ New Connection" } }
+        div(classes = "action-bar") {
+            h2 { +"データソース接続 (${names.size} 件)" }
+            a(href = "/connections/new", classes = "button") { +"+ 新しいデータソース接続" }
+        }
 
         if (names.isEmpty()) {
             article {
-                p { +"共通 JDBC 接続がまだ登録されていません。" }
+                p { +"データソース接続がまだ登録されていません。" }
             }
         } else {
-            table(classes = "striped") {
-                thead {
-                    tr {
-                        th { +"Name" }
-                        th { +"Driver" }
-                        th { +"URL (masked)" }
-                        th { +"Action" }
-                    }
-                }
-                tbody {
-                    names.forEach { name ->
-                        val config = ctx.configSource.loadSharedJdbcConfig(name)
+            div(classes = "table-scroll") {
+                table(classes = "striped") {
+                    thead {
                         tr {
-                            td { a(href = "/connections/$name") { +name } }
-                            td { code { +(config?.driverClass ?: "-") } }
-                            td { code { +ConnectionStringMasker.mask(config?.url ?: "") } }
-                            td {
-                                form(action = "/connections/$name/test", method = FormMethod.post, classes = "inline-form") {
-                                    button(type = ButtonType.submit, classes = "secondary outline") { +"Test" }
+                            th { +"名前" }
+                            th { +"ドライバークラス" }
+                            th { +"接続文字列 (マスク済み)" }
+                            th { +"操作" }
+                        }
+                    }
+                    tbody {
+                        names.forEach { name ->
+                            val config = ctx.configSource.loadSharedJdbcConfig(name)
+                            tr {
+                                td { a(href = "/connections/$name") { +name } }
+                                td { code { +(config?.driverClass ?: "-") } }
+                                // 全文は title で参照する。マスク済みの値のみを入れること
+                                // (生の接続文字列を入れると DOM に平文の資格情報が載る)。
+                                val masked = ConnectionStringMasker.mask(config?.url ?: "")
+                                td(classes = "cell-truncate") {
+                                    attributes["title"] = masked
+                                    code { +masked }
                                 }
-                                a(href = "/connections/$name/edit", classes = "button secondary outline") { +"Edit" }
+                                td(classes = "cell-actions") {
+                                    form(
+                                        action = "/connections/$name/test",
+                                        method = FormMethod.post,
+                                        classes = "inline-form",
+                                    ) {
+                                        button(type = ButtonType.submit, classes = "secondary outline") { +"接続テスト" }
+                                    }
+                                    a(href = "/connections/$name/edit", classes = "button secondary") { +"編集" }
+                                }
                             }
                         }
                     }
@@ -91,7 +105,7 @@ fun HTML.connectionFormView(
     existingName: String? = null,
     existing: JdbcConfig? = null,
 ) {
-    val pageTitle = if (editMode) "Edit Connection: $existingName" else "New Connection"
+    val pageTitle = if (editMode) "データソース接続を編集: $existingName" else "新しいデータソース接続"
     layout(
         pageTitle = pageTitle,
         activeCount = ctx.runner.listActive().size,
@@ -105,8 +119,8 @@ fun HTML.connectionFormView(
         if (drivers.isEmpty()) {
             article(classes = "warning-banner") {
                 p {
-                    +"⚠ JDBC Driver が見つかりません。"
-                    a(href = "/drivers") { +" Drivers 画面" }
+                    +"⚠ JDBC ドライバーが見つかりません。"
+                    a(href = "/drivers") { +"ドライバー画面" }
                     +" で JAR をアップロードしてください。"
                 }
             }
@@ -119,7 +133,7 @@ fun HTML.connectionFormView(
             attributes["hx-target"] = "#url-preview-container"
 
             label {
-                +"Name (識別子, 英数小文字):"
+                +"名前 (識別子、英数小文字):"
                 input(type = InputType.text, name = "name") {
                     required = true
                     value = existingName ?: ""
@@ -128,7 +142,7 @@ fun HTML.connectionFormView(
             }
 
             label {
-                +"JDBC Driver:"
+                +"JDBC ドライバー:"
                 select {
                     name = "driver"
                     attributes["hx-get"] = "/connections/properties"
@@ -138,7 +152,7 @@ fun HTML.connectionFormView(
                     attributes["hx-vals"] = "js:{prefill: false}"
                     option {
                         value = ""
-                        +"-- ドライバを選択 --"
+                        +"-- ドライバーを選択 --"
                     }
                     drivers.forEach { d ->
                         option {
@@ -166,15 +180,15 @@ fun HTML.connectionFormView(
 
             // Pool
             section {
-                h3 { +"Pool Settings" }
+                h3 { +"接続プール設定" }
                 label {
-                    +"Pool size: "
+                    +"最大接続数:"
                     input(type = InputType.number, name = "pool.maximumPoolSize") {
                         value = (existing?.pool?.maximumPoolSize ?: 10).toString()
                     }
                 }
                 label {
-                    +"Connection timeout (ms): "
+                    +"接続タイムアウト (ミリ秒):"
                     input(type = InputType.number, name = "pool.connectionTimeout") {
                         value = (existing?.pool?.connectionTimeout ?: 30000).toString()
                     }
@@ -182,8 +196,8 @@ fun HTML.connectionFormView(
             }
 
             div(classes = "action-bar") {
-                a(href = "/connections", classes = "button secondary") { +"Cancel" }
-                button(type = ButtonType.submit, classes = "primary") { +"Save" }
+                a(href = "/connections", classes = "button secondary outline") { +"キャンセル" }
+                button(type = ButtonType.submit) { +"保存" }
             }
         }
 
@@ -216,7 +230,7 @@ fun kotlinx.html.FlowContent.propertiesFormContent(
         }
         // フォールバック: URL 直接入力
         label {
-            +"JDBC URL (直接入力): "
+            +"JDBC 接続文字列 (直接入力):"
             textArea {
                 name = "jdbc.url.manual"
                 rows = "3"
@@ -232,7 +246,7 @@ fun kotlinx.html.FlowContent.propertiesFormContent(
     p {
         small {
             +"全 ${props.size} プロパティ、表示中 ${visibleProps.size} 件。"
-            +" Required + Visible のみ展開、その他はカテゴリを開いて確認してください。"
+            +" 必須かつ表示対象のものだけ展開しています。その他はカテゴリを開いて確認してください。"
         }
     }
 
@@ -251,18 +265,43 @@ fun kotlinx.html.FlowContent.propertiesFormContent(
         val isAuth = category == "Authentication"
         if (isAuth) {
             section {
-                h3 { +category }
+                h3 { +categoryLabel(category) }
                 catProps.forEach { propertyField(it, existingValues[it.propertyName]) }
             }
         } else {
             details {
                 summary {
-                    +"$category (${catProps.size} props)"
+                    +"${categoryLabel(category)} (${catProps.size} 件)"
                 }
                 catProps.forEach { propertyField(it, existingValues[it.propertyName]) }
             }
         }
     }
+}
+
+/**
+ * 接続プロパティのカテゴリ名を表示用の日本語に変換する。
+ *
+ * キーは CData ドライバの `sys_connection_props` が返す生の Category 値。
+ * 同梱の 4 ドライバー (bcart / googlesheets / salesforce / sapgateway) が返す
+ * 全カテゴリを網羅している。
+ *
+ * `OAuth` / `JWT OAuth` / `SSL` / `SSO` / `BulkAPI` は固有名詞・略語なので**意図的に翻訳しない**。
+ * 未知のカテゴリも翻訳せずそのまま返すため、ドライバー更新で新カテゴリが増えても
+ * 表示が欠落しない。
+ *
+ * 並び順 (`orderedCategories`) と `isAuth` 判定は生値で行うため、本関数は表示専用。
+ */
+private fun categoryLabel(category: String): String = when (category) {
+    "Authentication" -> "認証"
+    "Connection" -> "接続"
+    "Caching" -> "キャッシュ"
+    "Firewall" -> "ファイアウォール"
+    "Logging" -> "ログ"
+    "Proxy" -> "プロキシ"
+    "Schema" -> "スキーマ"
+    "Other" -> "その他"
+    else -> category
 }
 
 private fun kotlinx.html.FlowContent.propertyField(prop: ConnectionProperty, currentValue: String?) {
@@ -272,8 +311,8 @@ private fun kotlinx.html.FlowContent.propertyField(prop: ConnectionProperty, cur
             +prop.displayName
             if (prop.required) span(classes = "required") { +" *" }
             when (prop.sensitivity) {
-                Sensitivity.PASSWORD -> span(classes = "sensitivity") { +" 🔐PASSWORD" }
-                Sensitivity.SENSITIVE -> span(classes = "sensitivity") { +" 🔐" }
+                Sensitivity.PASSWORD -> span(classes = "sensitivity") { +" パスワード" }
+                Sensitivity.SENSITIVE -> span(classes = "sensitivity") { +" 機微情報" }
                 Sensitivity.NONE -> {}
             }
         }

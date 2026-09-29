@@ -10,7 +10,6 @@ import kotlinx.html.h3
 import kotlinx.html.id
 import kotlinx.html.input
 import kotlinx.html.label
-import kotlinx.html.p
 import kotlinx.html.script
 import kotlinx.html.small
 import kotlinx.html.unsafe
@@ -25,7 +24,7 @@ fun HTML.syncLogsView(ctx: AppContext, syncName: String) {
         currentPath = "/syncs",
     ) {
         h2 { +"ログ: $syncName" }
-        p {
+        div(classes = "action-bar") {
             a(href = "/syncs/$syncName", classes = "button secondary outline") { +"← 連携詳細に戻る" }
         }
 

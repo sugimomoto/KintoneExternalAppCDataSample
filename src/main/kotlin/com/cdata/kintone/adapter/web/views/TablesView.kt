@@ -58,7 +58,7 @@ fun HTML.tablesListView(ctx: AppContext) {
                     h3 { +"まだ連携がありません" }
                     p { +"データソースのテーブルを kintone と連携する設定を追加しましょう。" }
                     div(classes = "actions") {
-                        a(href = "/syncs/new", classes = "button") { +"+ 新しい連携を追加" }
+                        a(href = "/syncs/new", classes = "button") { +"+ 新しい連携" }
                     }
                 }
             }
@@ -116,7 +116,7 @@ fun HTML.tableDetailView(ctx: AppContext, name: String, set: TableConfigSet) {
             a(href = "/syncs/$name/edit", classes = "button secondary") { +"編集" }
             form(action = "/syncs/$name/delete", method = FormMethod.post, classes = "inline-form") {
                 attributes["onsubmit"] = "return confirm('連携 \"$name\" を削除しますか？稼働中の Adapter + Agent コンテナも停止・削除します。')"
-                button(type = ButtonType.submit, classes = "secondary outline") { +"削除" }
+                button(type = ButtonType.submit, classes = "danger") { +"削除" }
             }
         }
 
@@ -243,11 +243,11 @@ private fun kotlinx.html.FlowContent.agentSection(
                 }
             }
             div(classes = "action-bar") {
-                button(type = ButtonType.submit, classes = "primary") { +"Save agent.json" }
+                button(type = ButtonType.submit) { +"agent.json を保存" }
                 if (agentConfig != null) {
                     form(action = "/syncs/$name/agent/delete", method = FormMethod.post, classes = "inline-form") {
                         attributes["onsubmit"] = "return confirm('agent.json を削除しますか？')"
-                        button(type = ButtonType.submit, classes = "secondary outline") { +"Delete agent.json" }
+                        button(type = ButtonType.submit, classes = "danger") { +"agent.json を削除" }
                     }
                 }
             }
@@ -358,14 +358,14 @@ fun HTML.tableEditView(ctx: AppContext, name: String, set: TableConfigSet) {
             }
 
             div(classes = "action-bar") {
-                a(href = "/syncs/$name", classes = "button secondary") { +"Cancel" }
-                button(type = ButtonType.submit, name = "action", classes = "primary") {
-                    value = "save"
-                    +"Save"
-                }
+                a(href = "/syncs/$name", classes = "button secondary outline") { +"キャンセル" }
                 button(type = ButtonType.submit, name = "action") {
+                    value = "save"
+                    +"保存"
+                }
+                button(type = ButtonType.submit, name = "action", classes = "secondary") {
                     value = "save-and-restart"
-                    +"Save & Restart"
+                    +"保存して再起動"
                 }
             }
         }
@@ -379,7 +379,7 @@ private fun kotlinx.html.FlowContent.tableActions(name: String, isActive: Boolea
         }
     } else {
         form(action = "/syncs/$name/start", method = FormMethod.post, classes = "inline-form") {
-            button(type = ButtonType.submit) { +"▶ 開始" }
+            button(type = ButtonType.submit, classes = "secondary") { +"▶ 開始" }
         }
     }
 }

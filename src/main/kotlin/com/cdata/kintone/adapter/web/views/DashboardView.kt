@@ -77,7 +77,7 @@ fun HTML.dashboardView(ctx: AppContext) {
                     div(classes = "actions") {
                         a(href = "/syncs", classes = "button secondary") { +"連携一覧へ" }
                         a(href = "/syncs/new", classes = "button") { +"+ 新しい連携" }
-                        a(href = "/help", classes = "button outline") { +"❓ ヘルプを開く" }
+                        a(href = "/help", classes = "button secondary outline") { +"ヘルプを開く" }
                     }
                 }
             } else {
@@ -87,9 +87,9 @@ fun HTML.dashboardView(ctx: AppContext) {
 
         article {
             h3 { +"クイックアクション" }
-            div(classes = "quick-actions") {
+            div(classes = "action-bar") {
                 a(href = "/syncs/new", classes = "button") { +"+ 新しい連携" }
-                a(href = "/connections/new", classes = "button secondary") { +"+ データソース接続を追加" }
+                a(href = "/connections/new", classes = "button secondary") { +"+ 新しいデータソース接続" }
                 a(href = "/drivers", classes = "button secondary") { +"ドライバー管理" }
             }
         }
