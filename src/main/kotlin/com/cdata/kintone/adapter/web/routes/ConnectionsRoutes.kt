@@ -1,5 +1,6 @@
 package com.cdata.kintone.adapter.web.routes
 
+import com.cdata.kintone.adapter.jdbc.ConnectionStringMasker
 import com.cdata.kintone.adapter.config.JdbcConfig
 import com.cdata.kintone.adapter.config.PoolConfig
 import com.cdata.kintone.adapter.jdbc.JdbcConnectionPropertyInspector
@@ -76,8 +77,10 @@ fun Route.connectionsRoutes(ctx: AppContext) {
         }.getOrElse { return@post call.respondText("not a CData driver") }
 
         val url = buildUrlFromForm(jdbcPrefix, form)
+        // プレビューは「どのプロパティが組み込まれたか」の構造確認が目的。
+        // 秘密の値そのものは出さない (Issue #16)。
         val html = createHTML().p {
-            code { +url }
+            code { +ConnectionStringMasker.mask(url) }
         }
         call.respondText(html, io.ktor.http.ContentType.Text.Html)
     }

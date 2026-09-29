@@ -206,7 +206,8 @@ fun HTML.connectionFormView(
             attributes["id"] = "url-preview-container"
             if (existing != null) {
                 p {
-                    code { +existing.url }
+                    // 生の接続文字列を DOM に載せない (Issue #16)。
+                    code { +ConnectionStringMasker.mask(existing.url) }
                 }
             } else {
                 p { small { +"(ドライバ選択後にプレビューが表示されます)" } }
