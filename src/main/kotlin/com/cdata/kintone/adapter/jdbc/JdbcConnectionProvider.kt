@@ -32,7 +32,7 @@ class JdbcConnectionProvider(private val config: JdbcConfig) : ConnectionProvide
             connectionTimeout = config.pool.connectionTimeout
             poolName = "CDataKintoneAdapterPool"
         }
-        log.info { "JDBC 接続プールを初期化: ${maskUrl(config.url)} (pool=${config.pool.maximumPoolSize})" }
+        log.info { "JDBC 接続プールを初期化: ${ConnectionStringMasker.mask(config.url)} (pool=${config.pool.maximumPoolSize})" }
         dataSource = HikariDataSource(hikariConfig)
     }
 
@@ -73,11 +73,6 @@ class JdbcConnectionProvider(private val config: JdbcConfig) : ConnectionProvide
             } catch (e: Exception) {
                 throw JdbcDriverLoadException("JDBC Driver のロードに失敗: $driverClass from $jarPath", e)
             }
-        }
-
-        /** 接続文字列の `Password=xxx` 部分をマスキングする（ログ出力用）。 */
-        fun maskUrl(url: String): String {
-            return url.replace(Regex("(?i)(password=)([^;]*)"), "$1***")
         }
     }
 }

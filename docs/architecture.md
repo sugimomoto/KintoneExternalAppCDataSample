@@ -187,7 +187,7 @@ buf generate
 | 認証情報 | 接続文字列は `${VAR}` による環境変数展開を推奨。`config.db` は gitignore 必須 |
 | SQL インジェクション | PreparedStatement 必須（全 SQL 動的組立箇所） |
 | プロセス分離 | Adapter は外部 DB 接続用のネットワークアクセスのみ。kintone 側への通信は不要 |
-| ログ | 接続文字列・APIトークン等の機密情報はマスキング |
+| ログ | 接続文字列は `ConnectionStringMasker` を通してからログ・画面へ出す。プロパティ名に `password` / `token` / `secret` / `key` 等を含む値をマスクする |
 
 ### 3.5 デプロイ制約
 

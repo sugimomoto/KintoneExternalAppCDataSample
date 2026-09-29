@@ -356,8 +356,16 @@ object ConfigStore {
 | トライアルライセンス有効化 | `jdbc/DriverActivator.kt` |
 | OAuth キャッシュの分離 | `jdbc/JdbcUrlEnhancer.kt:15` |
 | 接続文字列のプロパティ検出 | `jdbc/JdbcConnectionPropertyInspector.kt` |
+| 接続文字列のマスキング | `jdbc/ConnectionStringMasker.kt` |
 
-**OAuth キャッシュの分離は重要です。** 同じドライバを使う複数の連携が
+> ⚠️ **接続文字列をログ・画面に出すときは、必ず `ConnectionStringMasker.mask()` を通してください。**
+> プロパティ名に `password` / `token` / `secret` / `key` 等を含む値をマスクします。
+> 自前の正規表現でマスクすると、データソースごとに異なる認証プロパティ名
+> （`PersonalAccessToken` / `APIKey` / `AWSSecretKey` ...）を取りこぼします。
+> 実際にこれで JWT がログに平文で出ていました
+> （[Issue #10](https://github.com/sugimomoto/KintoneExternalAppCDataSample/issues/10)）。
+
+**OAuth キャッシュの分離も重要です。** 同じドライバを使う複数の連携が
 1 つのキャッシュファイルを取り合うと再認証が頻発します。`JdbcUrlEnhancer` が
 `OAuthSettingsLocation` を `run/oauth/<連携名>.txt` に自動で振り分けています。
 接続文字列を組み立て直す改修をする場合、**この処理を外さないこと**。
@@ -454,6 +462,7 @@ val grpcKotlinGenVersion  = "1.5.0.3.20260309044725.$bsrCommit"
 | 1 | 1 テーブル = 1 Adapter = 1 Agent = 1 Connector（サイボウズ仕様） | テーブルが増えるとセット数も増える。`MultiAdapterRunner` が 1 JVM に集約している |
 | 2 | Agent の停止・再起動直後に kintone 側で「セッションが見つかりません」 | サイボウズへ改善要望提出済み。デモ直前に Agent を触らない |
 | 3 | 複数連携で OAuth キャッシュが衝突する | `JdbcUrlEnhancer` の分離処理を外さない（R-10） |
+| 3b | 接続文字列をそのままログ・画面に出すと認証情報が漏れる | 必ず `ConnectionStringMasker.mask()` を通す（R-10） |
 | 4 | 複合主キー未対応 | 対象テーブルの選定で回避するのが現実的 |
 | 5 | Connect RPC のメッセージ上限 4MB | 大量件数の一括取得には向かない。ページングを使う |
 | 6 | `GetCapability` で `true` を宣言した RPC は kintone が呼び始める | 実装より先に宣言しない |

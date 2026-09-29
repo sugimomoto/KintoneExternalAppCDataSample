@@ -1,6 +1,7 @@
 package com.cdata.kintone.adapter.cli
 
 import com.cdata.kintone.adapter.config.ConfigStore
+import com.cdata.kintone.adapter.jdbc.ConnectionStringMasker
 import com.cdata.kintone.adapter.jdbc.JdbcConnectionProvider
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.options.default
@@ -29,7 +30,7 @@ class TestConnectionCommand : CliktCommand(name = "test-connection") {
         val (name, jdbcConfig) = SharedJdbcResolver.resolve(source, jdbcName)
 
         echo("Connection:  $name")
-        echo("Connecting to: ${JdbcConnectionProvider.maskUrl(jdbcConfig.url)}")
+        echo("Connecting to: ${ConnectionStringMasker.mask(jdbcConfig.url)}")
         JdbcConnectionProvider(jdbcConfig).use { provider ->
             provider.connection().use { conn ->
                 val meta = conn.metaData
