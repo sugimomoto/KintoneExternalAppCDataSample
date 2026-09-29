@@ -189,4 +189,47 @@ class JdbcUrlEnhancerTest {
 
         assertTrue(JdbcUrlEnhancer.withInitiateOAuthOff(url).contains("InitiateOAuth=OFF"))
     }
+
+    // --- withProperty (Issue #34) ---
+
+    @Test
+    fun `withProperty - 無いプロパティを追加する`() {
+        val result = JdbcUrlEnhancer.withProperty("jdbc:salesforce:AuthScheme=OAuth;", "InitiateOAuth", "REFRESH")
+        assertTrue(result.contains("AuthScheme=OAuth"))
+        assertTrue(result.contains("InitiateOAuth=REFRESH"), "result was: $result")
+    }
+
+    @Test
+    fun `withProperty - 既にあるプロパティを置換する`() {
+        val url = "jdbc:salesforce:InitiateOAuth=OFF;OAuthRefreshToken=old;User=u;"
+        val result = JdbcUrlEnhancer.withProperty(url, "OAuthRefreshToken", "new")
+        assertTrue(result.contains("OAuthRefreshToken=new"), "result was: $result")
+        assertFalse(result.contains("OAuthRefreshToken=old"))
+        // 他のプロパティを壊さない (AC-7)
+        assertTrue(result.contains("InitiateOAuth=OFF"))
+        assertTrue(result.contains("User=u"))
+    }
+
+    @Test
+    fun `withProperty - 最初のプロパティも置換する`() {
+        val url = "jdbc:salesforce:InitiateOAuth=OFF;User=u;"
+        val result = JdbcUrlEnhancer.withProperty(url, "InitiateOAuth", "REFRESH")
+        assertTrue(result.contains("jdbc:salesforce:InitiateOAuth=REFRESH"), "result was: $result")
+        assertFalse(result.contains("InitiateOAuth=OFF"))
+    }
+
+    @Test
+    fun `withProperty - 大文字小文字を無視して置換する`() {
+        val url = "jdbc:googlesheets:initiateoauth=getandrefresh;"
+        val result = JdbcUrlEnhancer.withProperty(url, "InitiateOAuth", "REFRESH")
+        assertTrue(result.contains("=REFRESH"), "result was: $result")
+        assertFalse(result.lowercase().contains("getandrefresh"))
+    }
+
+    @Test
+    fun `withProperty - 値に含まれるセミコロンを除去する`() {
+        // 接続文字列の区切りを壊さないため。CData のトークンに ; は現れないが防御的に。
+        val result = JdbcUrlEnhancer.withProperty("jdbc:salesforce:User=u;", "OAuthRefreshToken", "a;b")
+        assertTrue(result.contains("OAuthRefreshToken=ab"), "result was: $result")
+    }
 }

@@ -41,22 +41,39 @@ class OAuthAuthorizer(private val connection: Connection) {
     }
 
     /**
-     * verifier からトークンを取得する。
-     * 取得したトークンはドライバーが `OAuthSettingsLocation` のキャッシュに保存する。
+     * verifier からトークンを取得して返す。
+     *
+     * **戻り値を必ず保存すること。** プロシージャを実行しただけでは
+     * `OAuthSettingsLocation` のキャッシュは作られない。取得したリフレッシュトークンを
+     * 接続設定に書き戻す必要がある (Issue #34)。
      *
      * **verifier はログに出さない**（認可コードそのもの）。
+     * トークン値もログに出さない。
      */
-    fun fetchAccessToken(verifier: String, callbackUrl: String?) {
-        try {
+    fun fetchAccessToken(verifier: String, callbackUrl: String?): OAuthTokens {
+        val tokens = try {
             connection.createStatement().use { statement ->
                 statement.execute(OAuthProcedureSql.accessToken(verifier, callbackUrl))
+                statement.resultSet?.use { rs -> readTokens(rs) } ?: OAuthTokens(null, null, null)
             }
         } catch (e: SQLException) {
             // 引数は SQL リテラルに埋め込むため、ドライバーの例外に SQL が含まれると
             // 認可コードが画面とログに漏れる。伏せた上で投げ直す。
             throw SQLException(OAuthUrlMasker.redactVerifier(e.message, verifier), e.sqlState, e.errorCode, e)
         }
-        log.info { "OAuth トークンを取得してキャッシュに保存しました" }
+        log.info {
+            "OAuth トークンを取得しました " +
+                "(アクセストークン: ${tokens.accessToken != null}, リフレッシュトークン: ${tokens.refreshToken != null})"
+        }
+        return tokens
+    }
+
+    /** 先頭行を列名 → 値の Map として読む。列名の綴りの差は [OAuthTokens.from] が吸収する。 */
+    private fun readTokens(rs: java.sql.ResultSet): OAuthTokens {
+        if (!rs.next()) return OAuthTokens(null, null, null)
+        val meta = rs.metaData
+        val row = (1..meta.columnCount).associate { i -> meta.getColumnLabel(i) to rs.getString(i) }
+        return OAuthTokens.from(row)
     }
 
     private fun procedureNames(): List<String> =

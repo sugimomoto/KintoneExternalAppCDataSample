@@ -38,19 +38,42 @@ object JdbcUrlEnhancer {
     }
 
     /**
+     * プロパティを設定した接続文字列を返す。既にあれば値を置換し、無ければ末尾に追加する。
+     *
+     * 既存プロパティの探索は大文字小文字を無視し、区切りは `;` だけでなく `:` も見る
+     * （CData の接続文字列は `jdbc:<product>:<最初のプロパティ>=...` の形）。
+     * 値に含まれる `;` は区切りを壊すため除去する。
+     */
+    fun withProperty(jdbcUrl: String, name: String, value: String): String {
+        val safeValue = value.replace(";", "")
+        val regex = Regex("""(?i)(?:^|[;:])\s*${Regex.escape(name)}\s*=[^;]*""")
+        val replaced = regex.replace(jdbcUrl) { match ->
+            match.value.substringBefore('=') + "=" + safeValue
+        }
+        if (replaced != jdbcUrl) return replaced
+        val trimmed = jdbcUrl.trimEnd(';')
+        return "$trimmed;$name=$safeValue"
+    }
+
+    /**
      * `InitiateOAuth` を `OFF` にした接続文字列を返す。
      *
      * OAuth 認可ウィザードで接続を張るときに使う。`GETANDREFRESH` のままだと
      * ドライバーが自分のマシンでブラウザを開こうとし、ヘッドレスなコンテナでは
      * 60 秒タイムアウトする (Issue #12)。保存済みの設定は書き換えない。
      */
-    fun withInitiateOAuthOff(jdbcUrl: String): String {
-        val replaced = INITIATE_OAUTH_REGEX.replace(jdbcUrl) { match ->
-            match.value.substringBefore('=') + "=OFF"
-        }
-        if (replaced != jdbcUrl) return replaced
-        val trimmed = jdbcUrl.trimEnd(';')
-        return "$trimmed;InitiateOAuth=OFF"
+    fun withInitiateOAuthOff(jdbcUrl: String): String = withProperty(jdbcUrl, INITIATE_OAUTH, "OFF")
+
+    /**
+     * 認可で取得したリフレッシュトークンを接続設定に書き込んだ設定を返す。
+     *
+     * `InitiateOAuth=REFRESH` にすることで、以降はドライバーがこのトークンから
+     * アクセストークンを自動更新する。ブラウザ認可は走らない (Issue #34)。
+     */
+    fun withRefreshToken(config: JdbcConfig, refreshToken: String): JdbcConfig {
+        val url = withProperty(config.url, INITIATE_OAUTH, "REFRESH")
+            .let { withProperty(it, OAuthTokens.REFRESH_TOKEN_COLUMN, refreshToken) }
+        return config.copy(url = url)
     }
 
     /**
@@ -77,12 +100,12 @@ object JdbcUrlEnhancer {
     /** `cdata.jdbc.<product>.<Driver>` の最小要素数。 */
     private const val CDATA_CLASS_MIN_PARTS = 3
 
+    private const val INITIATE_OAUTH = "InitiateOAuth"
+
     /**
      * 明示指定の検出。区切りは `;` だけでなく `:` も見る。
      * CData の接続文字列は `jdbc:<product>:<最初のプロパティ>=...` の形なので、
      * 最初のプロパティに書かれた場合は直前が `:` になる。
      */
-    private val INITIATE_OAUTH_REGEX = Regex("""(?i)(?:^|[;:])\s*InitiateOAuth\s*=[^;]*""")
-
     private val KEY_REGEX = Regex("""(?i)(?:^|[;:])\s*OAuthSettingsLocation\s*=""")
 }
