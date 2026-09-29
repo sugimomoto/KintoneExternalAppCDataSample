@@ -115,22 +115,3 @@ class JdbcConnectionPropertyInspector(
         """.trimIndent()
     }
 }
-
-data class ConnectionProperty(
-    val propertyName: String,
-    val displayName: String,
-    val shortDescription: String,
-    val type: PropertyType,
-    val defaultValue: String?,
-    val allowedValues: List<String>,
-    val category: String,
-    val required: Boolean,
-    val sensitivity: Sensitivity,
-    val visible: Boolean,
-    val hierarchy: String,
-    val ordinal: Int,
-    val categoryOrdinal: Int,
-)
-
-enum class PropertyType { STRING, INT, BOOLEAN }
-enum class Sensitivity { NONE, SENSITIVE, PASSWORD }
