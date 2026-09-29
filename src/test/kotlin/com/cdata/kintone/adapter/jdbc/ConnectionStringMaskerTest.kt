@@ -83,4 +83,25 @@ class ConnectionStringMaskerTest {
         listOf("User", "URL", "Namespace", "OAuthClientId", "BatchSize")
             .forEach { assertFalse(ConnectionStringMasker.isSensitive(it), "対象: $it") }
     }
+
+    // --- 例外メッセージへの適用 (Issue #40) ---
+
+    @Test
+    fun `例外メッセージに埋め込まれた接続文字列の機密値をマスクする`() {
+        // 接続テストの失敗メッセージを生で出すと、例外に接続文字列が含まれていた場合に
+        // 画面共有中に資格情報が漏れる。
+        val message = "Login failed for jdbc:salesforce:User=u;Password=secret;SecurityToken=abc123"
+        val masked = ConnectionStringMasker.mask(message)
+
+        assertFalse(masked.contains("secret"), "実際: $masked")
+        assertFalse(masked.contains("abc123"), "実際: $masked")
+        assertTrue(masked.contains("User=u"), "機密でない値は残る: $masked")
+    }
+
+    @Test
+    fun `接続文字列を含まないメッセージはそのまま残る`() {
+        val message = "接続がタイムアウトしました"
+
+        assertEquals(message, ConnectionStringMasker.mask(message))
+    }
 }
