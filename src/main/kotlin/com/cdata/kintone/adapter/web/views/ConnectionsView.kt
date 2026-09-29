@@ -1,8 +1,10 @@
 package com.cdata.kintone.adapter.web.views
 
-import com.cdata.kintone.adapter.jdbc.ConnectionStringMasker
 import com.cdata.kintone.adapter.config.JdbcConfig
+import com.cdata.kintone.adapter.jdbc.ConnectionPropertiesResult
 import com.cdata.kintone.adapter.jdbc.ConnectionProperty
+import com.cdata.kintone.adapter.jdbc.ConnectionStringMasker
+import com.cdata.kintone.adapter.jdbc.PropertySource
 import com.cdata.kintone.adapter.jdbc.PropertyType
 import com.cdata.kintone.adapter.jdbc.Sensitivity
 import com.cdata.kintone.adapter.web.AppContext
@@ -173,7 +175,7 @@ fun HTML.connectionFormView(
                         val result = ctx.connectionPropertyInspector.fetchProperties(
                             existing.driverClass, driverInfo.filename,
                         )
-                        propertiesFormContent(result.properties, existingValuesOf(existing))
+                        propertiesFormContent(result, existingValuesOf(existing))
                     }
                 }
             }
@@ -217,37 +219,81 @@ fun HTML.connectionFormView(
 }
 
 /**
- * sys_connection_props 結果から動的フォームをレンダリング。
- * Web UI のドライバ選択時に HTMX で /connections/properties が呼ばれて
- * このフラグメントが返される。
+ * 接続プロパティの取得結果から動的フォームをレンダリングする。
+ * ドライバー選択時に HTMX で `/connections/properties` が呼ばれ、このフラグメントが返る。
+ *
+ * ドライバーによっては `sys_connection_props` が取得できず、
+ * `Driver.getPropertyInfo` 由来の縮退結果になる。取得経路ごとに案内を出し分ける。
  */
 fun kotlinx.html.FlowContent.propertiesFormContent(
-    props: List<ConnectionProperty>,
+    result: ConnectionPropertiesResult,
     existingValues: Map<String, String> = emptyMap(),
 ) {
-    if (props.isEmpty()) {
-        article(classes = "warning-banner") {
-            p { +"プロパティ取得に失敗しました。CData ドライバではない可能性があります。" }
-        }
-        // フォールバック: URL 直接入力
-        label {
-            +"JDBC 接続文字列 (直接入力):"
-            textArea {
-                name = "jdbc.url.manual"
-                rows = "3"
-                +(existingValues["__url__"] ?: "")
-            }
-        }
+    noticeFor(result.source)?.let { notice ->
+        article(classes = "warning-banner") { p { +notice } }
+    }
+
+    if (result.properties.isEmpty()) {
+        manualUrlField(existingValues)
         return
     }
 
+    propertyCategories(result.properties, existingValues)
+
+    // 縮退時は取得漏れのプロパティを補えるよう、直接入力も併記する。
+    if (result.isDegraded) {
+        manualUrlField(existingValues)
+    }
+}
+
+/**
+ * 取得経路に応じた案内文。完全に取得できた場合は案内を出さない。
+ *
+ * 従来は取得に失敗した理由を区別できず、正規の CData ドライバーに対しても
+ * 「CData ドライバーではない可能性があります」と表示していた (Issue #15)。
+ */
+private fun noticeFor(source: PropertySource): String? = when (source) {
+    PropertySource.SYS_CONNECTION_PROPS -> null
+
+    PropertySource.DRIVER_PROPERTY_INFO ->
+        "ドライバーから完全なプロパティ定義を取得できませんでした。簡易フォームを表示しています " +
+            "(カテゴリー分類と選択肢は利用できません)。不足するプロパティは JDBC 接続文字列に直接記述してください。"
+
+    PropertySource.NONE_NOT_CDATA_DRIVER ->
+        "CData JDBC Driver ではないため、プロパティフォームを生成できません。" +
+            "JDBC 接続文字列を直接入力してください。"
+
+    PropertySource.NONE_JAR_MISSING ->
+        "ドライバーの JAR が見つかりません。ドライバー画面で配置状況を確認してください。"
+
+    PropertySource.NONE_FETCH_FAILED ->
+        "プロパティの取得に失敗しました。詳細はログを確認してください。" +
+            "JDBC 接続文字列を直接入力すればデータソース接続は作成できます。"
+}
+
+/** プロパティフォームを生成できない / 補完が必要なときのフォールバック入力欄。 */
+private fun kotlinx.html.FlowContent.manualUrlField(existingValues: Map<String, String>) {
+    label {
+        +"JDBC 接続文字列 (直接入力):"
+        textArea {
+            name = "jdbc.url.manual"
+            rows = "3"
+            +(existingValues["__url__"] ?: "")
+        }
+    }
+}
+
+private fun kotlinx.html.FlowContent.propertyCategories(
+    props: List<ConnectionProperty>,
+    existingValues: Map<String, String>,
+) {
     val visibleProps = props.filter { it.visible && it.propertyName.isNotBlank() }
     val byCategory = visibleProps.groupBy { it.category.ifBlank { "Other" } }
 
     p {
         small {
             +"全 ${props.size} プロパティ、表示中 ${visibleProps.size} 件。"
-            +" 必須かつ表示対象のものだけ展開しています。その他はカテゴリを開いて確認してください。"
+            +" 必須プロパティを含むカテゴリーを展開しています。その他はカテゴリーを開いて確認してください。"
         }
     }
 
@@ -263,8 +309,10 @@ fun kotlinx.html.FlowContent.propertiesFormContent(
 
     orderedCategories.forEach { category ->
         val catProps = byCategory[category] ?: return@forEach
-        val isAuth = category == "Authentication"
-        if (isAuth) {
+        // 必須プロパティが折りたたみの中に隠れないようにする。縮退フォームは
+        // カテゴリを持たないため、この規則がないと必須項目が初期表示されない。
+        val expanded = category == "Authentication" || catProps.any { it.required }
+        if (expanded) {
             section {
                 h3 { +categoryLabel(category) }
                 catProps.forEach { propertyField(it, existingValues[it.propertyName]) }

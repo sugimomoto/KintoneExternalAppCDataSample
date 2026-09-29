@@ -58,7 +58,7 @@ fun Route.connectionsRoutes(ctx: AppContext) {
         }
         val result = ctx.connectionPropertyInspector.fetchProperties(driverClass, jarFilename)
         val html = createHTML().div {
-            propertiesFormContent(result.properties)
+            propertiesFormContent(result)
         }
         call.respondText(html, io.ktor.http.ContentType.Text.Html)
     }
