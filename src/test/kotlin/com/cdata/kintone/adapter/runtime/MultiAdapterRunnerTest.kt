@@ -53,7 +53,7 @@ class MultiAdapterRunnerTest {
     private fun makeRunner(source: ConfigSource): MultiAdapterRunner {
         val runner = MultiAdapterRunner(
             configSource = source,
-            connectionProviderFactory = { _ -> FakeConnectionProvider() },
+            connectionProviderFactory = { _, _ -> FakeConnectionProvider() },
         )
         runners.add(runner)
         return runner

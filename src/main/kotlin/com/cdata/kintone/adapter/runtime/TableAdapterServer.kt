@@ -4,7 +4,6 @@ import com.cdata.kintone.adapter.config.JdbcConfig
 import com.cdata.kintone.adapter.config.TableConfigSet
 import com.cdata.kintone.adapter.jdbc.ConnectionProvider
 import com.cdata.kintone.adapter.jdbc.JdbcConnectionProvider
-import com.cdata.kintone.adapter.jdbc.JdbcUrlEnhancer
 import com.cdata.kintone.adapter.service.AdapterServiceImpl
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.grpc.Server
@@ -26,14 +25,15 @@ private val log = KotlinLogging.logger {}
  *
  * @param tableName テーブル識別名（ログ・ヘルスチェックサービス名用）。
  * @param config 1 テーブル分の設定セット。
+ * @param oauthCacheKey OAuth キャッシュの識別子。接続単位で共有するため、
+ *   共通 JDBC 設定を参照している場合はその名前が入る (Issue #11)。
  * @param connectionProviderFactory JDBC 接続プロバイダの生成関数（テストでは Fake を注入）。
  */
 class TableAdapterServer(
     val tableName: String,
     private val config: TableConfigSet,
-    private val connectionProviderFactory: (JdbcConfig) -> ConnectionProvider = ::JdbcConnectionProvider,
-    /** OAuth キャッシュの親ディレクトリ。tableName ごとに `<dir>/oauth/<table>.txt` を割り当てる。 */
-    private val oauthCacheBaseDir: String = "./run",
+    private val oauthCacheKey: String = tableName,
+    private val connectionProviderFactory: (JdbcConfig, String) -> ConnectionProvider = ::JdbcConnectionProvider,
 ) : AutoCloseable {
 
     private var grpcServer: Server? = null
@@ -48,15 +48,11 @@ class TableAdapterServer(
     fun start(): TableAdapterServer {
         check(grpcServer == null) { "$tableName は既に起動済み" }
 
-        // OAuth キャッシュをテーブル別に分離（ユーザが明示指定済みなら尊重）
-        val cachePath = JdbcUrlEnhancer.cachePathFor(oauthCacheBaseDir, tableName)
-        val effectiveJdbc = config.jdbc.copy(
-            url = JdbcUrlEnhancer.withOAuthCache(config.jdbc.url, cachePath),
-        )
-        val provider = connectionProviderFactory(effectiveJdbc)
+        // OAuth キャッシュパスの付与は JdbcConnectionProvider が行う (Issue #11)。
+        // ここで組み立てると接続テスト経路と食い違うため、キーを渡すだけにする。
+        val provider = connectionProviderFactory(config.jdbc, oauthCacheKey)
         connectionProvider = provider
-        val effectiveConfig = config.copy(jdbc = effectiveJdbc)
-        val service = AdapterServiceImpl(effectiveConfig, provider)
+        val service = AdapterServiceImpl(config, provider)
 
         healthManager.setStatus("", HealthCheckResponse.ServingStatus.SERVING)
         healthManager.setStatus(SERVICE_NAME, HealthCheckResponse.ServingStatus.SERVING)

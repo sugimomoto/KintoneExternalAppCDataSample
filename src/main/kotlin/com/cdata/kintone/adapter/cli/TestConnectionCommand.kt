@@ -31,7 +31,7 @@ class TestConnectionCommand : CliktCommand(name = "test-connection") {
 
         echo("Connection:  $name")
         echo("Connecting to: ${ConnectionStringMasker.mask(jdbcConfig.url)}")
-        JdbcConnectionProvider(jdbcConfig).use { provider ->
+        JdbcConnectionProvider(jdbcConfig, oauthCacheKey = name).use { provider ->
             provider.connection().use { conn ->
                 val meta = conn.metaData
                 echo("Database: ${meta.databaseProductName} ${meta.databaseProductVersion}")

@@ -111,14 +111,10 @@ class JdbcConnectionPropertyInspector(
          * CData 全製品共通のパッケージ命名規約に依存。
          */
         fun jdbcPrefixOf(driverClass: String): String {
-            val parts = driverClass.split('.')
-            require(parts.size >= CDATA_CLASS_MIN_PARTS && parts[0] == "cdata" && parts[1] == "jdbc") {
+            require(JdbcUrlEnhancer.isCDataDriver(driverClass)) {
                 "Not a CData JDBC driver class: $driverClass"
             }
-            return "jdbc:${parts[2]}"
+            return "jdbc:${driverClass.split('.')[2]}"
         }
-
-        /** `cdata.jdbc.<product>.<Driver>` の最小要素数。 */
-        private const val CDATA_CLASS_MIN_PARTS = 3
     }
 }

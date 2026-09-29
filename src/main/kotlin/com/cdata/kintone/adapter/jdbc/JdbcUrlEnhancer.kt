@@ -1,5 +1,7 @@
 package com.cdata.kintone.adapter.jdbc
 
+import com.cdata.kintone.adapter.config.JdbcConfig
+
 /**
  * CData JDBC URL に対するヘルパ。
  *
@@ -35,5 +37,34 @@ object JdbcUrlEnhancer {
         return "$base/oauth/$safe.txt"
     }
 
-    private val KEY_REGEX = Regex("""(?i)(?:^|;)\s*OAuthSettingsLocation\s*=""")
+    /**
+     * OAuth キャッシュパスを付与した設定を返す。**接続を張る経路はこれを通る。**
+     *
+     * `OAuthSettingsLocation` は CData ドライバー固有のプロパティなので、
+     * CData 以外のドライバーには付与しない。付与すると URL の解釈が壊れる
+     * （H2 は未知の `;KEY=VALUE` を接続エラーにする）。
+     */
+    fun applyOAuthCache(config: JdbcConfig, cacheKey: String, baseDir: String): JdbcConfig {
+        if (!isCDataDriver(config.driverClass)) return config
+        return config.copy(url = withOAuthCache(config.url, cachePathFor(baseDir, cacheKey)))
+    }
+
+    /**
+     * `cdata.jdbc.<product>.<Driver>` 形式のドライバークラスか。
+     * CData 固有プロパティを付与してよいかの判定に使う。
+     */
+    fun isCDataDriver(driverClass: String): Boolean {
+        val parts = driverClass.split('.')
+        return parts.size >= CDATA_CLASS_MIN_PARTS && parts[0] == "cdata" && parts[1] == "jdbc"
+    }
+
+    /** `cdata.jdbc.<product>.<Driver>` の最小要素数。 */
+    private const val CDATA_CLASS_MIN_PARTS = 3
+
+    /**
+     * 明示指定の検出。区切りは `;` だけでなく `:` も見る。
+     * CData の接続文字列は `jdbc:<product>:<最初のプロパティ>=...` の形なので、
+     * 最初のプロパティに書かれた場合は直前が `:` になる。
+     */
+    private val KEY_REGEX = Regex("""(?i)(?:^|[;:])\s*OAuthSettingsLocation\s*=""")
 }

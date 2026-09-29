@@ -69,6 +69,9 @@ class SqliteConfigSource(
         Unit
     }
 
+    override fun sharedJdbcRefOf(tableName: String): String? =
+        fetchTableRow(tableName)?.jdbcRef
+
     override fun loadSharedJdbcConfig(name: String): JdbcConfig? = connect().use { conn ->
         conn.prepareStatement("SELECT config_json FROM shared_jdbcs WHERE name = ?").use { ps ->
             ps.setString(1, name)
