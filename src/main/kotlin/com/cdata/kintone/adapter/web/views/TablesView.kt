@@ -461,8 +461,15 @@ private fun kotlinx.html.FlowContent.authRejectedBanner(
     }
 }
 
+/**
+ * 検知時刻の表示。
+ *
+ * タイムゾーンまで出す。コンテナの既定は UTC で、ホストのローカル時刻とずれる
+ * （`TZ` を設定すればその zone になる）。ずれたまま時刻だけ出すと
+ * 「いつ起きたのか」を読み違える。
+ */
 private fun formatDetectedAt(epochMillis: Long): String =
-    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z")
         .withZone(ZoneId.systemDefault())
         .format(Instant.ofEpochMilli(epochMillis))
 
