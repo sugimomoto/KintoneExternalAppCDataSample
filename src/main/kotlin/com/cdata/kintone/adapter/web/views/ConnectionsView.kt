@@ -380,7 +380,10 @@ private fun kotlinx.html.FlowContent.propertyField(
     currentValue: String?,
     isDependency: Boolean = false,
 ) {
-    val value = currentValue ?: prop.defaultValue ?: ""
+    // 既定値は入力欄に埋めない。埋めると「利用者が設定した値」と区別できず、
+    // 触っていないプロパティまで接続文字列に保存されてしまう (Issue #27)。
+    // 既定値は placeholder / 選択肢のラベルで見せるだけにする。
+    val value = currentValue ?: ""
     label(classes = "property-row") {
         div {
             +prop.displayName
@@ -393,15 +396,29 @@ private fun kotlinx.html.FlowContent.propertyField(
         }
         when {
             prop.type == PropertyType.BOOLEAN -> {
-                input(type = InputType.checkBox, name = "prop.${prop.propertyName}") {
+                // チェックボックスでは「未指定」を表現できない。未チェックが
+                // 「False を明示」なのか「触っていない」のか区別できないため 3 択にする。
+                select {
                     propertyFieldTargets(isDependency, "change")
-                    checked = value.equals("true", ignoreCase = true)
+                    name = "prop.${prop.propertyName}"
+                    option {
+                        this.value = ""
+                        +unspecifiedLabel(prop.defaultValue)
+                    }
+                    BOOLEAN_CHOICES.forEach { choice ->
+                        option {
+                            this.value = choice
+                            if (choice.equals(value, ignoreCase = true)) selected = true
+                            +choice
+                        }
+                    }
                 }
             }
             prop.type == PropertyType.INT -> {
                 input(type = InputType.number, name = "prop.${prop.propertyName}") {
                     propertyFieldTargets(isDependency, "keyup changed delay:200ms")
                     this.value = value
+                    prop.defaultValue?.takeIf { it.isNotBlank() }?.let { placeholder = it }
                 }
             }
             prop.allowedValues.isNotEmpty() -> {
@@ -410,7 +427,7 @@ private fun kotlinx.html.FlowContent.propertyField(
                     name = "prop.${prop.propertyName}"
                     option {
                         this.value = ""
-                        +"-- 未指定 --"
+                        +unspecifiedLabel(prop.defaultValue)
                     }
                     prop.allowedValues.forEach { v ->
                         option {
@@ -425,12 +442,14 @@ private fun kotlinx.html.FlowContent.propertyField(
                 input(type = InputType.password, name = "prop.${prop.propertyName}") {
                     propertyFieldTargets(isDependency, "keyup changed delay:200ms")
                     this.value = value
+                    prop.defaultValue?.takeIf { it.isNotBlank() }?.let { placeholder = it }
                 }
             }
             else -> {
                 input(type = InputType.text, name = "prop.${prop.propertyName}") {
                     propertyFieldTargets(isDependency, "keyup changed delay:200ms")
                     this.value = value
+                    prop.defaultValue?.takeIf { it.isNotBlank() }?.let { placeholder = it }
                 }
             }
         }
@@ -440,6 +459,18 @@ private fun kotlinx.html.FlowContent.propertyField(
         }
     }
 }
+
+/** 真偽値プロパティの選択肢。CData ドライバーは True / False を受け付ける。 */
+private val BOOLEAN_CHOICES = listOf("True", "False")
+
+/**
+ * 未選択時のラベル。既定値があれば併記する。
+ *
+ * 既定値を入力欄に埋めなくなった代わりに、未入力のとき何が使われるかを
+ * 画面で分かるようにする (Issue #27)。
+ */
+private fun unspecifiedLabel(defaultValue: String?): String =
+    if (defaultValue.isNullOrBlank()) "-- 未指定 --" else "-- 未指定 (既定: $defaultValue) --"
 
 /**
  * プロパティ入力欄の htmx 設定。

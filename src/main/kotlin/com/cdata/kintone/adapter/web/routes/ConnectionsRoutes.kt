@@ -62,7 +62,7 @@ fun Route.connectionsRoutes(ctx: AppContext) {
             if (it.size == 2) it[0] to it[1] else return@post call.respondText("invalid driver param")
         }
         // ドライバーを切り替えたときは、前のドライバーの入力値を引き継がない。
-        val values = if (form["prefill"] == "false") emptyMap() else propertyValuesOf(form)
+        val values = if (form["prefill"] == "false") emptyMap() else ConnectionFormUrl.propertyValues(form)
 
         val result = ctx.connectionPropertyInspector.fetchProperties(driverClass, jarFilename)
         val html = createHTML().div {
@@ -86,7 +86,7 @@ fun Route.connectionsRoutes(ctx: AppContext) {
             JdbcConnectionPropertyInspector.jdbcPrefixOf(driverClass)
         }.getOrElse { return@post call.respondText("not a CData driver") }
 
-        val url = buildUrlFromForm(jdbcPrefix, form)
+        val url = ConnectionFormUrl.build(jdbcPrefix, form)
         // プレビューは「どのプロパティが組み込まれたか」の構造確認が目的。
         // 秘密の値そのものは出さない (Issue #16)。
         val html = createHTML().p {
@@ -105,7 +105,7 @@ fun Route.connectionsRoutes(ctx: AppContext) {
             if (it.size == 2) it[0] to it[1] else return@post call.respondText("invalid driver")
         }
         val jdbcPrefix = JdbcConnectionPropertyInspector.jdbcPrefixOf(driverClass)
-        val url = buildUrlFromForm(jdbcPrefix, form)
+        val url = ConnectionFormUrl.build(jdbcPrefix, form)
         val config = JdbcConfig(
             driverClass = driverClass,
             driverJar = "./lib/$jarFilename",
@@ -130,7 +130,7 @@ fun Route.connectionsRoutes(ctx: AppContext) {
             if (it.size == 2) it[0] to it[1] else return@post call.respondText("invalid driver")
         }
         val jdbcPrefix = JdbcConnectionPropertyInspector.jdbcPrefixOf(driverClass)
-        val url = buildUrlFromForm(jdbcPrefix, form, fallbackUrl = existing.url)
+        val url = ConnectionFormUrl.build(jdbcPrefix, form, fallbackUrl = existing.url)
         val config = JdbcConfig(
             driverClass = driverClass,
             driverJar = "./lib/$jarFilename",
@@ -197,22 +197,6 @@ private fun urlPreviewOutOfBand(driverClass: String, values: Map<String, String>
             code { +ConnectionStringMasker.mask(buildUrlFromValues(jdbcPrefix, values)) }
         }
     }
-}
-
-/** フォームの `prop.<PropertyName>` を プロパティ名 -> 値 のマップにする。 */
-private fun propertyValuesOf(form: Parameters): Map<String, String> =
-    form.entries()
-        .asSequence()
-        .filter { it.key.startsWith("prop.") }
-        .mapNotNull { (key, values) ->
-            val value = values.firstOrNull() ?: return@mapNotNull null
-            key.removePrefix("prop.") to value
-        }
-        .toMap()
-
-private fun buildUrlFromForm(jdbcPrefix: String, form: Parameters, fallbackUrl: String? = null): String {
-    form["jdbc.url.manual"]?.takeIf { it.isNotBlank() }?.let { return it }
-    return buildUrlFromValues(jdbcPrefix, propertyValuesOf(form), fallbackUrl)
 }
 
 private fun buildUrlFromValues(
