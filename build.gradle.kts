@@ -128,6 +128,9 @@ kotlin {
 
 tasks.test {
     useJUnitPlatform()
+    // 実ドライバー検証 (RealDriverPropertyFetchTest) は実 JAR とライセンスが要るため、
+    // -DrealDrivers=true を付けたときだけ動かす (scripts/check-connection-props.sh)。
+    systemProperty("realDrivers", System.getProperty("realDrivers") ?: "false")
     finalizedBy(tasks.jacocoTestReport)
 }
 

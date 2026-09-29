@@ -136,6 +136,22 @@ mkdir -p .steering/[YYYYMMDD]-initial-implementation
 
 #### 6. 品質チェック
 
+#### 7. コンテナの再ビルドと再起動
+
+**修正が完了したら、必ず実行中のコンテナを最新化する。**
+
+```bash
+docker compose build adapter-console && docker compose up -d adapter-console
+```
+
+- ソースを変更しただけでは `adapter-console` は古いイメージのまま動き続ける。
+  「直したはずの挙動が直っていない」という誤解の元になるため、修正のたびに実施する
+- `docker compose build` は作業ツリーからビルドするため、ブランチをマージしていなくても
+  現在の内容が反映される
+- 再起動後、変更した画面・API を実際に叩いて反映を確認する
+  （例: `curl -s http://localhost:8080/connections` で起動を待ってから対象を確認）
+- イメージタグは `docker-compose.yml` で固定されているため、同じタグを上書きする形になる
+
 ### 機能追加・修正時の手順
 
 #### 1. 影響分析
@@ -176,6 +192,22 @@ mkdir -p .steering/20250115-add-tag-feature
 `.steering/[YYYYMMDD]-[開発タイトル]/tasklist.md` に基づいて実装を進めます。
 
 #### 6. 品質チェック
+
+#### 7. コンテナの再ビルドと再起動
+
+**修正が完了したら、必ず実行中のコンテナを最新化する。**
+
+```bash
+docker compose build adapter-console && docker compose up -d adapter-console
+```
+
+- ソースを変更しただけでは `adapter-console` は古いイメージのまま動き続ける。
+  「直したはずの挙動が直っていない」という誤解の元になるため、修正のたびに実施する
+- `docker compose build` は作業ツリーからビルドするため、ブランチをマージしていなくても
+  現在の内容が反映される
+- 再起動後、変更した画面・API を実際に叩いて反映を確認する
+  （例: `curl -s http://localhost:8080/connections` で起動を待ってから対象を確認）
+- イメージタグは `docker-compose.yml` で固定されているため、同じタグを上書きする形になる
 
 ## ドキュメント管理の原則
 
@@ -247,6 +279,8 @@ graph TD
 - `.steering/` のディレクトリ名は日付と開発タイトルで明確に識別できるようにする
 - 永続的ドキュメントと作業単位のドキュメントを混同しない
 - コード変更後は必ずリント・型チェックを実施する
+- **修正完了後は必ず `docker compose build adapter-console && docker compose up -d adapter-console` で
+  実行中のコンテナを最新化し、反映を確認する**
 - 共通のデザインシステム（Tailwind CSS）を使用して統一感を保つ
 - セキュリティを考慮したコーディング（XSS対策、入力バリデーションなど）
 - 図表は必要最小限に留め、メンテナンスコストを抑える

@@ -3,90 +3,102 @@ package com.cdata.kintone.adapter.jdbc
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.nio.file.Files
 import java.nio.file.Path
-import java.sql.DriverManager
 
 private val log = KotlinLogging.logger {}
 
 /**
- * CData ドライバの `sys_connection_props` システムテーブルから接続プロパティ一覧を取得する。
+ * CData ドライバの接続プロパティ一覧を取得する。Web UI の動的フォーム生成に使う。
  *
- * 取得結果は Web UI の Connection 新規/編集画面で動的フォームを生成するのに使う。
- * 設計詳細: `.steering/20260522-web-ui-and-sqlite/design.md §S-10`
+ * 第一の取得元は `sys_connection_props` システムテーブルだが、読むには接続の確立が必要で、
+ * 26.x 系のドライバは空の接続文字列を検証で弾く。そのため
+ * [ConnectionPropertyProbe] が生成した候補を順に試し、いずれも失敗した場合は
+ * `Driver.getPropertyInfo` 由来の縮退結果へ落とす。
+ *
+ * 設計詳細: `.steering/20260929-connection-props-fetch-fallback/design.md`
+ * 関連: [Issue #15](https://github.com/sugimomoto/KintoneExternalAppCDataSample/issues/15)
  */
 class JdbcConnectionPropertyInspector(
     private val libDir: Path = Path.of("./lib"),
+    private val metadataSource: DriverMetadataSource = JdbcDriverMetadataSource(),
 ) {
 
     private data class CacheKey(val driverClass: String, val jarLastModified: Long)
 
+    /**
+     * 完全取得 (`sys_connection_props`) の結果のみを保持する。
+     * 縮退結果をキャッシュすると、原因を解消しても画面が回復しなくなるため。
+     */
     private val cache = mutableMapOf<CacheKey, List<ConnectionProperty>>()
 
-    /**
-     * 指定ドライバの接続プロパティを取得。
-     * 失敗時は空リスト + ログ警告 (非 CData ドライバ等のフォールバック)。
-     */
-    fun listProperties(driverClass: String, jarFilename: String): List<ConnectionProperty> {
+    /** 指定ドライバの接続プロパティを、取得経路の情報付きで返す。 */
+    fun fetchProperties(driverClass: String, jarFilename: String): ConnectionPropertiesResult {
         val jarPath = libDir.resolve(jarFilename)
         if (!Files.exists(jarPath)) {
-            log.warn { "JAR not found: $jarPath" }
-            return emptyList()
+            log.warn { "ドライバ JAR が見つかりません: $jarPath" }
+            return ConnectionPropertiesResult.unavailable(PropertySource.NONE_JAR_MISSING)
         }
+        val jdbcPrefix = cdataPrefixOrNull(driverClass)
+            ?: return ConnectionPropertiesResult.unavailable(PropertySource.NONE_NOT_CDATA_DRIVER)
+
         val key = CacheKey(driverClass, Files.getLastModifiedTime(jarPath).toMillis())
-        cache[key]?.let { return it }
+        return cache[key]?.let { ConnectionPropertiesResult(it, PropertySource.SYS_CONNECTION_PROPS) }
+            ?: probe(key, jarPath, driverClass, jdbcPrefix)
+    }
 
-        return try {
-            JdbcConnectionProvider.loadDriver(jarPath.toString(), driverClass)
-            val jdbcPrefix = jdbcPrefixOf(driverClass)
-            DriverManager.getConnection("$jdbcPrefix:").use { conn ->
-                conn.createStatement().use { st ->
-                    st.executeQuery(QUERY).use { rs ->
-                        val list = mutableListOf<ConnectionProperty>()
-                        while (rs.next()) {
-                            list.add(parseRow(rs))
-                        }
-                        cache[key] = list
-                        list
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            log.warn(e) { "sys_connection_props 取得失敗: $driverClass" }
-            emptyList()
+    private fun cdataPrefixOrNull(driverClass: String): String? =
+        runCatching { jdbcPrefixOf(driverClass) }
+            .onFailure { log.debug { "CData JDBC Driver ではないため動的フォームを生成しない: $driverClass" } }
+            .getOrNull()
+
+    private fun probe(
+        key: CacheKey,
+        jarPath: Path,
+        driverClass: String,
+        jdbcPrefix: String,
+    ): ConnectionPropertiesResult {
+        val loaded = runCatching { metadataSource.loadDriver(jarPath, driverClass) }
+        if (loaded.isFailure) {
+            log.warn(loaded.exceptionOrNull()) { "ドライバのロードに失敗: $driverClass" }
+            return ConnectionPropertiesResult.unavailable(PropertySource.NONE_FETCH_FAILED)
         }
+
+        // getPropertyInfo は接続を張らないので、プローブ用の安全プロパティ・必須プロパティを
+        // 知るためにまず呼ぶ。取れなくてもプローブ自体は試す価値があるので続行する。
+        val driverProperties = runCatching { metadataSource.driverProperties(jdbcPrefix) }
+            .onFailure { log.debug(it) { "getPropertyInfo 取得失敗: $driverClass" } }
+            .getOrDefault(emptyList())
+
+        val fetched = firstSuccessfulProbe(jdbcPrefix, driverProperties)
+        if (fetched != null) {
+            cache[key] = fetched
+            return ConnectionPropertiesResult(fetched, PropertySource.SYS_CONNECTION_PROPS)
+        }
+        return degradedResult(driverClass, driverProperties)
     }
 
-    private fun parseRow(rs: java.sql.ResultSet): ConnectionProperty {
-        val type = parseType(rs.getString("Type"))
-        val valuesStr = rs.getString("Values")
-        val allowedValues = if (valuesStr.isNullOrBlank()) emptyList() else valuesStr.split(",").map { it.trim() }
-        val sensitivity = parseSensitivity(rs.getString("Sensitivity"))
-        return ConnectionProperty(
-            propertyName = rs.getString("PropertyName") ?: "",
-            displayName = rs.getString("Name") ?: rs.getString("PropertyName") ?: "",
-            shortDescription = rs.getString("ShortDescription") ?: "",
-            type = type,
-            defaultValue = rs.getString("Default"),
-            allowedValues = allowedValues,
-            category = rs.getString("Category") ?: "",
-            required = rs.getBoolean("Required"),
-            sensitivity = sensitivity,
-            visible = rs.getBoolean("Visible"),
-            hierarchy = rs.getString("Hierarchy") ?: "",
-            ordinal = rs.getInt("Ordinal"),
-            categoryOrdinal = rs.getInt("CatOrdinal"),
+    /** 候補を順に試し、最初に成功した `sys_connection_props` の結果を返す。全滅なら null。 */
+    private fun firstSuccessfulProbe(
+        jdbcPrefix: String,
+        driverProperties: List<DriverProperty>,
+    ): List<ConnectionProperty>? =
+        ConnectionPropertyProbe.candidateUrls(jdbcPrefix, driverProperties).firstNotNullOfOrNull { url ->
+            runCatching { metadataSource.sysConnectionProps(url) }
+                .onFailure { log.debug(it) { "プローブ失敗: ${ConnectionStringMasker.mask(url)}" } }
+                .getOrNull()
+        }
+
+    private fun degradedResult(
+        driverClass: String,
+        driverProperties: List<DriverProperty>,
+    ): ConnectionPropertiesResult = if (driverProperties.isEmpty()) {
+        log.warn { "接続プロパティを取得できませんでした: $driverClass" }
+        ConnectionPropertiesResult.unavailable(PropertySource.NONE_FETCH_FAILED)
+    } else {
+        log.warn { "sys_connection_props を取得できないため getPropertyInfo で縮退します: $driverClass" }
+        ConnectionPropertiesResult(
+            DegradedPropertyMapper.toConnectionProperties(driverProperties),
+            PropertySource.DRIVER_PROPERTY_INFO,
         )
-    }
-
-    private fun parseType(s: String?): PropertyType = when (s?.lowercase()) {
-        "boolean" -> PropertyType.BOOLEAN
-        "int" -> PropertyType.INT
-        else -> PropertyType.STRING
-    }
-
-    private fun parseSensitivity(s: String?): Sensitivity = when (s?.uppercase()) {
-        "PASSWORD" -> Sensitivity.PASSWORD
-        "SENSITIVE" -> Sensitivity.SENSITIVE
-        else -> Sensitivity.NONE
     }
 
     fun invalidateCache() {
@@ -100,37 +112,13 @@ class JdbcConnectionPropertyInspector(
          */
         fun jdbcPrefixOf(driverClass: String): String {
             val parts = driverClass.split('.')
-            require(parts.size >= 3 && parts[0] == "cdata" && parts[1] == "jdbc") {
+            require(parts.size >= CDATA_CLASS_MIN_PARTS && parts[0] == "cdata" && parts[1] == "jdbc") {
                 "Not a CData JDBC driver class: $driverClass"
             }
             return "jdbc:${parts[2]}"
         }
 
-        private val QUERY = """
-            SELECT PropertyName, Name, ShortDescription, Type, Values, Default,
-                   Category, Required, Sensitivity, Visible, Hierarchy,
-                   Ordinal, CatOrdinal
-            FROM sys_connection_props
-            ORDER BY CatOrdinal, Ordinal
-        """.trimIndent()
+        /** `cdata.jdbc.<product>.<Driver>` の最小要素数。 */
+        private const val CDATA_CLASS_MIN_PARTS = 3
     }
 }
-
-data class ConnectionProperty(
-    val propertyName: String,
-    val displayName: String,
-    val shortDescription: String,
-    val type: PropertyType,
-    val defaultValue: String?,
-    val allowedValues: List<String>,
-    val category: String,
-    val required: Boolean,
-    val sensitivity: Sensitivity,
-    val visible: Boolean,
-    val hierarchy: String,
-    val ordinal: Int,
-    val categoryOrdinal: Int,
-)
-
-enum class PropertyType { STRING, INT, BOOLEAN }
-enum class Sensitivity { NONE, SENSITIVE, PASSWORD }

@@ -38,7 +38,11 @@ object ConnectionStringMasker {
             if (isSensitive(name)) "$name=$MASK" else match.value
         }
 
-    private fun isSensitive(propertyName: String): Boolean {
+    /**
+     * プロパティ名が機密を示すか。マスク処理のほか、
+     * 縮退プロパティフォームの入力欄種別の判定にも使う ([DegradedPropertyMapper])。
+     */
+    fun isSensitive(propertyName: String): Boolean {
         val normalized = propertyName.lowercase()
         return SENSITIVE_NAME_PARTS.any { it in normalized }
     }
