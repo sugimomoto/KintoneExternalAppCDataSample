@@ -59,7 +59,7 @@ class NewSyncFlowE2ETest : BrowserTestBase() {
         page.navigate("$baseUrl/syncs/new")
         // ラジオボタンで h2-local を選択
         page.locator("input[type=\"radio\"][value=\"h2-local\"]").check()
-        page.locator("button:has-text(\"Next\")").click()
+        page.locator("button:has-text(\"次へ\")").click()
 
         // === Step 2: テーブル選択 ===
         page.waitForURL("**/syncs/new/step2**")
@@ -71,7 +71,7 @@ class NewSyncFlowE2ETest : BrowserTestBase() {
         assertNotNull(customerValue, "テーブル一覧に customer が含まれる")
         page.locator("input[type=\"radio\"][name=\"table\"][value=\"$customerValue\"]").check()
         page.locator("input[name=\"configName\"]").fill("e2e-customer")
-        page.locator("button:has-text(\"Next\")").click()
+        page.locator("button:has-text(\"次へ\")").click()
 
         // === Step 3: カラム選択 ===
         page.waitForURL("**/syncs/new/step3**")
@@ -80,7 +80,7 @@ class NewSyncFlowE2ETest : BrowserTestBase() {
         if (emailCheckbox.count() > 0) {
             emailCheckbox.uncheck()
         }
-        page.locator("button:has-text(\"Next\")").click()
+        page.locator("button:has-text(\"次へ\")").click()
 
         // === Step 4: マッピング確認 + 保存 ===
         // page は POST 経由なので、HTML の確認だけ
@@ -102,10 +102,10 @@ class NewSyncFlowE2ETest : BrowserTestBase() {
     }
 
     @Test
-    fun `E2E-09b 接続未選択で Next を押しても進めない (バリデーション)`() {
+    fun `E2E-09b 接続未選択で「次へ」を押しても進めない (バリデーション)`() {
         page.navigate("$baseUrl/syncs/new")
-        // ラジオ未選択で Next を押そうとする
-        page.locator("button:has-text(\"Next\")").click()
+        // ラジオ未選択で「次へ」を押そうとする
+        page.locator("button:has-text(\"次へ\")").click()
         // required 属性により遷移しない → URL はそのまま
         assertTrue(page.url().endsWith("/syncs/new"), "URL: ${page.url()}")
     }

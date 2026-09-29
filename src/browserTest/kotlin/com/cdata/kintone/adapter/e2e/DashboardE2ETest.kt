@@ -36,6 +36,6 @@ class DashboardE2ETest : BrowserTestBase() {
         page.navigate(baseUrl)
         assertTrue(page.locator("text=+ 新しい連携").count() > 0)
         assertTrue(page.locator("text=ドライバー管理").count() > 0)
-        assertTrue(page.locator("text=データソース接続を追加").count() > 0)
+        assertTrue(page.locator("text=新しいデータソース接続").count() > 0)
     }
 }

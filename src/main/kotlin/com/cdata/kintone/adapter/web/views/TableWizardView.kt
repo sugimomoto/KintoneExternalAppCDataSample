@@ -71,8 +71,8 @@ fun HTML.wizardStep1View(ctx: AppContext) {
                 }
             }
             div(classes = "action-bar") {
-                a(href = "/syncs", classes = "button secondary") { +"Cancel" }
-                button(type = ButtonType.submit) { +"Next →" }
+                a(href = "/syncs", classes = "button secondary outline") { +"キャンセル" }
+                button(type = ButtonType.submit) { +"次へ →" }
             }
         }
     }
@@ -112,8 +112,8 @@ fun HTML.wizardStep2View(ctx: AppContext, connectionName: String, tables: List<T
                 }
             }
             div(classes = "action-bar") {
-                a(href = "/syncs/new", classes = "button secondary") { +"← Back" }
-                button(type = ButtonType.submit) { +"Next →" }
+                a(href = "/syncs/new", classes = "button secondary outline") { +"← 戻る" }
+                button(type = ButtonType.submit) { +"次へ →" }
             }
         }
     }
@@ -169,8 +169,8 @@ fun HTML.wizardStep3View(
             }
 
             div(classes = "action-bar") {
-                a(href = "/syncs/new", classes = "button secondary") { +"← Back to Step 1" }
-                button(type = ButtonType.submit) { +"Next →" }
+                a(href = "/syncs/new", classes = "button secondary outline") { +"← Step 1 に戻る" }
+                button(type = ButtonType.submit) { +"次へ →" }
             }
         }
     }
@@ -291,18 +291,18 @@ fun HTML.wizardStep4View(
             }
 
             div(classes = "action-bar") {
-                a(href = "/syncs/new", classes = "button secondary") { +"← 最初に戻る" }
-                button(type = ButtonType.submit, name = "andStart", classes = "secondary") {
+                a(href = "/syncs/new", classes = "button secondary outline") { +"← 最初に戻る" }
+                button(type = ButtonType.submit, name = "andStart", classes = "secondary outline") {
                     value = "false"
                     +"保存のみ"
                 }
-                button(type = ButtonType.submit, name = "andStart") {
+                button(type = ButtonType.submit, name = "andStart", classes = "secondary") {
                     value = "true"
                     +"保存して起動"
                 }
-                button(type = ButtonType.submit, name = "andConnect", classes = "primary") {
+                button(type = ButtonType.submit, name = "andConnect") {
                     value = "true"
-                    +"保存して kintone と接続 ▶"
+                    +"保存して kintone と接続 →"
                 }
             }
         }

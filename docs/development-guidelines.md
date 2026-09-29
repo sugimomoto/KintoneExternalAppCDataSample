@@ -171,6 +171,264 @@ style:
 - import 順序：JVM 標準 → サードパーティ → プロジェクト内
 - IntelliJ の "Optimize Imports" を使用
 
+### 3.4 Web UI ボタン規約
+
+見た目の定義は `src/main/resources/static/app.css` の Buttons セクションだけに置く。
+`web/views/*.kt` 側は「その操作がどの意味に当たるか」を選んでクラス名を書くだけにする。
+
+#### 3.4.1 バリアント
+
+| バリアント | クラス指定 | 用途 | 1 アクション行あたり |
+|---|---|---|---|
+| primary | **クラスなし** (`classes = "button"` / `button(type = ...)`) | その行で次にやるべき主要操作 | **最大 1** |
+| secondary | `secondary` | 副次操作（編集 / 開始 / 停止 / 有効化 / 一覧へ） | 複数可 |
+| secondary outline | `secondary outline` | 補助・参照系（ログを見る / 接続テスト / キャンセル / 戻る / 外部リンク / ダウンロード） | 複数可 |
+| danger | `danger` | 破壊的操作（削除） | 複数可 |
+
+```kotlin
+// 主要操作：クラスを付けない
+a(href = "/syncs/$name/connect", classes = "button") { +"kintone と接続 →" }
+// 副次操作
+a(href = "/syncs/$name/edit", classes = "button secondary") { +"編集" }
+// 補助・参照系
+a(href = "/syncs/$name/logs", classes = "button secondary outline") { +"ログを見る" }
+// 破壊的操作
+button(type = ButtonType.submit, classes = "danger") { +"削除" }
+```
+
+#### 3.4.2 禁止事項
+
+| 禁止 | 理由 | 代わりに |
+|---|---|---|
+| `classes = "primary"` | `.primary` は CSS に存在しない。primary は「クラスを付けない状態」がデフォルトで、`:not(.secondary):not(.outline):not(.danger)` により偶然同じ見た目になっているだけ | クラス指定を省略する |
+| `outline` 単独 | Resolve 紺の塗り反転で他バリアントと明度差が大きく浮く | `secondary outline` または `secondary` |
+| 削除操作に `secondary outline` | 参照系（ログを見る等）と見分けが付かない | `danger` |
+| 戻る・キャンセルに primary | 前進操作と競合し、CTA が複数になる | `secondary outline` |
+| 一覧テーブルの行内に primary | 行数ぶん黄色が並び、CTA の意味が失われる | `secondary` |
+
+#### 3.4.3 アイコン
+
+絵文字は使わない（OS / ブラウザでグリフの幅と色が変わり、ボタンの高さが揃わない）。
+使えるのは次の記号のみ。バナーや空状態の装飾（`✅` `⚠` `💤`）はボタン外なので対象外。
+
+| 記号 | 意味 | 位置 |
+|---|---|---|
+| `+` | 追加・新規作成 | 先頭 |
+| `→` | 前進・次へ・画面遷移 | 末尾 |
+| `←` | 戻る | 先頭 |
+| `▶` | 起動・開始（Adapter / Agent を実際に走らせる） | 先頭 |
+| `⏸` | 停止 | 先頭 |
+| `↑` | アップロード | 先頭 |
+| `↓` | ダウンロード | 先頭 |
+| `↗` | 外部サイトを別タブで開く | 末尾 |
+
+`→` と `▶` の使い分け：画面遷移を伴う前進は `→`（`次へ →` / `kintone と接続 →`）、
+プロセスを起動するものは `▶`（`▶ 開始` / `接続して開始 ▶`）。
+
+#### 3.4.4 ラベル
+
+- ユーザー向けのボタンラベルは**日本語**で書く
+- 同じ導線のラベルは 1 種類に統一する（`+ 新しい連携` / `+ 新しいデータソース接続`）
+- `agent.json` のような技術的識別子はそのまま残す（`agent.json を保存`）
+
+#### 3.4.5 アクション行
+
+ボタンを並べる行は `div(classes = "action-bar")` で囲む。素の `<p>` で並べない。
+
+```kotlin
+div(classes = "action-bar") {
+    h2 { +"連携 (${names.size} 件)" }        // 見出しと CTA を同じ行に置く場合
+    a(href = "/syncs/new", classes = "button") { +"+ 新しい連携" }
+}
+```
+
+- `.action-bar` は flex + wrap + gap。`h2` を含めると `flex: 1` で見出しが伸び、CTA が右端に寄る
+- 空状態の中央寄せボタンは `.empty-state .actions` を使う（目的が違うため別クラス）
+
+#### 3.4.6 ⚠ セレクタの詳細度 — Pico に負けないこと
+
+**これが本規約で最も壊れやすい点。** `app.css` の base ルールのセレクタを安易に短くしないこと。
+
+Pico はフォーム要素を次のように整形する。
+
+```css
+/* pico.min.css */
+[role="button"], [type="button"], [type="reset"], [type="submit"], button {
+  padding: ...; font-size: 1rem; font-weight: ...; border-radius: ...; line-height: ...;
+}
+[type="button"], [type="reset"], [type="submit"] { margin-bottom: var(--pico-spacing); }
+button[type="submit"], input:not(...), select, textarea { width: 100%; }
+```
+
+セレクタリストの詳細度は**一致した中で最も高いもの**が採用される。
+`<button type="submit">` は `[type="submit"]` にも一致するので **(0,1,0)**。
+一方 `button, .button, a.button, ...` と書くと、`<button>` は `button` = **(0,0,1)** でしか
+一致せず、**padding / font-size / font-weight / border-radius / line-height / margin / width が
+すべて Pico に奪われる**。
+
+実際にこれで、同じアクションバー内で見た目が大きく食い違っていた。
+
+| プロパティ | `a.button` (app.css が効く) | `<button>` (Pico が勝つ) |
+|---|---|---|
+| height | 27px | **44px** |
+| font-size | 11.375px | **14px** |
+| font-weight | 600 | **400** |
+| padding | 5.25 / 12.25px | **10.5 / 14px** |
+| border-width | 1px | **0.5px** |
+| border-radius | 3px | **6px** |
+| margin-bottom | 0 | **12.25px**（縦位置もずれる） |
+
+背景色だけ正しく見えるのが厄介で、`button:not(.secondary):not(.outline):not(.danger)` は
+(0,3,1) あるため**色は通る**。「色は合っているのにサイズだけ違う」状態になる。
+
+対策として、base ルールのセレクタは**すべての項目を (0,1,0) 以上**にしてある。
+
+```css
+button[type="submit"], button[type="button"], button[type="reset"],
+button:not([type]),                    /* type 無しの <button> 用。:not([type]) で (0,1,1) */
+input[type="submit"], input[type="button"],
+.button, a.button {
+  /* padding / font-size / margin: 0 / width: auto など */
+}
+```
+
+- `button:not([type])` を落とすと、`type` 属性の無い `<button>` だけ Pico に戻る
+- `margin: 0` と `width: auto` は Pico の打ち消し。消さないこと
+- モバイルの全幅化はファイル末尾の media query 側（同詳細度で後勝ち）で行う
+
+#### 3.4.7 変更したら「プロパティ単位」で実測する
+
+幅だけ見て揃ったと判断すると、高さ・font-size・padding のズレを見落とす。
+ブラウザで次のように**全ボタンの計算値を集めて単一値になっているか**を確認する。
+
+```js
+const bs = [...document.querySelectorAll('button, a.button')];
+const m = bs.map(b => { const c = getComputedStyle(b);
+  return { h: Math.round(b.getBoundingClientRect().height), fs: c.fontSize,
+           fw: c.fontWeight, pad: c.padding, r: c.borderTopLeftRadius,
+           bw: c.borderTopWidth, mb: c.marginBottom }; });
+const uniq = k => [...new Set(m.map(x => x[k]))];   // 長さ 1 なら揃っている
+```
+
+`transition: all` があるため、CSS を差し替えた直後の `getComputedStyle` は
+**アニメーション中の中間値**を返す。計測前に 300〜500ms 待つこと。
+
+#### 3.4.8 フォーカス / 無効状態
+
+`app.css` 側で全ボタンに定義済みなので、views 側で個別指定しない。
+
+- `:focus-visible` … `--focus-outline` のアウトライン + `--focus-ring`。キーボード操作時のみ表示
+- `:disabled` / `[aria-disabled="true"]` / `.disabled` … `opacity: 0.45` + `cursor: not-allowed` + `pointer-events: none`
+
+### 3.5 Web UI 文言規約
+
+#### 3.5.1 画面の呼称
+
+ユーザー向けの文言は**日本語**で書く。画面の呼称はヘッダーナビ (`Layout.kt`) と
+ヘルプ画面 (`HelpView.kt`) が正であり、**新しい呼称を発明しない**。
+
+| パス | 画面の呼称 | 1 レコードの呼称 |
+|---|---|---|
+| `/` | ダッシュボード | — |
+| `/syncs` | 連携 | 連携 |
+| `/connections` | データソース | データソース接続 |
+| `/drivers` | ドライバー | ドライバー |
+
+- 件数は `(N 件)` と書く（例: `連携 (11 件)` / `データソース接続 (5 件)`）
+- 「ドライバ」ではなく **「ドライバー」**（長音付き）で統一する
+- `pageTitle`（ブラウザのタブに出る）も日本語にする
+
+#### 3.5.2 翻訳しないもの
+
+| 対象 | 例 | 理由 |
+|---|---|---|
+| ドライバークラス名 | `cdata.jdbc.bcart.BCartDriver` | 設定値と一致させる必要がある |
+| JDBC 接続文字列 | `jdbc:bcart:AuthScheme=...` | 同上 |
+| 送信値 | `TRIAL` | サーバ / 外部 API に送る値 |
+| フォームの `name` 属性 | `prop.*` / `pool.*` | サーバ側のパースに使われる |
+| CData ドライバ由来の文字列 | `propertyName` / `shortDescription` | `sys_connection_props` の戻り値。翻訳辞書の新設とドライバー更新への追従が必要になる |
+
+ドライバー由来でも**値が固定の少数**であれば、表示専用の変換関数を置いてよい。
+その場合ソートキーや条件分岐は生値のままにし、未知の値はそのまま返す。
+
+```kotlin
+// ConnectionsView.kt: 表示専用。並び順と isAuth 判定は生値で行う
+private fun categoryLabel(category: String): String = when (category) {
+    "Authentication" -> "認証"
+    "Connection" -> "接続"
+    "Caching" -> "キャッシュ"
+    // ...
+    else -> category   // 固有名詞 (OAuth / SSL / SSO)・未知のカテゴリはそのまま
+}
+```
+
+**変換辞書を作るときは、実際に返ってくる値を先に全件調べる。**
+上の例では当初 4 種だけ登録したところ、ドライバーは 13 種返してきて
+6 種が英語のまま残った。`else -> category` のフォールバックは
+「翻訳漏れを画面上で目立たなくしてしまう」ため、網羅性の確認とセットで使う。
+
+#### 3.5.3 見出しに可変長の値を埋めない
+
+`h2` に絶対パスや URL を直接入れると、環境によって折り返して画面の先頭が読みづらくなる。
+可変長の値は見出しの下に `small.muted` で置く。
+
+```kotlin
+// NG: パスが長いと h2 が 2 行に折り返す
+h2 { +"JDBC Drivers in ${ctx.libDir} (${drivers.size})" }
+
+// OK
+h2 { +"ドライバー (${drivers.size} 件)" }
+small(classes = "muted") { +"配置先: "; code { +ctx.libDir.toString() } }
+```
+
+### 3.6 テーブル表示規約
+
+#### 3.6.1 `table { width: 100% }` では横溢れを防げない
+
+`table-layout: auto`（既定）では **`width` は下限にしかならず**、
+セルの最小コンテンツ幅の合計が容器を超える場合はそちらが優先される。
+JDBC 接続文字列のような改行機会のない長い 1 トークンを `<code>` で出すと、
+テーブルが容器の 4 倍に広がり**ページ全体が横スクロール**して操作列が画面外に出る。
+
+#### 3.6.2 3 層で対策する
+
+| 層 | 施策 | 役割 |
+|---|---|---|
+| ① | 長い値のセルに `.cell-truncate` | テーブル自体が容器を超えないようにする（本命） |
+| ② | 操作列に `.cell-actions` | ボタンが縦に折り返すのを防ぐ |
+| ③ | `div(classes = "table-scroll")` で包む | それでも溢れる場合に、ページ全体ではなくテーブル内だけをスクロールさせる |
+
+```kotlin
+div(classes = "table-scroll") {
+    table(classes = "striped") {
+        thead { tr { th { +"名前" }; th { +"接続文字列 (マスク済み)" }; th { +"操作" } } }
+        tbody {
+            tr {
+                td { +name }
+                td(classes = "cell-truncate") {
+                    attributes["title"] = masked      // 全文はホバーで参照
+                    code { +masked }
+                }
+                td(classes = "cell-actions") { /* ボタン */ }
+            }
+        }
+    }
+}
+```
+
+#### 3.6.3 `td` に `max-width` を書かない
+
+表セルの `width` / `max-width` は CSS 仕様上「サジェスト」扱いで、
+`white-space: nowrap` なコンテンツは auto レイアウトでこれを超えて広がりうる。
+`.cell-truncate` は**内側のブロック要素**（`> code` / `> span`）に `max-width` を掛けて
+セルの最小コンテンツ幅そのものを縮めている。直接 `td` に書かないこと。
+
+#### 3.6.4 省略表示と `title`
+
+- 切り詰めは **CSS で行う**。Kotlin 側で文字列を切らない（`title` に全文が必要）
+- `title` に入れるのは**マスク済みの値だけ**。生の接続文字列を入れると
+  `ConnectionStringMasker` を通す意味が無くなり、DOM に平文の資格情報が載る
+
 ---
 
 ## 4. テスト規約と TDD（Test-Driven Development）

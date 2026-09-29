@@ -121,12 +121,32 @@
 | 日本語 | 英語 | コード上の名前 | 説明 |
 |---|---|---|---|
 | JDBC ドライバー | JDBC Driver | - | データソース接続用 Java ドライバー |
-| CData JDBC | CData JDBC | - | CData 社の JDBC ドライバ製品群 |
+| CData JDBC | CData JDBC | - | CData 社の JDBC ドライバー製品群 |
 | 接続プール | Connection Pool | `HikariDataSource` | HikariCP による接続プール |
 | プレペアドステートメント | Prepared Statement | `PreparedStatement` | SQL インジェクション対策の SQL 実行方式 |
 | ResultSet | Result Set | `ResultSet` | クエリ結果セット |
 | DatabaseMetaData | Database Metadata | `DatabaseMetaData` | JDBC のメタデータ取得 API |
 | データソース | Data Source | - | Salesforce / SAP / Snowflake 等の接続先 |
+
+## 9-A. Web UI 画面・操作用語
+
+Web UI に表示する呼称。実装は `web/views/Layout.kt` のナビと `web/views/HelpView.kt` が正。
+表記ルールは `docs/development-guidelines.md` の「3.5 Web UI 文言規約」を参照。
+
+| 日本語 | 英語 | コード上の名前 / パス | 説明 |
+|---|---|---|---|
+| ダッシュボード | Dashboard | `/` | 稼働状況の KPI と稼働中の連携を表示する画面 |
+| 連携 | Sync | `/syncs` | 外部データソースの 1 テーブルを kintone に見せる設定の単位。画面名も「連携」 |
+| データソース（画面名） | Data Source | `/connections` | データソース接続を管理する画面。**セクション 9 の「データソース」（接続先そのもの）とは別で、こちらは画面の呼称** |
+| データソース接続 | Data Source Connection | `shared_jdbcs` / `SharedJdbcConfig` | 共有 JDBC 設定 1 件。複数の連携から名前で参照される |
+| ドライバー（画面名） | Driver | `/drivers` | JDBC ドライバー JAR を管理する画面 |
+| 接続文字列 | Connection String | `JdbcConfig.url` | JDBC URL。一覧では `ConnectionStringMasker` でマスクして表示する |
+| 接続プール設定 | Pool Settings | `JdbcConfig.pool` | 最大接続数・接続タイムアウト |
+| ライセンス状態 | License Status | `LicenseStatus` | ドライバーのライセンス状態。表示は「有効 / 未有効化 / 不明」 |
+| 有効 | Activated | `LicenseStatus.ACTIVATED` | `.lic` ファイルが存在する |
+| 未有効化 | Not activated | `LicenseStatus.NOT_ACTIVATED` | `.lic` ファイルが無い。トライアル有効化が必要 |
+| 不明 | Unknown | `LicenseStatus.UNKNOWN` | ライセンス状態を判定できなかった |
+| 操作 | Action | - | 一覧テーブルのボタン列の列名 |
 
 ## 10. ユーザー・関係者
 
