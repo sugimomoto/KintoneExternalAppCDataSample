@@ -28,9 +28,9 @@
 | テーブル設定セット | Table Config Set | `TableConfigSet` | 1 テーブル分の server/jdbc/table/capability 4 設定をまとめた単位。`AdapterConfig` の typealias |
 | マルチアダプター | Multi Adapter | `MultiAdapterRunner` | 1 JVM 内で複数 `TableAdapterServer` を統合管理するランナー |
 | テーブルアダプターサーバ | Table Adapter Server | `TableAdapterServer` | 1 テーブル分の gRPC サーバ。`MultiAdapterRunner` から複数インスタンス起動される |
-| 共通 JDBC 設定 | Shared JDBC Config | `config/jdbc/<name>.yaml` | 複数テーブルで共有可能な JDBC 接続情報。各テーブルから `jdbc-ref` で参照する |
-| JDBC リファレンス | JDBC Reference | `JdbcRef` | テーブル内 `jdbc-ref.yaml`。共通 JDBC を `name` で参照 |
-| 設定ソース | Config Source | `ConfigSource` | 設定の永続化レイヤ抽象。フェーズ2-A は `YamlConfigSource`、将来 `SqliteConfigSource` を予定 |
+| 共有 JDBC 設定 | Shared JDBC Config | `shared_jdbcs` テーブル | 複数の連携で共有する JDBC 接続情報。連携から名前で参照する |
+| JDBC リファレンス | JDBC Reference | `JdbcRef` | 連携から共有 JDBC 設定を `name` で参照する指定 |
+| 設定ソース | Config Source | `ConfigSource` | 設定の永続化レイヤ抽象。実装は `SqliteConfigSource` のみ。`ConfigStore.open()` で取得する |
 | 稼働 Adapter 一覧 | Active Adapters | `ActiveAdaptersFile` | `./run/active-adapters.json` に書き出される稼働中 Adapter のスナップショット |
 | OAuth キャッシュ分離 | Per-table OAuth Cache | `JdbcUrlEnhancer.withOAuthCachePerTable` | テーブルごとに `OAuthSettingsLocation` を `./run/oauth/<table>.txt` に分離 |
 
@@ -62,7 +62,7 @@
 
 ## 4. フィールド型（protobuf 由来）
 
-| 日本語 | 英語 | コード上の名前 | 設定YAML上の `type` | 説明 |
+| 日本語 | 英語 | コード上の名前 | 設定上の `type` | 説明 |
 |---|---|---|---|---|
 | レコードIDフィールド | Record ID Field | `RecordIdField` | （主キー専用） | レコードの一意識別子 |
 | テキストフィールド | Text Field | `TextField` | `TEXT` | 文字列 |
@@ -111,8 +111,8 @@
 
 | 日本語 | 英語 | コード上の名前 | 説明 |
 |---|---|---|---|
-| サブコマンド | Subcommand | - | CLI のサブコマンド（`serve`, `init-table` 等） |
-| 対話式テーブル生成 | Interactive Table Init | `InitTableCommand` | `adapter init-table` で実行される対話プロセス |
+| サブコマンド | Subcommand | - | CLI のサブコマンド（`web-ui`, `serve`, `list-tables` 等） |
+| 新規連携ウィザード | New Sync Wizard | `TableWizardRoutes` | Web UI `/syncs/new` の 4 ステップで連携を作成するフロー |
 | メタデータ検査 | Metadata Inspection | `JdbcMetadataInspector` | `DatabaseMetaData` を使ったテーブル・カラム情報取得 |
 | フィールド型推奨 | Field Type Suggestion | `FieldTypeSuggester` | JDBC 型から kintone 型を推奨するロジック |
 

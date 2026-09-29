@@ -32,7 +32,6 @@ fun HTML.driversListView(ctx: AppContext) {
     val drivers = ctx.driverManager.listDrivers()
     layout(
         pageTitle = "Drivers",
-        mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
         currentPath = "/drivers",
     ) {
@@ -98,7 +97,6 @@ fun HTML.driversListView(ctx: AppContext) {
 fun HTML.driverActivateView(ctx: AppContext, filename: String) {
     layout(
         pageTitle = "Activate $filename",
-        mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
         currentPath = "/drivers",
     ) {
@@ -153,7 +151,6 @@ fun HTML.driverActivateResultView(
 ) {
     layout(
         pageTitle = "Activate result",
-        mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
         currentPath = "/drivers",
     ) {

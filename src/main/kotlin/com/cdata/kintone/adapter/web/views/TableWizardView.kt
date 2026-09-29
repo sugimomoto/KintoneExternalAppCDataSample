@@ -43,7 +43,6 @@ fun HTML.wizardStep1View(ctx: AppContext) {
     val connections = ctx.configSource.listSharedJdbcConfigs()
     layout(
         pageTitle = "New Table — Step 1",
-        mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
         currentPath = "/syncs",
     ) {
@@ -82,7 +81,6 @@ fun HTML.wizardStep1View(ctx: AppContext) {
 fun HTML.wizardStep2View(ctx: AppContext, connectionName: String, tables: List<TableInfo>) {
     layout(
         pageTitle = "New Table — Step 2",
-        mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
         currentPath = "/syncs",
     ) {
@@ -130,7 +128,6 @@ fun HTML.wizardStep3View(
 ) {
     layout(
         pageTitle = "New Table — Step 3",
-        mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
         currentPath = "/syncs",
     ) {
@@ -198,7 +195,6 @@ fun HTML.wizardStep4View(
     val suggestedPort = runCatching { ctx.syncPortAllocator.allocate() }.getOrNull()
     layout(
         pageTitle = "New Table — Step 4",
-        mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
         currentPath = "/syncs",
     ) {

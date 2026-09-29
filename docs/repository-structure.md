@@ -59,26 +59,12 @@ KintoneExternalAppCDataSample/
 │           ├ 08-jdbc-mapping.md
 │           └ 09-curl-test-snippets.md
 │
-├ config/                          # 設定ファイル群
-│  │
-│  │   ── フェーズ1（シングルテーブル、互換維持） ──
-│  ├ server.yaml.example           # サーバ設定の雛形（実体は gitignore）
-│  ├ jdbc.yaml.example             # JDBC接続設定の雛形
-│  ├ table.yaml.example            # テーブル定義例
-│  ├ capability.yaml.example       # サポート機能宣言
-│  │
-│  │   ── フェーズ2-A（マルチテーブル、推奨） ──
-│  ├ jdbc/                         # 複数テーブルで共有する JDBC 設定
-│  │  ├ salesforce.yaml.example
-│  │  └ googlesheets.yaml.example
-│  └ tables/                       # テーブル単位サブディレクトリ
-│     ├ account/
-│     │  ├ server.yaml.example
-│     │  ├ jdbc-ref.yaml.example   # 共通 jdbc を name で参照
-│     │  ├ table.yaml.example
-│     │  └ capability.yaml.example
-│     ├ contact/
-│     └ googlesheets-orders/       # 別ドライバーの例
+├ config/                          # 設定ストア
+│  └ config.db                     # SQLite（gitignore）
+│                                  #   shared_jdbcs : 共有 JDBC 接続
+│                                  #   tables       : 連携 (Sync) ごとの設定
+│                                  #   schema_meta  : スキーマバージョン
+│                                  # 接続文字列を含むため絶対にコミットしないこと
 │
 ├ run/                             # 実行時状態（gitignore）
 │  ├ active-adapters.json          # serve-all が更新、list-active が読み出す
@@ -105,16 +91,18 @@ KintoneExternalAppCDataSample/
 │  │  │     │  ├ ServeCommand.kt        # serve サブコマンド（--table / --tables）
 │  │  │     │  ├ ServeAllCommand.kt     # serve-all（フェーズ2-A 全テーブル並行）
 │  │  │     │  ├ ListActiveCommand.kt   # list-active（状態ファイル読み出し）
-│  │  │     │  ├ MigrateConfigCommand.kt # フェーズ1→2-A 移行
-│  │  │     │  ├ InitTableCommand.kt    # init-table 対話式 CLI
+│  │  │     │  ├ WebUiCommand.kt        # web-ui（管理コンソール）
+│  │  │     │  ├ SharedJdbcResolver.kt  # --jdbc-name の解決（CLI 共通）
 │  │  │     │  ├ ListTablesCommand.kt
 │  │  │     │  └ TestConnectionCommand.kt
 │  │  │     ├ config/
 │  │  │     │  ├ Config.kt              # AdapterConfig / ServerConfig / JdbcConfig / ...
-│  │  │     │  ├ ConfigSource.kt        # 抽象（SQLite 移行に向けた拡張点）
-│  │  │     │  ├ YamlConfigSource.kt    # YAML 実装（フェーズ1/2-A 両対応）
-│  │  │     │  ├ ConfigLoader.kt        # 旧 API（YamlConfigSource への薄いラッパ）
-│  │  │     │  └ ConfigMigrator.kt      # migrate-config 本体
+│  │  │     │  ├ ConfigSource.kt        # 抽象（外部 DB 実装の拡張点）
+│  │  │     │  ├ ConfigStore.kt         # ConfigSource を開くエントリポイント
+│  │  │     │  ├ SqliteConfigSource.kt  # SQLite 実装（唯一の実装）
+│  │  │     │  ├ SqliteSchema.kt        # DDL / PRAGMA
+│  │  │     │  ├ EnvVarExpander.kt      # ${VAR} の環境変数展開
+│  │  │     │  └ ConfigExceptions.kt    # ConfigFileMissing / ConfigParse
 │  │  │     ├ runtime/
 │  │  │     │  ├ TableAdapterServer.kt  # 1 テーブル分の gRPC サーバ
 │  │  │     │  ├ MultiAdapterRunner.kt  # 1 JVM 内の複数 TableAdapterServer 管理
@@ -296,7 +284,7 @@ services:
 | 関数名・プロパティ名 | lowerCamelCase | `getFilterableFields()` |
 | 定数 | UPPER_SNAKE_CASE | `DEFAULT_POOL_SIZE` |
 | YAML キー | kebab-case | `kintone-field-id`, `count-strategy` |
-| サブコマンド | kebab-case | `init-table`, `test-connection` |
+| サブコマンド | kebab-case | `serve-all`, `test-connection` |
 | 環境変数 | UPPER_SNAKE_CASE | `ADAPTER_CONFIG_DIR`, `SF_USER` |
 
 ---

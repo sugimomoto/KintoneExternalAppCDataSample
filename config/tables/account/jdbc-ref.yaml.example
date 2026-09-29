@@ -1,3 +1,0 @@
-# 共通 JDBC 設定 `config/jdbc/salesforce.yaml` を参照する。
-# このテーブル個別の jdbc.yaml を置く場合、こちらは不要（個別が優先）。
-name: salesforce

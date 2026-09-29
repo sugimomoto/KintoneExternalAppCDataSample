@@ -1,5 +1,6 @@
 package com.cdata.kintone.adapter.cli
 
+import com.cdata.kintone.adapter.config.ConfigStore
 import com.cdata.kintone.adapter.web.AppContext
 import com.cdata.kintone.adapter.web.WebUiServer
 import com.github.ajalt.clikt.core.CliktCommand
@@ -36,8 +37,13 @@ class WebUiCommand : CliktCommand(name = "web-ui") {
         .path()
         .default(Path.of("./lib"))
 
+    private val sqlitePath: Path? by option(
+        "--sqlite-path",
+        help = "設定 SQLite のパス (default: <config-dir>/config.db)",
+    ).path(canBeDir = false)
+
     override fun run() {
-        val context = AppContext.create(configDir = configDir, libDir = libDir)
+        val context = AppContext.create(configDir = configDir, libDir = libDir, sqlitePath = sqlitePath)
         val server = WebUiServer(context, port = port, bindAddress = bindAddress)
 
         Runtime.getRuntime().addShutdownHook(
@@ -49,8 +55,7 @@ class WebUiCommand : CliktCommand(name = "web-ui") {
 
         echo("=== Adapter Web Console ===")
         echo("  URL:           http://$bindAddress:$port")
-        echo("  Config Source: ${context.configSourceMode.name.lowercase()}")
-        echo("  Config dir:    $configDir")
+        echo("  Config DB:     ${ConfigStore.resolveDbPath(configDir, sqlitePath)}")
         echo("  Lib dir:       $libDir")
         if (context.migratedPorts.isNotEmpty()) {
             echo("  Port 移行:     ${context.migratedPorts.size} 件 " +

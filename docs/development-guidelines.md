@@ -89,13 +89,15 @@ return try {
 |---|---|---|
 | kintone 側のフィールド識別子 | `kintoneFieldId` | protobuf `field_id` |
 | JDBC のカラム名 | `jdbcColumn` | DB レベル |
-| カラム種別（4種） | `ColumnType` enum: `TEXT`, `NUMBER`, `DATETIME`, `SELECTION` | YAML での type 値 |
+| カラム種別（4種） | `ColumnType` enum: `TEXT`, `NUMBER`, `DATETIME`, `SELECTION` | 設定上の type 値 |
 | protobuf の Field oneof | `Field.recordIdField` 等 | protobuf 生成コード |
 | プロトコル種別 | `Connect`, `gRPC` | RPC プロトコル |
 
 詳細は [glossary.md](glossary.md) 参照。
 
-### 2.3 YAML キー
+### 2.3 設定のキー名
+
+設定は SQLite の JSON カラムに格納されるが、キー名は `@SerialName` で明示する。
 
 - **kebab-case** に統一（`kintone-field-id`, `count-strategy`）
 - Kotlin の `@SerialName` で対応：
@@ -110,7 +112,7 @@ return try {
 
 ### 2.4 サブコマンド名
 
-- **kebab-case**（`init-table`, `test-connection`）
+- **kebab-case**（`serve-all`, `test-connection`, `list-tables`）
 - 動詞-名詞 形式
 
 ### 2.5 環境変数
@@ -439,9 +441,9 @@ CLAUDE.md のルールに従う。
 
 | 機密度 | 例 | 取扱 |
 |---|---|---|
-| 高 | API トークン、パスワード、秘密鍵 | YAML 内に書かず環境変数で渡す。`.gitignore`必須 |
-| 中 | 接続 URL（ユーザー名含む） | YAML 可、ただしレポジトリには `*.example` のみコミット |
-| 低 | テーブル名、カラム名 | YAML 可、コミット可 |
+| 高 | API トークン、パスワード、秘密鍵 | 接続文字列に直書きせず `${VAR}` で環境変数から渡す。`config.db` は `.gitignore` 必須 |
+| 中 | 接続 URL（ユーザー名含む） | `config.db` に保存。リポジトリにはコミットしない |
+| 低 | テーブル名、カラム名 | `config.db` に保存。機密ではない |
 
 ### 8.2 SQL インジェクション対策
 

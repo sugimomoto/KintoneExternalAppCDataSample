@@ -39,9 +39,8 @@
 
 | 項目 | バージョン | 用途 |
 |---|---|---|
-| **kaml** (Kotlinx Serialization YAML) | 0.55 以上 | YAML パーサ |
 | **Clikt** | 4.x | CLI サブコマンド処理 |
-| **kotlinx-serialization** | 1.6 以上 | データクラス ⇄ YAML 変換 |
+| **kotlinx-serialization** | 1.6 以上 | データクラス ⇄ JSON 変換（SQLite の JSON カラム） |
 
 ### 1.5 ロギング・テスト
 
@@ -185,7 +184,7 @@ buf generate
 | 項目 | 内容 |
 |---|---|
 | TLS | Adapter ↔ Agent 間は plaintext モード対応（Agent 仕様）。本番では TLS 推奨 |
-| 認証情報 | YAML への平文記載を避け、環境変数展開を推奨 |
+| 認証情報 | 接続文字列は `${VAR}` による環境変数展開を推奨。`config.db` は gitignore 必須 |
 | SQL インジェクション | PreparedStatement 必須（全 SQL 動的組立箇所） |
 | プロセス分離 | Adapter は外部 DB 接続用のネットワークアクセスのみ。kintone 側への通信は不要 |
 | ログ | 接続文字列・APIトークン等の機密情報はマスキング |
@@ -292,13 +291,13 @@ buf generate
 ```
 
 - 各 `TableAdapterServer` は独立した `HealthStatusManager` と JDBC プールを持つ
-- 共通の JDBC 設定は `config/jdbc/<name>.yaml`、個別は `config/tables/<table>/jdbc.yaml`
+- 共有 JDBC 設定は SQLite の `shared_jdbcs` テーブルに置き、連携から名前で参照する
 - 異なるドライバー（Salesforce + Google Sheets）の同居は URLClassLoader 隔離で実現
 
 ### 6.3 フェーズ2-B 以降で見据える拡張
 
 - 複数テーブル管理 UI（Web UI）
-- SQLite ベースの `ConfigSource` 実装（YAML から段階的移行）
+- ~~SQLite ベースの `ConfigSource` 実装~~（実装済み。YAML は廃止して SQLite に一本化）
 - マルチプロセス制御（Adapter / Agent をまとめて起動・停止）
 - TLS 終端
 - CData Connect AI 連携（gRPC プロキシ経由）
@@ -326,8 +325,7 @@ dependencies {
     // 接続プール
     implementation("com.zaxxer:HikariCP:5.1.0")
 
-    // YAML 設定
-    implementation("com.charleskorn.kaml:kaml:0.55.0")
+    // 設定のシリアライズ（SQLite の JSON カラム）
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.6.2")
 
     // CLI

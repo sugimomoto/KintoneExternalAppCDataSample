@@ -7,7 +7,7 @@ import com.cdata.kintone.adapter.config.PrimaryKeyConfig
 import com.cdata.kintone.adapter.config.ServerConfig
 import com.cdata.kintone.adapter.config.TableConfig
 import com.cdata.kintone.adapter.config.TableConfigSet
-import com.cdata.kintone.adapter.config.YamlConfigSource
+import com.cdata.kintone.adapter.config.ConfigStore
 import com.cdata.kintone.adapter.metadata.ColumnType
 import com.cdata.kintone.adapter.metadata.RecordIdType
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -21,7 +21,7 @@ class SyncsListE2ETest : BrowserTestBase() {
 
     override fun seedTestData(configDir: Path, libDir: Path, agentDir: Path) {
         // テスト用に 1 件サンプル連携を投入
-        val source = YamlConfigSource(configDir)
+        val source = ConfigStore.open(configDir)
         source.saveTableSet(
             "demo-account",
             TableConfigSet(

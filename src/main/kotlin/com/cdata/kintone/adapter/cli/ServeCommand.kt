@@ -1,9 +1,10 @@
 package com.cdata.kintone.adapter.cli
 
-import com.cdata.kintone.adapter.config.YamlConfigSource
+import com.cdata.kintone.adapter.config.ConfigStore
 import com.cdata.kintone.adapter.runtime.ActiveAdaptersFile
 import com.cdata.kintone.adapter.runtime.MultiAdapterRunner
 import com.github.ajalt.clikt.core.CliktCommand
+import com.github.ajalt.clikt.core.UsageError
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.split
@@ -16,40 +17,51 @@ private val log = KotlinLogging.logger {}
 /**
  * `adapter serve` サブコマンド。
  *
- * 指定テーブルだけ gRPC サーバを起動する。
- * - `--table <name>`: 単一テーブル
- * - `--tables <a>,<b>`: カンマ区切りで複数指定
- * - 引数なし: フェーズ1 互換で `default` テーブル起動
+ * 指定した連携だけ gRPC サーバを起動する。
+ * - `--table <name>`: 単一
+ * - `--tables <a>,<b>`: カンマ区切りで複数
  *
- * 全テーブルを一括起動したい場合は `adapter serve-all` を使う。
+ * 全連携を一括起動したい場合は `adapter serve-all` を使う。
  */
 class ServeCommand : CliktCommand(name = "serve") {
-
     private val configDir: Path by option("--config-dir", help = "設定ディレクトリ（default: ./config）")
         .path(mustExist = true, canBeFile = false)
         .default(Path.of("./config"))
 
-    private val singleTable: String? by option(
-        "--table",
-        help = "起動するテーブル名（default: default）",
-    )
+    private val sqlitePath: Path? by option(
+        "--sqlite-path",
+        help = "設定 SQLite のパス（default: <config-dir>/config.db）",
+    ).path(canBeDir = false)
+
+    private val singleTable: String? by option("--table", help = "起動する連携名")
 
     private val multipleTables: List<String>? by option(
         "--tables",
-        help = "起動するテーブル名（カンマ区切りで複数指定）",
+        help = "起動する連携名（カンマ区切りで複数指定）",
     ).split(",")
 
     override fun run() {
-        val source = YamlConfigSource(configDir)
-        val targets: List<String> = when {
-            !multipleTables.isNullOrEmpty() -> multipleTables!!
-            singleTable != null -> listOf(singleTable!!)
-            else -> listOf(YamlConfigSource.DEFAULT_TABLE_NAME)
+        val targets: List<String> =
+            when {
+                !multipleTables.isNullOrEmpty() -> multipleTables!!
+                singleTable != null -> listOf(singleTable!!)
+                else -> throw UsageError("--table または --tables で起動する連携名を指定してください")
+            }
+
+        val source = ConfigStore.open(configDir, sqlitePath)
+        val known = source.listTables()
+        val unknown = targets.filterNot { it in known }
+        if (unknown.isNotEmpty()) {
+            echo("設定が見つかりません: ${unknown.joinToString(", ")}", err = true)
+            echo("登録済みの連携: ${if (known.isEmpty()) "(なし)" else known.joinToString(", ")}", err = true)
+            throw UsageError("連携名を確認してください")
         }
-        val runner = MultiAdapterRunner(
-            configSource = source,
-            activeFile = ActiveAdaptersFile(ActiveAdaptersFile.DEFAULT_PATH),
-        )
+
+        val runner =
+            MultiAdapterRunner(
+                configSource = source,
+                activeFile = ActiveAdaptersFile(ActiveAdaptersFile.DEFAULT_PATH),
+            )
 
         Runtime.getRuntime().addShutdownHook(
             Thread {

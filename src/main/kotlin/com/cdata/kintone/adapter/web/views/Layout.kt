@@ -1,6 +1,5 @@
 package com.cdata.kintone.adapter.web.views
 
-import com.cdata.kintone.adapter.config.ConfigSourceFactory
 import kotlinx.html.FlowContent
 import kotlinx.html.HTML
 import kotlinx.html.UL
@@ -23,12 +22,11 @@ import kotlinx.html.ul
 
 /**
  * 全画面共通のレイアウト DSL。
- * `siteTitle` / `mode` / `activeCount` をヘッダ・フッタに反映し、
+ * `siteTitle` / `activeCount` をヘッダ・フッタに反映し、
  * 各ページコンテンツは `content` ブロックでメインに差し込む。
  */
 fun HTML.layout(
     pageTitle: String,
-    mode: ConfigSourceFactory.Mode,
     activeCount: Int,
     currentPath: String = "/",
     content: FlowContent.() -> Unit,
@@ -66,7 +64,7 @@ fun HTML.layout(
         }
         footer(classes = "container") {
             small {
-                +"CData Kintone Adapter Console v0.4.0  |  ConfigSource: ${mode.name.lowercase()}  |  稼働中: $activeCount 件  |  © 2026 CData Software Japan"
+                +"CData Kintone Adapter Console v0.4.0  |  稼働中: $activeCount 件  |  © 2026 CData Software Japan"
             }
         }
     }

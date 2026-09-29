@@ -1,6 +1,6 @@
 package com.cdata.kintone.adapter.cli
 
-import com.cdata.kintone.adapter.config.YamlConfigSource
+import com.cdata.kintone.adapter.config.ConfigStore
 import com.cdata.kintone.adapter.runtime.ActiveAdaptersFile
 import com.cdata.kintone.adapter.runtime.MultiAdapterRunner
 import com.github.ajalt.clikt.core.CliktCommand
@@ -24,8 +24,13 @@ class ServeAllCommand : CliktCommand(name = "serve-all") {
         .path(mustExist = true, canBeFile = false)
         .default(Path.of("./config"))
 
+    private val sqlitePath: Path? by option(
+        "--sqlite-path",
+        help = "設定 SQLite のパス（default: <config-dir>/config.db）",
+    ).path(canBeDir = false)
+
     override fun run() {
-        val source = YamlConfigSource(configDir)
+        val source = ConfigStore.open(configDir, sqlitePath)
         val runner = MultiAdapterRunner(
             configSource = source,
             activeFile = ActiveAdaptersFile(ActiveAdaptersFile.DEFAULT_PATH),
@@ -40,7 +45,7 @@ class ServeAllCommand : CliktCommand(name = "serve-all") {
 
         val started = runner.startAll()
         if (started.isEmpty()) {
-            echo("起動できたテーブルがありません。`--config-dir` 配下を確認してください: $configDir")
+            echo("起動できる連携がありません。Web UI から連携を作成してください。")
             return
         }
 

@@ -1,6 +1,0 @@
-# Adapter サーバの待ち受け設定 (Account テーブル用)
-# port: 0 を指定すると MultiAdapterRunner が空きポートを自動割り当てる。
-# 固定ポートを使いたい場合は 8083 等の具体値を指定する。
-port: 0
-bind-address: 0.0.0.0
-plaintext: true

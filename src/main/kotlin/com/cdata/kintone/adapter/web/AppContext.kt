@@ -8,7 +8,7 @@ import com.cdata.kintone.adapter.agent.KeyPairGeneratorService
 import com.cdata.kintone.adapter.agent.PublicKeyManager
 import com.cdata.kintone.adapter.agent.SyncConnectionService
 import com.cdata.kintone.adapter.config.ConfigSource
-import com.cdata.kintone.adapter.config.ConfigSourceFactory
+import com.cdata.kintone.adapter.config.ConfigStore
 import com.cdata.kintone.adapter.jdbc.JdbcConnectionPropertyInspector
 import com.cdata.kintone.adapter.jdbc.JdbcDriverManager
 import com.cdata.kintone.adapter.runtime.ActiveAdaptersFile
@@ -27,7 +27,6 @@ private val log = KotlinLogging.logger {}
  */
 class AppContext(
     val configSource: ConfigSource,
-    val configSourceMode: ConfigSourceFactory.Mode,
     val driverManager: JdbcDriverManager,
     val runner: MultiAdapterRunner,
     val configDir: Path,
@@ -57,13 +56,14 @@ class AppContext(
             configDir: Path = Path.of("./config"),
             libDir: Path = Path.of("./lib"),
             agentRoot: Path = Path.of("./agent"),
+            /** 設定 SQLite のパス。未指定なら `<configDir>/config.db`。 */
+            sqlitePath: Path? = null,
             /** `port: 0` の既存 Sync を publish 範囲へ移行する (Issue #3)。 */
             autoMigratePorts: Boolean = envFlag("AUTO_MIGRATE_PORTS", default = true),
             /** 起動時に設定済み Sync の Adapter をすべて起動する (Issue #6)。 */
             autoStartAdapters: Boolean = envFlag("AUTO_START_ADAPTERS", default = true),
         ): AppContext {
-            val mode = ConfigSourceFactory.detectMode(configDir)
-            val source = ConfigSourceFactory.create(mode, configDir)
+            val source = ConfigStore.open(configDir, sqlitePath)
             val runner = MultiAdapterRunner(
                 configSource = source,
                 activeFile = ActiveAdaptersFile(ActiveAdaptersFile.DEFAULT_PATH),
@@ -88,7 +88,6 @@ class AppContext(
 
             return AppContext(
                 configSource = source,
-                configSourceMode = mode,
                 driverManager = JdbcDriverManager(libDir),
                 runner = runner,
                 configDir = configDir,

@@ -43,7 +43,6 @@ fun HTML.connectionsListView(ctx: AppContext) {
     val names = ctx.configSource.listSharedJdbcConfigs()
     layout(
         pageTitle = "Connections",
-        mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
         currentPath = "/connections",
     ) {
@@ -94,7 +93,6 @@ fun HTML.connectionFormView(
     val pageTitle = if (editMode) "Edit Connection: $existingName" else "New Connection"
     layout(
         pageTitle = pageTitle,
-        mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
         currentPath = "/connections",
     ) {

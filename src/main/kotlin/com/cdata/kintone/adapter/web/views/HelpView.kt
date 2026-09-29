@@ -26,7 +26,6 @@ fun HTML.helpView(ctx: AppContext) {
     val activeCount = ctx.runner.listActive().size
     layout(
         pageTitle = "ヘルプ",
-        mode = ctx.configSourceMode,
         activeCount = activeCount,
         currentPath = "/help",
     ) {
@@ -200,8 +199,8 @@ fun HTML.helpView(ctx: AppContext) {
                 }
             }
             small(classes = "muted") {
-                +"バージョン v0.4.0 · ConfigSource: "
-                code { +ctx.configSourceMode.name.lowercase() }
+                +"バージョン v0.4.0 · 設定の保存先: "
+                code { +ctx.configDir.resolve("config.db").toString() }
             }
         }
     }

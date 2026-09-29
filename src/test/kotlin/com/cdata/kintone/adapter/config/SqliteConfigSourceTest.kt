@@ -15,7 +15,7 @@ import java.nio.file.Path
 /**
  * SqliteConfigSource の単体テスト。
  *
- * YamlConfigSource と同じ ConfigSource 契約を満たすことを確認する。
+ * ConfigSource 契約を満たすことを確認する。
  * Phase 2-B M1-C で `ConfigSourceContractTest` に共通化を検討。
  */
 class SqliteConfigSourceTest {

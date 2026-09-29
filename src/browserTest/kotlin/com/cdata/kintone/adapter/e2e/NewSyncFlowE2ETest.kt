@@ -1,7 +1,7 @@
 package com.cdata.kintone.adapter.e2e
 
 import com.cdata.kintone.adapter.config.JdbcConfig
-import com.cdata.kintone.adapter.config.YamlConfigSource
+import com.cdata.kintone.adapter.config.ConfigStore
 import com.microsoft.playwright.options.SelectOption
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -43,7 +43,7 @@ class NewSyncFlowE2ETest : BrowserTestBase() {
         }
 
         // 2. H2 を共通 JDBC 接続として登録 (driverJar は空文字、Class.forName でクラスパスから検出される)
-        YamlConfigSource(configDir).saveSharedJdbcConfig(
+        ConfigStore.open(configDir).saveSharedJdbcConfig(
             "h2-local",
             JdbcConfig(
                 driverClass = "org.h2.Driver",
