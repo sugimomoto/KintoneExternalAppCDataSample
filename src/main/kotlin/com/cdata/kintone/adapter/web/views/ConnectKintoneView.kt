@@ -37,7 +37,6 @@ fun HTML.connectKintoneView(
 
     layout(
         pageTitle = "kintone と接続: $syncName",
-        mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
         currentPath = "/syncs",
     ) {

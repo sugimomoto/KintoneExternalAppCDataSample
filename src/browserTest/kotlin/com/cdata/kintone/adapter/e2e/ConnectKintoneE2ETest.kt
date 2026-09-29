@@ -7,7 +7,7 @@ import com.cdata.kintone.adapter.config.PrimaryKeyConfig
 import com.cdata.kintone.adapter.config.ServerConfig
 import com.cdata.kintone.adapter.config.TableConfig
 import com.cdata.kintone.adapter.config.TableConfigSet
-import com.cdata.kintone.adapter.config.YamlConfigSource
+import com.cdata.kintone.adapter.config.ConfigStore
 import com.cdata.kintone.adapter.metadata.ColumnType
 import com.cdata.kintone.adapter.metadata.RecordIdType
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -30,7 +30,7 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAdummy_e2e_public_key
 -----END PUBLIC KEY-----""",
         )
         // 連携を 1 件投入
-        YamlConfigSource(configDir).saveTableSet(
+        ConfigStore.open(configDir).saveTableSet(
             "demo",
             TableConfigSet(
                 server = ServerConfig(port = 18098, plaintext = true),

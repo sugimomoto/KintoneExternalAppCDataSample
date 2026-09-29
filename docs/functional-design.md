@@ -140,7 +140,7 @@ sequenceDiagram
     participant SRV as Ktor Server
     
     OS->>APP: java -jar adapter.jar
-    APP->>CFG: YAML読込
+    APP->>CFG: config.db 読込
     CFG->>CFG: 環境変数展開（${VAR}）
     CFG-->>APP: AdapterConfig
     APP->>J: Class.forName(driverClass)<br/>JDBC jarからロード
@@ -160,8 +160,8 @@ sequenceDiagram
 ```mermaid
 graph TD
     APP[Application.kt<br/>エントリポイント<br/>サブコマンドディスパッチ]
-    CLI[cli 層<br/>ServeCommand / InitTableCommand /<br/>ListTablesCommand / TestConnectionCommand]
-    CFG[config 層<br/>AdapterConfig / 4ファイル YAML Loader]
+    CLI[cli 層<br/>WebUiCommand / ServeCommand / ServeAllCommand /<br/>ListTablesCommand / TestConnectionCommand]
+    CFG[config 層<br/>AdapterConfig / ConfigStore / SqliteConfigSource]
     SRV[service 層<br/>AdapterServiceImpl]
     META[metadata 層<br/>JdbcMetadataInspector /<br/>FieldTypeSuggester]
     JDBC[jdbc 層<br/>ConnectionPool / QueryBuilder / TypeMapper]
@@ -187,8 +187,8 @@ graph TD
 | 層 | 主要クラス | 責務 |
 |---|---|---|
 | **エントリポイント** | `Application.kt` | コマンドライン引数のパース → サブコマンドディスパッチ |
-| **cli** | `ServeCommand`, `InitTableCommand`, `ListTablesCommand`, `TestConnectionCommand` | サブコマンド毎の処理。CLI ライブラリは Clikt を採用 |
-| **config** | `AdapterConfig`, `ServerConfigLoader`, `JdbcConfigLoader`, `TableConfigLoader`, `CapabilityConfigLoader`, `TableConfigWriter` | 4ファイル分割 YAML の読込・書出 |
+| **cli** | `WebUiCommand`, `ServeCommand`, `ServeAllCommand`, `ListActiveCommand`, `ListTablesCommand`, `TestConnectionCommand` | サブコマンド毎の処理。CLI ライブラリは Clikt を採用 |
+| **config** | `AdapterConfig`, `ConfigSource`, `ConfigStore`, `SqliteConfigSource`, `SqliteSchema`, `EnvVarExpander` | SQLite への設定の読込・書出 |
 | **service** | `AdapterServiceImpl` | AdapterService の 9 RPC 実装 |
 | **metadata** | `JdbcMetadataInspector`, `FieldTypeSuggester` | `DatabaseMetaData` を介したテーブル一覧・カラム情報取得、JDBC型→kintone型の推奨ロジック |
 | **jdbc** | `JdbcConnectionProvider`, `QueryBuilder`, `RowMapper`, `TypeMapper` | JDBC 接続管理・SQL組立・ResultSet⇄Record変換 |
@@ -336,7 +336,7 @@ graph TB
         UC2[Docker でデモ起動]
         UC3[curl でRPCデバッグ]
         UC4[設定ファイルでCData JDBCを差替え]
-        UC5[init-table で<br/>table.yaml 自動生成]
+        UC5[Web UI ウィザードで<br/>連携を作成]
     end
 
     SI --> UC1
@@ -353,87 +353,66 @@ graph TB
 
 | サブコマンド | 用途 | 引数（主要） |
 |---|---|---|
-| `serve` （デフォルト） | RPC サーバ起動 | `--config-dir` |
-| `init-table` | 対話式 `table.yaml` 生成 | `--jdbc-config`, `--output`, `--non-interactive` |
-| `list-tables` | テーブル一覧表示 | `--jdbc-config` |
-| `test-connection` | JDBC 接続テスト | `--jdbc-config` |
+| `web-ui` | 管理コンソール起動 | `--port`, `--config-dir`, `--lib-dir`, `--sqlite-path` |
+| `serve` | 指定連携の RPC サーバ起動 | `--table` / `--tables`（必須）, `--config-dir` |
+| `serve-all` | 登録済み全連携を起動 | `--config-dir`, `--sqlite-path` |
+| `list-active` | 稼働中 Adapter 一覧 | `--state-file` |
+| `list-tables` | テーブル一覧表示 | `--jdbc-name`, `--config-dir` |
+| `test-connection` | JDBC 接続テスト | `--jdbc-name`, `--config-dir` |
 
-### 4.2 init-table 対話シーケンス
+連携の作成・編集は Web UI（`/syncs/new`）から行う。CLI には作成手段を持たない。
+
+### 4.2 新規連携ウィザード（Web UI）
+
+連携の作成は CLI ではなく Web UI の 4 ステップウィザード（`/syncs/new`）で行う。
 
 ```mermaid
 sequenceDiagram
     participant U as ユーザー
-    participant CLI as init-table コマンド
-    participant CFG as ConfigLoader
+    participant W as TableWizardRoutes
     participant J as CData JDBC<br/>(DatabaseMetaData)
-    participant DS as データソース
-    participant FILE as table.yaml
+    participant FT as FieldTypeSuggester
+    participant CS as SqliteConfigSource
 
-    U->>CLI: adapter init-table
-    CLI->>CFG: jdbc.yaml 読込
-    CFG-->>CLI: JdbcConfig
-    CLI->>J: 接続確立
-    J->>DS: TCP/HTTPS 接続
-    DS-->>J: 接続OK
-
-    CLI->>J: getTables(null, null, "%", ["TABLE","VIEW"])
-    J->>DS: メタデータクエリ
-    DS-->>J: テーブル一覧
-    J-->>CLI: ResultSet
-    CLI-->>U: テーブル一覧表示（番号付き）
-
-    U->>CLI: テーブル番号入力
-    CLI->>J: getColumns(null, null, table, "%")
-    J-->>CLI: カラム一覧（JDBC型情報含む）
-    CLI->>J: getPrimaryKeys(null, null, table)
-    J-->>CLI: 主キーカラム
-
-    loop 各カラム
-        CLI-->>U: JDBC型 + 推奨 kintone型を表示
-        U->>CLI: Enter（承認）or 別の型を選択
-        alt SELECTION型を選択
-            CLI-->>U: 選択肢の入力方法を問う
-            alt 手動入力
-                U->>CLI: カンマ区切り入力
-            else 自動検出
-                CLI->>J: SELECT DISTINCT col FROM table LIMIT 100
-                J->>DS: SQL実行
-                DS-->>J: 値リスト
-                J-->>CLI: 候補
-                CLI-->>U: 候補表示、確認
-            end
-        end
-        U->>CLI: kintone field_id 確認（デフォルト: snake_case）
-    end
-
-    CLI-->>U: record-id-type 推定値を提示
-    U->>CLI: 確認
-    CLI->>FILE: table.yaml 書き出し
-    FILE-->>U: 完了通知
+    U->>W: Step1 共有 JDBC 接続を選択
+    W->>J: listTables()
+    J-->>W: テーブル一覧
+    U->>W: Step2 テーブルと連携名を選択
+    W->>J: listColumns(table)
+    J-->>W: 列とJDBC型
+    U->>W: Step3 利用する列を選択
+    W->>FT: suggest(jdbcType)
+    FT-->>W: ColumnType / RecordIdType の推奨
+    U->>W: Step4 マッピングを確認して保存
+    W->>CS: saveTableSetWithRef(name, set, jdbcRef)
+    CS-->>W: 保存完了
+    W-->>U: 連携詳細ページへリダイレクト
 ```
 
 ---
 
 ## 5. データモデル
 
-### 5.1 設定ファイル構造（4ファイル分割）
+### 5.1 設定データモデル（SQLite）
+
+設定は `config/config.db` に保存する。テーブルは 3 つ。
 
 ```
-config/
-├ server.yaml        # ServerConfig
-├ jdbc.yaml          # JdbcConfig (+ PoolConfig)
-├ table.yaml         # TableConfig (+ PrimaryKeyConfig + ColumnConfig)
-└ capability.yaml    # CapabilityConfig
+config.db
+├ shared_jdbcs   # 共有 JDBC 接続（JdbcConfig を JSON で保持）
+├ tables         # 連携ごとの設定（server / table / capability を JSON で保持 + jdbc_ref）
+└ schema_meta    # スキーマバージョン
 ```
 
-ランタイムでは4ファイルを読み込み、メモリ上で `AdapterConfig` に統合する。
+ランタイムでは `ConfigSource.loadTableSet(name)` が 1 連携分の行を読み、
+`jdbc_ref` から共有 JDBC 設定を解決して `AdapterConfig`（= `TableConfigSet`）に統合する。
 
 ```mermaid
 erDiagram
-    AdapterConfig ||--|| ServerConfig : loads from server.yaml
-    AdapterConfig ||--|| JdbcConfig : loads from jdbc.yaml
-    AdapterConfig ||--|| TableConfig : loads from table.yaml
-    AdapterConfig ||--|| CapabilityConfig : loads from capability.yaml
+    AdapterConfig ||--|| ServerConfig : from tables.server_json
+    AdapterConfig ||--|| JdbcConfig : via tables.jdbc_ref
+    AdapterConfig ||--|| TableConfig : from tables.table_json
+    AdapterConfig ||--|| CapabilityConfig : from tables.capability_json
     JdbcConfig ||--|| PoolConfig : has
     TableConfig ||--|| PrimaryKeyConfig : has
     TableConfig ||--o{ ColumnConfig : contains
@@ -645,9 +624,9 @@ flowchart TD
 
 | 変更内容 | 対応 |
 |---|---|
-| YAML 編集 | Adapter プロセスの再起動が必要（ホットリロードは行わない） |
+| Web UI での設定変更 | Adapter の再起動が必要（ホットリロードは行わない） |
 | JDBC Driver の JAR 更新 | プロセス再起動が必要 |
-| データソース側のスキーマ変更 | YAML の `columns` を更新後、プロセス再起動 |
+| データソース側のスキーマ変更 | Web UI で列マッピングを更新後、Adapter を再起動 |
 
 ホットリロードは将来フェーズで検討。
 

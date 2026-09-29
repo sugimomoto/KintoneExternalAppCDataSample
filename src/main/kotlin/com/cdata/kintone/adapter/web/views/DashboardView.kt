@@ -37,7 +37,6 @@ fun HTML.dashboardView(ctx: AppContext) {
 
     layout(
         pageTitle = "ダッシュボード",
-        mode = ctx.configSourceMode,
         activeCount = active.size,
         currentPath = "/",
     ) {

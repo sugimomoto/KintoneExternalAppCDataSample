@@ -145,7 +145,6 @@ vi .env
 | 変数 | 用途 |
 |---|---|
 | `LOG_LEVEL` | `INFO` / `DEBUG` |
-| `CONFIG_SOURCE` | `yaml` / `sqlite` (デフォルト `yaml`) |
 | `HOST_AGENT_ROOT` | Agent コンテナの bind マウント解決に使うホスト絶対パス (compose 経由なら自動) |
 | `SF_USER` 等 | 各データソースの環境変数 (オプション) |
 
@@ -199,7 +198,7 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/
 | マウント元 | コンテナ内 | 内容 |
 |---|---|---|
 | `./lib` | `/app/lib` (ro) | JDBC Driver jar + ライセンス |
-| `./config` | `/app/config` | テーブル定義 YAML / SQLite (config.db) |
+| `./config` | `/app/config` | **設定ストア `config.db` (SQLite)**。接続文字列を含むため取扱注意 |
 | `./agent` | `/app/agent` | 公開鍵 + agent.json (Agent と共有) |
 | `./run` | `/app/run` | 稼働状態 (`active-adapters.json`) |
 | `/var/run/docker.sock` | 同左 | Agent コンテナ制御 |

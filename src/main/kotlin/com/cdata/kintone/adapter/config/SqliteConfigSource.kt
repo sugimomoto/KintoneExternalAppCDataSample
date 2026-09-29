@@ -206,7 +206,7 @@ class SqliteConfigSource(
     }
 
     private inline fun <reified T> decode(json: String): T {
-        val expanded = YamlConfigSource.expandEnvVars(json, envResolver)
+        val expanded = EnvVarExpander.expand(json, envResolver)
         return JSON.decodeFromString(serializer<T>(), expanded)
     }
 

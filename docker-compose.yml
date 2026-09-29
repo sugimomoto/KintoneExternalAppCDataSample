@@ -30,7 +30,6 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # Agent コンテナ作成時の bind マウント解決用 (ホスト上の絶対パス)
       HOST_AGENT_ROOT: ${PWD}/agent
-      CONFIG_SOURCE: ${CONFIG_SOURCE:-yaml}
       # データソース用環境変数 (.env から読み込み)
       SF_USER: ${SF_USER:-}
       SF_PASSWORD: ${SF_PASSWORD:-}

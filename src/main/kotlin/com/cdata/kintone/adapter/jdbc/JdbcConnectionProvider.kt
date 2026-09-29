@@ -15,7 +15,7 @@ private val log = KotlinLogging.logger {}
 
 /**
  * HikariCP + 動的に読み込んだ JDBC Driver で接続を提供する。
- * `jdbc.yaml` の `driver-jar` に CData JDBC Driver の JAR パスを指定する想定。
+ * 共有 JDBC 設定の `driver-jar` に CData JDBC Driver の JAR パスを指定する想定。
  */
 class JdbcConnectionProvider(private val config: JdbcConfig) : ConnectionProvider {
 

@@ -66,7 +66,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
     // YAML 設定
-    implementation("com.charleskorn.kaml:kaml:0.61.0")
 
     // CLI
     implementation("com.github.ajalt.clikt:clikt:4.4.0")

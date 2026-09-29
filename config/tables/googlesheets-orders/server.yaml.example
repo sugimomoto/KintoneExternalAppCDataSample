@@ -1,4 +1,0 @@
-# Adapter サーバの待ち受け設定 (Google Sheets Orders 用)
-port: 0
-bind-address: 0.0.0.0
-plaintext: true

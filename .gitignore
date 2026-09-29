@@ -24,19 +24,14 @@ lib/help/
 # 開発時にデバッグ用にコピーした proto ディレクトリ
 .proto/
 
-# 設定ファイル（機密含むもの）
-# フェーズ1 互換: config 直下
-config/jdbc.yaml
-config/table.yaml
-!config/*.example
-
-# フェーズ2-A: 共通 JDBC 設定 (config/jdbc/<name>.yaml)
-config/jdbc/*.yaml
-!config/jdbc/*.yaml.example
-
-# フェーズ2-A: テーブル別の機密設定（個別 jdbc.yaml のみ保護）。
-# server.yaml / table.yaml / capability.yaml / jdbc-ref.yaml は非機密でコミット可。
-config/tables/*/jdbc.yaml
+# 設定ストア（SQLite）
+# JDBC 接続文字列＝認証情報を含むため、絶対にコミットしないこと。
+config/config.db
+config/config.db-wal
+config/config.db-shm
+config/*.db
+config/*.db-wal
+config/*.db-shm
 
 # 参考資料（社外開示NG含む）。プロジェクトルート直下のみ。
 # `.claude/skills/.../reference/` 等の他階層の reference は含めない
@@ -69,3 +64,5 @@ run/
 
 # Buf 生成物（buildディレクトリ内に出るが念のため）
 gen/
+.partnership/協業相談資料.pdf
+.partnership/協業相談資料.pptx

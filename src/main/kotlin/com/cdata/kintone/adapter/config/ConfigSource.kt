@@ -6,7 +6,8 @@ import kotlinx.serialization.Serializable
 /**
  * 設定の永続化レイヤを抽象化するインターフェース。
  *
- * フェーズ2-A では [YamlConfigSource] が唯一の実装。
+ * 現在の実装は [SqliteConfigSource] のみ。外部 DB を設定ストアにしたい場合は、
+ * このインターフェースを実装して [ConfigStore] から返すようにする。
  * フェーズ2-B（Web UI 導入）で `SqliteConfigSource` を追加予定。
  * 詳細は `.steering/20260522-multi-table-support/requirements.md §11.1` 参照。
  */

@@ -70,13 +70,13 @@
 | F-07 | Delete 実装 | ID 指定で複数レコード削除 |
 | F-08 | Count 実装 | フィルター適用後の件数取得。データソースによっては COUNT クエリが重いケースに備え、**常に 0 を返すモード**を設定可能（FR-07 参照） |
 | F-09 | FilterCondition 主要パターン対応 | kintone UI で使われる FilterCondition 37/39 種を SQL 変換（除外: `multiple_selection_in/not_in` のみ。理由は機能要件 FR-02 参照） |
-| F-10 | 設定ファイル（分割管理） | YAML で **server / jdbc / table / capability の4ファイル分割** 構成（FR-04 参照） |
+| F-10 | 設定ストア | **SQLite (`config/config.db`)** に一元管理（FR-04 参照）<br>※ 当初は YAML 4 ファイル分割。2026-09-29 に SQLite へ一本化 |
 | F-11 | RecordIdType の NUMBER/TEXT 両対応 | Salesforce 等の文字列 ID データソースに対応 |
 | F-12 | エラーハンドリング | バリデーション失敗時に適切な ConnectError を返却 |
 | F-13 | curl による動作確認 | Connect プロトコルの JSON 経由でローカルテスト可能 |
 | F-14 | Docker イメージ提供 | 1コマンドで起動可能なコンテナイメージ |
-| F-15 | 対話式 table.yaml 生成 CLI | `adapter init-table` で JDBC メタデータから設定を自動構築（FR-08 参照） |
-| F-16 | 補助 CLI サブコマンド | `serve` / `init-table` / `list-tables` / `test-connection` |
+| F-15 | 連携作成ウィザード | Web UI `/syncs/new` で JDBC メタデータから設定を構築（FR-08 参照）<br>※ 当初は `init-table` CLI。2026-09-29 に Web UI へ集約 |
+| F-16 | 補助 CLI サブコマンド | `web-ui` / `serve` / `serve-all` / `list-active` / `list-tables` / `test-connection` |
 
 ### 望ましい機能（SHOULD）
 
@@ -84,16 +84,16 @@
 |---|---|---|
 | F-21 | Search 実装（基本） | `LIKE` ベースの簡易検索 |
 | F-22 | Aggregate 実装（基本） | COUNT / SUM / AVG / MAX / MIN と GroupBy DATETIME_* |
-| F-23 | 環境変数による接続情報の上書き | YAML 内 `${VAR_NAME}` で環境変数展開 |
+| F-23 | 環境変数による接続情報の上書き | 接続文字列内 `${VAR_NAME}` で環境変数展開 |
 | F-24 | ヘルスチェックエンドポイント | `/health` などで起動状態確認 |
-| F-25 | ログレベル設定 | YAML / 環境変数でログ出力レベル切替 |
+| F-25 | ログレベル設定 | 環境変数 `LOG_LEVEL` でログ出力レベル切替 |
 
 ### 除外機能（WON'T、フェーズ2以降）
 
 | ID | 機能 | 説明 |
 |---|---|---|
 | F-91 | 複数テーブル対応 UI | 複数 Adapter/Agent を1つの UI で管理 |
-| F-92 | 設定 GUI | YAML を編集せず GUI で設定変更 |
+| F-92 | 設定 GUI | ~~YAML を編集せず GUI で設定変更~~ → Phase 2-B で実装済み |
 | F-93 | kintone Connect AI 連携 | gRPC プロキシ経由の中継 |
 | F-94 | MultipleSelectionField | kintone UI 側で未対応のため見送り |
 | F-95 | 自動デプロイ | EC2/Cloud Run へのワンクリックデプロイ |
@@ -242,22 +242,27 @@ protobuf 定義の 39 種 FilterCondition のうち、**37 種を必須対応**�
 - TEXT 時：`InsertResponsePayload.record_ids`（RecordId.value_text）を使用
 - 同様に Delete/Update リクエストの両形式に対応
 
-### FR-04: 設定ファイル（4ファイル分割構成）
+### FR-04: 設定ストア（SQLite 一元管理）
 
-- ファイル形式：**YAML**
-- 分割構成：
+> **2026-09-29 更新**：当初は YAML 4 ファイル分割（`server` / `jdbc` / `table` / `capability`）
+> 構成だったが、二重実装の解消のため **SQLite に一本化**した。YAML 実装と移行コマンドは削除済み。
+> 経緯は [Issue #5](https://github.com/sugimomoto/KintoneExternalAppCDataSample/issues/5) および
+> `.steering/20260929-sqlite-only-config/` を参照。
 
-  | ファイル | 内容 | 変更頻度 | Git管理推奨 | 自動生成 |
-  |---|---|---|---|---|
-  | `config/server.yaml` | ポート・バインドアドレス・plaintext | 低 | ◯ | - |
-  | `config/jdbc.yaml` | JDBC接続情報（機密含む）・プール設定 | 環境ごと | × （`.gitignore`） | - |
-  | `config/table.yaml` | テーブル名・主キー・カラム定義 | データソース変更時 | △ | **CLI生成可能（FR-08）** |
-  | `config/capability.yaml` | サポート機能宣言・record-id-type・count-strategy・filterable_fields | 低 | ◯ | - |
+- 保存形式：**SQLite**（`config/config.db`）
+- テーブル構成：
 
-- 設定ディレクトリの指定：起動時引数 `--config-dir <path>` または環境変数 `ADAPTER_CONFIG_DIR`
-- デフォルト：`./config/`
-- 環境変数展開：各 YAML 内で `${VAR_NAME}` 形式で値を上書き可能（特に `jdbc.yaml` の認証情報）
-- ファイル名固定：シンプル運用のため、4ファイル名は固定（リネーム不可）
+  | テーブル | 内容 | Git管理 |
+  |---|---|---|
+  | `shared_jdbcs` | 共有 JDBC 接続（接続文字列・プール設定）。複数の連携から参照 | × （機密を含む。`.gitignore` 必須） |
+  | `tables` | 連携ごとの設定（待ち受けポート・テーブル定義・機能宣言 + 共有 JDBC への参照） | × |
+  | `schema_meta` | スキーマバージョン | × |
+
+- 設定ディレクトリの指定：起動時引数 `--config-dir <path>`（デフォルト `./config/`）
+- DB パスの指定：`--sqlite-path <path>`（デフォルト `<config-dir>/config.db`）
+- 初回起動時、DB ファイルが無ければスキーマを自動生成し、連携 0 件で起動する
+- 環境変数展開：接続文字列内で `${VAR_NAME}` 形式の値を上書き可能
+- 設定の編集手段は **Web UI のみ**。設定ファイルを手で編集する運用は持たない
 
 ### FR-05: JDBC Driver 動的ロード
 
@@ -284,9 +289,13 @@ protobuf 定義の 39 種 FilterCondition のうち、**37 種を必須対応**�
 
 `count-supported: false` の場合は `count-strategy` の指定は無視される。
 
-### FR-08: 対話式 table.yaml 生成 CLI
+### FR-08: 連携作成ウィザード
 
-`adapter init-table` サブコマンドで、JDBC メタデータを活用した対話式の `table.yaml` 自動生成を提供する。
+> **2026-09-29 更新**：当初は `adapter init-table` サブコマンドで提供していたが、
+> SQLite 一本化に伴い Web UI の新規連携ウィザード（`/syncs/new`）に集約し、CLI は廃止した。
+> 以下の対話フローは、ウィザードの 4 ステップに読み替えること。
+
+JDBC メタデータを活用して、テーブル定義と機能宣言を対話的に構築する。
 
 #### 入力
 
@@ -314,26 +323,23 @@ protobuf 定義の 39 種 FilterCondition のうち、**37 種を必須対応**�
 
 `config/table.yaml`（既存ファイルがある場合は上書き確認）
 
-#### コマンドラインオプション
+#### 入口
 
-```
-adapter init-table [--jdbc-config FILE] [--output FILE] [--non-interactive]
-```
-
-- `--jdbc-config`: `jdbc.yaml` のパス（デフォルト: `./config/jdbc.yaml`）
-- `--output`: 出力先（デフォルト: `./config/table.yaml`）
-- `--non-interactive`: 全カラムを推奨型で出力（CI/CD 用、対話なし）
+Web UI `/syncs/new`（4 ステップウィザード）。CLI からの連携作成手段は提供しない。
 
 ### FR-09: 補助 CLI サブコマンド
 
 | サブコマンド | 説明 |
 |---|---|
-| `serve` | Connect RPC サーバを起動（デフォルト動作） |
-| `init-table` | 対話式 `table.yaml` 生成（FR-08） |
+| `web-ui` | ブラウザ管理コンソールを起動（通常運用の入口） |
+| `serve` | 指定連携の Connect RPC サーバを起動（`--table` / `--tables` 必須） |
+| `serve-all` | 登録済みの全連携を 1 JVM で並行起動 |
+| `list-active` | 稼働中 Adapter 一覧を表示 |
 | `list-tables` | 接続先データソースのテーブル一覧表示（接続検証兼ねる） |
 | `test-connection` | JDBC 接続テスト + バージョン情報表示 |
 
-全サブコマンドは共通オプション `--config-dir` をサポート。
+共通オプション：`--config-dir`（既定 `./config`）、`--sqlite-path`（既定 `<config-dir>/config.db`）。
+`list-tables` / `test-connection` は `--jdbc-name` で共有 JDBC 接続を指定する（1 件だけなら省略可）。
 
 ---
 

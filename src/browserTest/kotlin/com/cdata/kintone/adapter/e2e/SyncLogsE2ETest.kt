@@ -7,7 +7,7 @@ import com.cdata.kintone.adapter.config.PrimaryKeyConfig
 import com.cdata.kintone.adapter.config.ServerConfig
 import com.cdata.kintone.adapter.config.TableConfig
 import com.cdata.kintone.adapter.config.TableConfigSet
-import com.cdata.kintone.adapter.config.YamlConfigSource
+import com.cdata.kintone.adapter.config.ConfigStore
 import com.cdata.kintone.adapter.metadata.ColumnType
 import com.cdata.kintone.adapter.metadata.RecordIdType
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -20,7 +20,7 @@ import java.nio.file.Path
 class SyncLogsE2ETest : BrowserTestBase() {
 
     override fun seedTestData(configDir: Path, libDir: Path, agentDir: Path) {
-        YamlConfigSource(configDir).saveTableSet(
+        ConfigStore.open(configDir).saveTableSet(
             "demo",
             TableConfigSet(
                 server = ServerConfig(port = 18097, plaintext = true),

@@ -21,7 +21,6 @@ import kotlinx.html.unsafe
 fun HTML.syncLogsView(ctx: AppContext, syncName: String) {
     layout(
         pageTitle = "ログ: $syncName",
-        mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
         currentPath = "/syncs",
     ) {

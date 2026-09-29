@@ -42,7 +42,6 @@ fun HTML.tablesListView(ctx: AppContext) {
 
     layout(
         pageTitle = "連携 (Syncs)",
-        mode = ctx.configSourceMode,
         activeCount = active.size,
         currentPath = "/syncs",
     ) {
@@ -102,7 +101,6 @@ fun HTML.tableDetailView(ctx: AppContext, name: String, set: TableConfigSet) {
 
     layout(
         pageTitle = name,
-        mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
         currentPath = "/syncs",
     ) {
@@ -278,7 +276,6 @@ private fun kotlinx.html.FlowContent.agentSection(
 fun HTML.tableEditView(ctx: AppContext, name: String, set: TableConfigSet) {
     layout(
         pageTitle = "Edit $name",
-        mode = ctx.configSourceMode,
         activeCount = ctx.runner.listActive().size,
         currentPath = "/syncs",
     ) {
