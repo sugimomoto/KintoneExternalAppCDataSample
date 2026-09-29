@@ -219,7 +219,10 @@ class AgentContainerManagerTest {
         // 状態表示は補助情報。一覧本体が見られなくなるほうが困る。
         every { dockerClient.listContainersCmd() } throws RuntimeException("docker unavailable")
 
-        assertEquals(emptyMap<String, AgentContainerManager.ContainerInfo>(), AgentContainerManager(dockerClient).statusesBySyncName())
+        assertEquals(
+            emptyMap<String, AgentContainerManager.ContainerInfo>(),
+            AgentContainerManager(dockerClient).statusesBySyncName(),
+        )
     }
 
     /** コンテナ一覧 API の応答を組み立てる。 */
