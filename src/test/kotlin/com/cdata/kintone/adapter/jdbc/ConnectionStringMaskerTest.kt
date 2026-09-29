@@ -71,4 +71,16 @@ class ConnectionStringMaskerTest {
         assertFalse(masked.contains("=b;"))
         assertEquals("jdbc:x:Password=***;Foo=1;Password=***;", masked)
     }
+
+    @Test
+    fun `isSensitive は機密を示す名前を true と判定する`() {
+        listOf("Password", "OAuthAccessToken", "APIKey", "OAuthClientSecret", "AWSSecretKey", "PersonalAccessToken")
+            .forEach { assertTrue(ConnectionStringMasker.isSensitive(it), "対象: $it") }
+    }
+
+    @Test
+    fun `isSensitive は機密でない名前を false と判定する`() {
+        listOf("User", "URL", "Namespace", "OAuthClientId", "BatchSize")
+            .forEach { assertFalse(ConnectionStringMasker.isSensitive(it), "対象: $it") }
+    }
 }

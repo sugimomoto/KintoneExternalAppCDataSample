@@ -33,6 +33,13 @@ class ConnectionPropertyProbeTest {
     }
 
     @Test
+    fun `名前の一部に uri を含むだけのプロパティを URL 扱いしない`() {
+        // "security" には "uri" が含まれる。部分一致で判定すると
+        // Salesforce の必須プロパティ SecurityToken が URL 扱いされてしまう。
+        assertEquals(ConnectionPropertyProbe.PROBE_VALUE, ConnectionPropertyProbe.dummyValueFor("SecurityToken"))
+    }
+
+    @Test
     fun `真偽値に使われる接頭辞の名前には False を返す`() {
         listOf("UseSandbox", "IsOffline", "EnableCaching", "AllowFormula", "IgnoreErrorValues", "RecurseFolders")
             .forEach { assertEquals("False", ConnectionPropertyProbe.dummyValueFor(it), "対象: $it") }
@@ -51,9 +58,17 @@ class ConnectionPropertyProbeTest {
     }
 
     @Test
-    fun `大文字小文字を問わず判定する`() {
+    fun `URL の判定は大文字小文字を問わない`() {
         assertEquals(ConnectionPropertyProbe.PROBE_URL, ConnectionPropertyProbe.dummyValueFor("url"))
-        assertEquals("False", ConnectionPropertyProbe.dummyValueFor("usesandbox"))
+        assertEquals(ConnectionPropertyProbe.PROBE_URL, ConnectionPropertyProbe.dummyValueFor("callbackurl"))
+    }
+
+    @Test
+    fun `真偽値の判定は camelCase の語境界で行う`() {
+        // 接頭辞の文字列一致だけで判定すると、User が "Use" + "r" として真偽値扱いされる。
+        assertEquals("False", ConnectionPropertyProbe.dummyValueFor("UseSandbox"))
+        assertEquals(ConnectionPropertyProbe.PROBE_VALUE, ConnectionPropertyProbe.dummyValueFor("User"))
+        assertEquals(ConnectionPropertyProbe.PROBE_VALUE, ConnectionPropertyProbe.dummyValueFor("Issuer"))
     }
 
     // --- candidateUrls ---

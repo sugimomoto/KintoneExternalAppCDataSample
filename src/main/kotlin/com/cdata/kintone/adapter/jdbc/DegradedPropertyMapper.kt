@@ -11,5 +11,26 @@ package com.cdata.kintone.adapter.jdbc
  */
 object DegradedPropertyMapper {
 
-    fun toConnectionProperties(driverProperties: List<DriverProperty>): List<ConnectionProperty> = TODO()
+    fun toConnectionProperties(driverProperties: List<DriverProperty>): List<ConnectionProperty> =
+        driverProperties.mapIndexed { index, property ->
+            val name = property.name.trim()
+            ConnectionProperty(
+                propertyName = name,
+                displayName = name,
+                shortDescription = property.description,
+                // getPropertyInfo は型を返さない。choices も実測では常に空のため真偽値も判別できない。
+                type = PropertyType.STRING,
+                // DriverPropertyInfo.value にはプローブで渡したダミー値が入り得るので採らない。
+                defaultValue = null,
+                allowedValues = property.allowedValues,
+                category = "",
+                required = property.required,
+                // 判定ルールを二重に持たないようマスク処理と同じ基準を使う。
+                sensitivity = if (ConnectionStringMasker.isSensitive(name)) Sensitivity.PASSWORD else Sensitivity.NONE,
+                visible = true,
+                hierarchy = "",
+                ordinal = index,
+                categoryOrdinal = 0,
+            )
+        }
 }
