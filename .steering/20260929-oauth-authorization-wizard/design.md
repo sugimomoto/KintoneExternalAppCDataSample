@@ -20,7 +20,7 @@
 | D-3 | 認可可否は **プロシージャの有無**で判定する | SAP Gateway には OAuth プロシージャが無い（F-7）。データソース名で分岐しない（C-4） | `AuthScheme` だけで判定する案 → 非対応ドライバーで使えないウィザードを見せる |
 | D-4 | 認可 URL は**クエリを落として**ログに出す | URL にクライアント ID が含まれる（AC-11）。ホスト + パスだけならデバッグに足りる | URL 全体を出さない案 → 障害調査で手掛かりが無くなる |
 | D-5 | verifier は**一切ログに出さない** | 認可コードそのもの（AC-12）。マスクして出す価値がない | マスクして出す案 |
-| D-6 | トークン取得は **`OAuthSettingsLocation` 経由**でキャッシュに保存する | #11 で一本化したパスを使う（C-2）。接続文字列は書き換えない（C-5） | 取得したトークンを接続文字列に書き戻す案 |
+| D-6 | ~~トークン取得は **`OAuthSettingsLocation` 経由**でキャッシュに保存する~~ **→ #34 で撤回** | ~~#11 で一本化したパスを使う（C-2）。接続文字列は書き換えない（C-5）~~ 実際には `GetOAuthAccessToken` を実行してもキャッシュは作られず、トークンがどこにも残らなかった。却下した「接続文字列に書き戻す案」が正しかった | — |
 | D-7 | ウィザードは**編集画面からの遷移**にする | 接続が保存済みであることが前提（クライアント ID / シークレットが必要） | 新規作成画面に置く案 |
 
 ### 1.2 フロー
@@ -165,7 +165,7 @@ Step 2: verifier を貼り付ける
 | 編集画面 | OAuth 系の接続に導線が 1 つ増える | `AuthScheme` 非 OAuth では出ない |
 | ログ出力 | 認可 URL はクエリを落として出す。verifier は出さない | D-4 / D-5 |
 | ライブログ (SSE) | Adapter / Agent のログを流すもので、ウィザードは通らない | 影響なし（AC-13 は構造的に満たす） |
-| 接続文字列 | 書き換えない | C-5 |
+| 接続文字列 | ~~書き換えない~~ → #34 で `InitiateOAuth=REFRESH` + `OAuthRefreshToken` を書き込むよう変更 | ~~C-5~~ |
 | OAuth キャッシュ | #11 のパスに保存される | C-2 |
 | `InitiateOAuth` | ウィザードの接続だけ OFF を強制。保存値は変えない | D-2 |
 
@@ -223,3 +223,22 @@ Step 2: verifier を貼り付ける
 | AC-14 / AC-15 / AC-16 | §6.4 | §6.4, §6.5 |
 | AC-17 | §6.1〜6.4 | — |
 | AC-18 | — | `./gradlew test` |
+
+---
+
+## 追記: D-6 / C-5 の撤回 (2026-09-29, Issue #34)
+
+D-6 の「トークンはドライバーが `OAuthSettingsLocation` のキャッシュに保存する」は
+**誤りだった**。`GetOAuthAccessToken` はトークンを ResultSet で返すだけで、
+キャッシュファイルは作られない。本実装は ResultSet を読み捨てていたため、
+認可が成功しても保存先がどこにも無く、画面には「保存しました」と出るのに
+接続テストが `OAUTH [30004] The DISPLAY environment is need for OAuth process.`
+で失敗していた。
+
+D-6 で却下した「取得したトークンを接続文字列に書き戻す案」が正しい方針であり、
+[#34](https://github.com/sugimomoto/KintoneExternalAppCDataSample/issues/34) で
+そちらに切り替えた。詳細は
+[../20260929-oauth-token-persistence/design.md](../20260929-oauth-token-persistence/design.md)。
+
+なお `OAuthSettingsLocation` の付与 (#11) は引き続き有効。
+`InitiateOAuth=REFRESH` でドライバーが自動更新する際の保存先として使われる。
