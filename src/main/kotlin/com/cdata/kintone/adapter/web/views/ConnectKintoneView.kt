@@ -178,8 +178,14 @@ fun HTML.connectKintoneView(
     }
 }
 
-/** kintone 管理画面の「外部システムのアプリ化」のパス。 */
-private const val ADMIN_CONNECTOR_PATH = "/k/admin/system/admin/dataConnector.html"
+/**
+ * kintone 管理画面の「外部システムのアプリ化」のパス。
+ *
+ * 実環境で確認済み (Issue #53)。以前は `/k/admin/system/admin/dataConnector.html` と
+ * していたが誤りだった。`KINTONE_DOMAIN` が渡っておらずリンクが表示されていなかったため
+ * (Issue #51)、長く気づかれなかった。変更する場合は実環境で確認すること。
+ */
+private const val ADMIN_CONNECTOR_PATH = "/k/admin/system/externalapp/"
 
 /**
  * 接続キーを拒否されたときの kintone 側の手順 (Issue #21)。
