@@ -359,6 +359,8 @@ object ConfigStore {
 | プロパティ検出用の接続文字列（プローブ）の組み立て | `jdbc/ConnectionPropertyProbe.kt` |
 | プロパティ検出のフォールバック（`getPropertyInfo` 由来の縮退） | `jdbc/DegradedPropertyMapper.kt` |
 | 認証方式に応じた必須・表示の切り替え | `jdbc/PropertyHierarchyResolver.kt` / `jdbc/PropertyHierarchy.kt` |
+| OAuth 初回認可（ヘッドレス 2 段階フロー） | `jdbc/OAuthAuthorizer.kt` / `jdbc/OAuthProcedureSql.kt` |
+| OAuth 認可ウィザードの表示条件 | `jdbc/OAuthCapability.kt` |
 | 接続文字列のマスキング | `jdbc/ConnectionStringMasker.kt` |
 
 > ⚠️ **`sys_connection_props` は接続を確立しないと読めません。**
@@ -367,6 +369,16 @@ object ConfigStore {
 > 必須プロパティのダミー値付き」の順に候補を作り、最初に成功したものを使います。
 > ドライバーごとの分岐は入れないでください（300+ データソースに対して維持できません）。
 > 取得できたかどうかは `ConnectionPropertiesResult.source` で判別します。
+
+> ⚠️ **OAuth の初回認可はウィザード経由で行います** (Issue #12)。
+> `InitiateOAuth=GETANDREFRESH` はドライバーが自分のマシンでブラウザを開く方式なので
+> コンテナでは成立しません。`GetOAuthAuthorizationUrl` で認可 URL を作り、管理者の
+> ブラウザで認可させ、`code=` を貼り戻して `GetOAuthAccessToken` を実行します。
+> 接続を張るときは `JdbcUrlEnhancer.withInitiateOAuthOff` を通してください。
+> `GETANDREFRESH` のままだと接続時点で 60 秒タイムアウトします。
+> プロシージャの引数は SQL リテラルに埋め込むため、認可コードは
+> `OAuthProcedureSql.escapeSqlLiteral` でエスケープし、例外メッセージは
+> `OAuthUrlMasker.redactVerifier` で伏せてから利用者に見せます。
 
 > ⚠️ **`sys_connection_props` の `Required` は静的です。**
 > 認証方式で必須が変わる条件は `Hierarchy` 列（`<依存プロパティ>=<値1>,<値2>`）にあり、

@@ -171,6 +171,23 @@ buf generate
 | 主キー型 | BIGINT/INTEGER（NUMBER） または VARCHAR/CHAR（TEXT）のみ |
 | 対応列数 | 制限なし（kintone 側の制限に従う） |
 
+#### OAuth 認証の対応状況
+
+| パターン | 状態 | 備考 |
+|---|---|---|
+| 取得済みトークンを接続設定に入力（リフレッシュトークン / JWT / サービスアカウント） | ✅ | 非対話。プロパティ入力だけで完結する |
+| 初回のブラウザ認可 | ✅ | Web UI の OAuth 認可ウィザードで行う (Issue #12) |
+| `InitiateOAuth=GETANDREFRESH` による自動認可 | ❌ | ドライバーが**自分の動いているマシンでブラウザを開く**方式のため、ヘッドレスなコンテナでは成立しない |
+
+認可ウィザードはドライバーのヘッドレス向けプロシージャ
+（`GetOAuthAuthorizationUrl` / `GetOAuthAccessToken`）を使う。
+
+- **ドライバーによってプロシージャが無い**（実測で SAP Gateway には無い）。
+  その場合はウィザードが非対応メッセージを出す
+- **プロシージャの実行にはライセンス認証が必要**。`sys_connection_props` は
+  ライセンス未認証でも読めるが、プロシージャは実行できない
+- 取得したトークンは `OAuthSettingsLocation`（`run/oauth/<接続名>.txt`）に保存される (Issue #11)
+
 ### 3.3 ライセンス制約
 
 | 項目 | 内容 |

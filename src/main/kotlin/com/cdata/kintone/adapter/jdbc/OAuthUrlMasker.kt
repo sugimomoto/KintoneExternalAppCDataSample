@@ -20,4 +20,16 @@ object OAuthUrlMasker {
         val separator = url.indexOf('?')
         return if (separator < 0) url else url.substring(0, separator + 1) + MASK
     }
+
+    /**
+     * メッセージ中の認可コードを伏せる。
+     *
+     * プロシージャの引数は SQL リテラルに埋め込むため、**ドライバーの例外メッセージに
+     * SQL がそのまま含まれると認可コードが画面とログに漏れる**。
+     * 例外を利用者に見せる前にこれを通す。
+     */
+    fun redactVerifier(message: String?, verifier: String): String? {
+        if (message == null || verifier.isBlank()) return message
+        return message.replace(verifier, MASK)
+    }
 }

@@ -2,6 +2,7 @@ package com.cdata.kintone.adapter.jdbc
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.sql.Connection
+import java.sql.SQLException
 
 private val log = KotlinLogging.logger {}
 
@@ -46,8 +47,14 @@ class OAuthAuthorizer(private val connection: Connection) {
      * **verifier はログに出さない**（認可コードそのもの）。
      */
     fun fetchAccessToken(verifier: String, callbackUrl: String?) {
-        connection.createStatement().use { statement ->
-            statement.execute(OAuthProcedureSql.accessToken(verifier, callbackUrl))
+        try {
+            connection.createStatement().use { statement ->
+                statement.execute(OAuthProcedureSql.accessToken(verifier, callbackUrl))
+            }
+        } catch (e: SQLException) {
+            // 引数は SQL リテラルに埋め込むため、ドライバーの例外に SQL が含まれると
+            // 認可コードが画面とログに漏れる。伏せた上で投げ直す。
+            throw SQLException(OAuthUrlMasker.redactVerifier(e.message, verifier), e.sqlState, e.errorCode, e)
         }
         log.info { "OAuth トークンを取得してキャッシュに保存しました" }
     }
