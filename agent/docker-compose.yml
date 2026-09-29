@@ -15,6 +15,9 @@ services:
       # /opt/agent に流入してビルド時のイメージ内容を覆い隠さないようにするため）
       - ./agent.json:/opt/agent/agent.json:ro
       - ./private-key.pem:/opt/agent/private-key.pem:ro
+    environment:
+      # console 側と時刻を揃える (Issue #25)
+      TZ: ${TZ:-Asia/Tokyo}
     restart: unless-stopped
     # ログを JSON 形式で構造化（kintone-data-connector-agent は JSON ログ出力）
     logging:

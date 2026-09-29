@@ -125,6 +125,8 @@ internal fun kotlinx.html.FlowContent.activeAdaptersTable(active: List<AdapterSt
     }
 }
 
+// タイムゾーンまで出す。コンテナの既定は UTC で、TZ を設定していなければ
+// ホストのローカル時刻とずれる。ずれたまま時刻だけ出すと読み違える (Issue #25)。
 private val FORMATTER: DateTimeFormatter = DateTimeFormatter
-    .ofPattern("yyyy-MM-dd HH:mm:ss")
+    .ofPattern("yyyy-MM-dd HH:mm:ss z")
     .withZone(ZoneId.systemDefault())
