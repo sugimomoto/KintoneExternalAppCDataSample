@@ -1,6 +1,8 @@
 package com.cdata.kintone.adapter.web.routes
 
 import com.cdata.kintone.adapter.jdbc.ConnectionStringMasker
+import com.cdata.kintone.adapter.jdbc.ConnectionValidator
+import com.cdata.kintone.adapter.jdbc.ConnectionValidation
 import com.cdata.kintone.adapter.config.JdbcConfig
 import com.cdata.kintone.adapter.config.JdbcReferenceIndex
 import com.cdata.kintone.adapter.config.PoolConfig
@@ -176,32 +178,8 @@ fun Route.connectionsRoutes(ctx: AppContext) {
         val name = call.parameters["name"]!!
         val config = ctx.configSource.loadSharedJdbcConfig(name)
             ?: return@post call.respondText("Not found: $name", status = HttpStatusCode.NotFound)
-        val result = runCatching {
-            JdbcConnectionProvider(config, oauthCacheKey = name).use { provider ->
-                provider.connection().use { conn ->
-                    conn.metaData.let { md ->
-                        "${md.databaseProductName} ${md.databaseProductVersion} / ${md.driverName} ${md.driverVersion}"
-                    }
-                }
-            }
-        }
-        // 結果はテーブルの外の共有バナーに入るため、どの接続のものか分かるように
-        // 名前を含める。成功・失敗は既存のバナークラスで出し分ける (Issue #42)。
-        val html = createHTML().article(
-            classes = if (result.isSuccess) "success-banner" else "warning-banner",
-        ) {
-            p {
-                code { +name }
-                if (result.isSuccess) {
-                    +" 接続成功: ${result.getOrNull()}"
-                } else {
-                    // 例外メッセージに接続文字列が含まれる場合があるため必ずマスクを通す。
-                    // メッセージはロケール依存なので分類はしない (#19 の方針)。
-                    +" 接続失敗: ${ConnectionStringMasker.mask(result.exceptionOrNull()?.message ?: "")}"
-                }
-            }
-        }
-        call.respondText(html, io.ktor.http.ContentType.Text.Html)
+        val validation = validateConnection(config, name)
+        call.respondText(connectionTestFragment(name, validation), io.ktor.http.ContentType.Text.Html)
     }
 }
 
@@ -270,5 +248,44 @@ private fun nextPathAfterCreate(
         "/connections/$name/oauth"
     } else {
         "/connections"
+    }
+}
+
+/**
+ * 接続を張って検証する。
+ *
+ * 接続の確立自体に失敗した場合も [ConnectionValidation.Invalid] に畳み込み、
+ * 呼び出し側が「例外」と「検証失敗」を区別しなくて済むようにする。
+ */
+private fun validateConnection(config: JdbcConfig, name: String): ConnectionValidation =
+    runCatching {
+        JdbcConnectionProvider(config, oauthCacheKey = name).use { provider ->
+            provider.connection().use { connection -> ConnectionValidator.validate(connection) }
+        }
+    }.getOrElse { cause ->
+        // 例外メッセージに接続文字列が含まれる場合があるため必ずマスクを通す。
+        // メッセージはロケール依存なので分類はしない (#19 の方針)。
+        ConnectionValidation.Invalid(ConnectionStringMasker.mask(cause.message ?: "接続に失敗しました"))
+    }
+
+/**
+ * 接続テスト結果の断片。
+ *
+ * 結果はテーブルの外の共有バナーに入るため、どの接続のものか分かるように
+ * 名前を含める。成功・失敗は既存のバナークラスで出し分ける (Issue #42)。
+ */
+private fun connectionTestFragment(name: String, validation: ConnectionValidation): String {
+    val bannerClass = when (validation) {
+        is ConnectionValidation.Valid -> "success-banner"
+        is ConnectionValidation.Invalid -> "warning-banner"
+    }
+    return createHTML().article(classes = bannerClass) {
+        p {
+            code { +name }
+            when (validation) {
+                is ConnectionValidation.Valid -> +" 接続成功: ${validation.description}"
+                is ConnectionValidation.Invalid -> +" 接続失敗: ${validation.reason}"
+            }
+        }
     }
 }
