@@ -1,6 +1,7 @@
 package com.cdata.kintone.adapter.web
 
 import com.cdata.kintone.adapter.agent.AdapterReachabilityChecker
+import com.cdata.kintone.adapter.agent.AgentAuthFailureSweeper
 import com.cdata.kintone.adapter.agent.AgentConfigManager
 import com.cdata.kintone.adapter.agent.AgentContainerManager
 import com.cdata.kintone.adapter.agent.AgentControlMode
@@ -58,10 +59,7 @@ class AppContext(
             agentRoot: Path = Path.of("./agent"),
             /** 設定 SQLite のパス。未指定なら `<configDir>/config.db`。 */
             sqlitePath: Path? = null,
-            /** `port: 0` の既存 Sync を publish 範囲へ移行する (Issue #3)。 */
-            autoMigratePorts: Boolean = envFlag("AUTO_MIGRATE_PORTS", default = true),
-            /** 起動時に設定済み Sync の Adapter をすべて起動する (Issue #6)。 */
-            autoStartAdapters: Boolean = envFlag("AUTO_START_ADAPTERS", default = true),
+            startup: StartupOptions = StartupOptions(),
         ): AppContext {
             val source = ConfigStore.open(configDir, sqlitePath)
             val runner = MultiAdapterRunner(
@@ -83,8 +81,18 @@ class AppContext(
             val portAllocator = SyncPortAllocator(configSource = source, runner = runner)
 
             val migrated =
-                if (autoMigratePorts) migratePorts(source, portAllocator, agentConfigMgr, containerMgr) else emptyList()
-            val started = if (autoStartAdapters) startAdapters(runner) else skipAutoStart()
+                if (startup.migratePorts) {
+                    migratePorts(source, portAllocator, agentConfigMgr, containerMgr)
+                } else {
+                    emptyList()
+                }
+            val started = if (startup.startAdapters) startAdapters(runner) else skipAutoStart()
+
+            // Adapter を先に起動してから棚卸しする。順序を逆にすると、本来つながるはずの
+            // Agent を「到達できない」状態で評価してしまう。
+            if (startup.stopAuthFailedAgents && containerMgr != null) {
+                sweepAuthFailedAgents(containerMgr)
+            }
 
             return AppContext(
                 configSource = source,
@@ -112,6 +120,35 @@ class AppContext(
                 startedAdapters = started,
                 migratedPorts = migrated,
             )
+        }
+
+        /**
+         * 起動時に行う自動処理の切り替え。
+         *
+         * いずれも既定は有効で、環境変数で無効化できる。
+         * 個別の引数にすると `create` の引数が増え続けるためまとめている。
+         */
+        data class StartupOptions(
+            /** `port: 0` の既存 Sync を publish 範囲へ移行する (Issue #3)。 */
+            val migratePorts: Boolean = envFlag("AUTO_MIGRATE_PORTS", default = true),
+            /** 設定済み Sync の Adapter をすべて起動する (Issue #6)。 */
+            val startAdapters: Boolean = envFlag("AUTO_START_ADAPTERS", default = true),
+            /** 接続キーを拒否されて再起動を繰り返している Agent を停止する (Issue #19)。 */
+            val stopAuthFailedAgents: Boolean = envFlag("AUTO_STOP_AUTH_FAILED_AGENTS", default = true),
+        )
+
+        /**
+         * 接続キーを拒否されて再起動を繰り返している Agent コンテナを停止する (Issue #19)。
+         *
+         * 接続操作の経路だけでは、前のセッションから走り続けているコンテナに手が届かない。
+         */
+        private fun sweepAuthFailedAgents(containerMgr: AgentContainerManager) {
+            val stopped = AgentAuthFailureSweeper(containerMgr).sweep()
+            if (stopped.isEmpty()) return
+            log.warn {
+                "接続キーが拒否されている Agent コンテナを停止しました (${stopped.size} 件): " +
+                    stopped.joinToString(", ")
+            }
         }
 
         /**

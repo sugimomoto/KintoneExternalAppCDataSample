@@ -110,9 +110,16 @@ class SyncConnectionService(
 
         return when (waitForKintoneConnection(syncName, containerMgr, waitTimeoutSec, operationStartedAtMs)) {
             ConnectionOutcome.CONNECTED -> Result.Success
-            ConnectionOutcome.AUTH_FAILED -> Result.Failure(
-                "接続キーが kintone に拒否されました。kintone 側で接続キーを再発行し、入力し直してください。",
-            )
+            ConnectionOutcome.AUTH_FAILED -> {
+                // 接続キーが無効な状態では再試行しても直らない。restart: unless-stopped の
+                // まま放置すると 1 分おきに永久に再試行し続ける (Issue #19)。
+                runCatching { containerMgr.stop(syncName) }
+                    .onFailure { log.warn(it) { "認証失敗後の Agent コンテナ停止に失敗: $syncName" } }
+                Result.Failure(
+                    "接続キーが kintone に拒否されました。kintone 側で接続キーを再発行し、入力し直してください。" +
+                        "再試行を止めるため Agent コンテナは停止しました。",
+                )
+            }
             ConnectionOutcome.TIMEOUT -> Result.Pending(
                 "Agent は起動しましたが、kintone 接続確認が $waitTimeoutSec 秒以内にできませんでした。" +
                     "ログを確認してください。",
@@ -162,8 +169,8 @@ class SyncConnectionService(
                 containerMgr.fetchLogs(syncName, tail = LOG_TAIL, sinceSeconds = sinceSeconds(operationStartedAtMs))
             }.getOrNull() ?: ""
 
-            if (logs.contains(MARKER_CONNECTED)) return@runBlocking ConnectionOutcome.CONNECTED
-            if (AUTH_FAILURE_MARKERS.any { logs.contains(it, ignoreCase = true) }) {
+            if (AgentLogMarkers.indicatesConnected(logs)) return@runBlocking ConnectionOutcome.CONNECTED
+            if (AgentLogMarkers.indicatesAuthFailure(logs)) {
                 log.warn { "Agent の認証に失敗しました: $syncName" }
                 return@runBlocking ConnectionOutcome.AUTH_FAILED
             }
@@ -183,12 +190,6 @@ class SyncConnectionService(
         /** Agent コンテナから見たホスト側のアドレス (docker-compose の extra_hosts と対応)。 */
         private const val DOCKER_HOST_ALIAS = "host.docker.internal"
         private const val AGENT_PRIVATE_KEY_PATH = "/opt/agent/private-key.pem"
-        private const val MARKER_CONNECTED = "successfully connected to kintone"
-        private val AUTH_FAILURE_MARKERS = listOf(
-            "token has been revoked",
-            "Unauthenticated",
-            "invalid token",
-        )
         private const val LOG_TAIL = 200
         private const val POLL_INTERVAL_MS = 500L
         private const val SINCE_MARGIN_SEC = 2

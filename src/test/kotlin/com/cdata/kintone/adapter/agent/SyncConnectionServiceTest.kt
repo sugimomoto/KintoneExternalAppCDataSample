@@ -168,4 +168,57 @@ class SyncConnectionServiceTest {
 
         assertInstanceOf(SyncConnectionService.Result.Pending::class.java, result)
     }
+
+    @Test
+    fun `認証失敗したらコンテナを停止して再試行を断つ`() {
+        // 接続キーが無効な状態では再試行しても直らない。restart: unless-stopped の
+        // まま放置すると 1 分おきに永久に再試行する (Issue #19)。
+        val containerMgr = containerManager(
+            AgentContainerManager.State.RUNNING,
+            logs = """{"level":"ERROR","err":"rpc error: code = Unauthenticated desc = invalid token"}""",
+        )
+
+        val result = service(containerMgr).connect(syncName, "stale-token", waitTimeoutSec = 1)
+
+        assertInstanceOf(SyncConnectionService.Result.Failure::class.java, result)
+        verify(exactly = 1) { containerMgr.stop(syncName, any()) }
+    }
+
+    @Test
+    fun `接続に成功したらコンテナを停止しない`() {
+        val containerMgr = containerManager(
+            AgentContainerManager.State.RUNNING,
+            logs = "successfully connected to kintone",
+        )
+
+        service(containerMgr).connect(syncName, "token-123", waitTimeoutSec = 1)
+
+        verify(exactly = 0) { containerMgr.stop(syncName, any()) }
+    }
+
+    @Test
+    fun `接続確認がタイムアウトしてもコンテナを停止しない`() {
+        // Adapter の起動待ちなど一過性の要因がありうる。Docker の再起動で復帰する
+        // 余地を残す。
+        val containerMgr = containerManager(AgentContainerManager.State.RUNNING, logs = "starting agent")
+
+        val result = service(containerMgr).connect(syncName, "token-123", waitTimeoutSec = 1)
+
+        assertInstanceOf(SyncConnectionService.Result.Pending::class.java, result)
+        verify(exactly = 0) { containerMgr.stop(syncName, any()) }
+    }
+
+    @Test
+    fun `停止に失敗しても認証失敗として結果を返す`() {
+        val containerMgr = containerManager(
+            AgentContainerManager.State.RUNNING,
+            logs = """{"level":"ERROR","err":"invalid token"}""",
+        )
+        every { containerMgr.stop(syncName, any()) } throws RuntimeException("docker error")
+
+        val result = service(containerMgr).connect(syncName, "stale-token", waitTimeoutSec = 1)
+
+        val failure = assertInstanceOf(SyncConnectionService.Result.Failure::class.java, result)
+        assertTrue(failure.reason.contains("接続キー"), "実際のメッセージ: ${failure.reason}")
+    }
 }

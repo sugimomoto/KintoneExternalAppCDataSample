@@ -448,11 +448,27 @@ Agent は kintone に接続できているが、**Agent → Adapter の gRPC が
    `agent/tables/<連携名>/agent.json` の `adapter_addr` と連携のポートが一致しているか
    → 一致していない場合は Web UI から「接続して開始」をやり直す
 
-### Agent コンテナが `Restarting` を繰り返す
+### Agent コンテナが停止している / `Restarting` を繰り返す
 
 `docker logs kintone-agent-<連携名>` に `Unauthenticated desc = invalid token` /
-`token has been revoked` が出ている場合、接続キーが失効している。
+`token has been revoked` が出ている場合、接続キーが kintone に拒否されている。
 kintone 側で接続キーを再発行し、Web UI の「接続して開始」で入力し直す。
+
+**この状態の Agent は adapter-console が自動で停止する** (Issue #19)。
+接続キーの拒否は再試行では直らないため、`restart: unless-stopped` のまま
+放置すると 1 分おきに kintone へ失敗リクエストを投げ続けるため。
+
+| タイミング | 動作 |
+|---|---|
+| 「接続して開始」で拒否されたとき | その場で該当コンテナを停止する |
+| adapter-console の起動時 | 直近 3 分のログに認証失敗が出ているコンテナを停止する |
+
+停止されるのは**認証失敗の場合だけ**で、接続確認のタイムアウト（Adapter の
+起動待ちなど一過性の要因）では停止しない。`AUTO_STOP_AUTH_FAILED_AGENTS=false`
+で自動停止を無効化できる。
+
+接続キーの有効期限切れとは限らない点に注意。接続キーは kintone 側の接続インスタンス
+に紐づくため、**kintone で接続を作り直すと、署名も有効期限も正常なまま拒否される**。
 
 ### `What went wrong: 25.0.2` などの Java バージョンエラー
 
