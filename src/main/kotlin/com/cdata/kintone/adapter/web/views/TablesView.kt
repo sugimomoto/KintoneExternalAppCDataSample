@@ -1,7 +1,9 @@
 package com.cdata.kintone.adapter.web.views
 
-import com.cdata.kintone.adapter.jdbc.ConnectionStringMasker
+import com.cdata.kintone.adapter.agent.AgentContainerManager
 import com.cdata.kintone.adapter.config.TableConfigSet
+import com.cdata.kintone.adapter.jdbc.ConnectionStringMasker
+import com.cdata.kintone.adapter.runtime.AdapterStatus
 import com.cdata.kintone.adapter.web.AppContext
 import kotlinx.html.ButtonType
 import kotlinx.html.FormMethod
@@ -63,32 +65,54 @@ fun HTML.tablesListView(ctx: AppContext) {
                 }
             }
         } else {
-            table(classes = "striped") {
-                thead {
-                    tr {
-                        th { +"名前" }
-                        th { +"接続先テーブル" }
-                        th { +"データソース" }
-                        th { +"状態" }
-                        th { +"操作" }
+            syncTable(ctx, tableNames, active)
+        }
+    }
+}
+
+/**
+ * 連携一覧のテーブル。
+ *
+ * Agent の状態は行ごとに `inspect` を呼ぶと連携数ぶん Docker 呼び出しが増えるため、
+ * 1 回で全件分を取る。Docker が使えない環境では列そのものを出さない (Issue #20)。
+ */
+private fun kotlinx.html.FlowContent.syncTable(
+    ctx: AppContext,
+    tableNames: List<String>,
+    active: Map<String, AdapterStatus>,
+) {
+    val agentStatuses = ctx.agentContainerManager?.statusesBySyncName()
+
+    table(classes = "striped") {
+        thead {
+            tr {
+                th { +"名前" }
+                th { +"接続先テーブル" }
+                th { +"データソース" }
+                th { +"状態" }
+                if (agentStatuses != null) th { +"Agent" }
+                th { +"操作" }
+            }
+        }
+        tbody {
+            tableNames.forEach { name ->
+                val set = runCatching { ctx.configSource.loadTableSet(name) }.getOrNull()
+                val isActive = active.containsKey(name)
+                tr {
+                    attributes["data-table"] = name
+                    td { a(href = "/syncs/$name") { +name } }
+                    td { +(set?.table?.name ?: "-") }
+                    td { +driverDescription(set) }
+                    td(classes = "status") {
+                        statusBadge(isActive, active[name]?.port)
                     }
-                }
-                tbody {
-                    tableNames.forEach { name ->
-                        val set = runCatching { ctx.configSource.loadTableSet(name) }.getOrNull()
-                        val isActive = active.containsKey(name)
-                        tr {
-                            attributes["data-table"] = name
-                            td { a(href = "/syncs/$name") { +name } }
-                            td { +(set?.table?.name ?: "-") }
-                            td { +driverDescription(set) }
-                            td(classes = "status") {
-                                statusBadge(isActive, active[name]?.port)
-                            }
-                            td {
-                                tableActions(name, isActive)
-                            }
+                    if (agentStatuses != null) {
+                        td(classes = "status") {
+                            agentStatusBadge(agentStatuses[name])
                         }
+                    }
+                    td {
+                        tableActions(name, isActive)
                     }
                 }
             }
@@ -198,6 +222,21 @@ private fun kotlinx.html.FlowContent.agentSection(
 ) {
     section {
         h3 { +"kintone Agent" }
+
+        val containerInfo = ctx.agentContainerManager?.let {
+            runCatching { it.status(name) }.getOrNull()
+        }
+        if (containerInfo != null) {
+            p {
+                +"コンテナ: "
+                agentStatusBadge(containerInfo)
+                // 再起動回数は異常の深刻度を示す。0 回のときは出さない (ノイズになる)。
+                if (containerInfo.restartCount > 0) {
+                    small(classes = "muted") { +" ${containerInfo.restartCount} 回再起動" }
+                }
+            }
+        }
+
         p {
             small {
                 +"このテーブルに対応する kintone Agent コンテナの設定 ("
@@ -381,6 +420,28 @@ private fun kotlinx.html.FlowContent.tableActions(name: String, isActive: Boolea
         form(action = "/syncs/$name/start", method = FormMethod.post, classes = "inline-form") {
             button(type = ButtonType.submit, classes = "secondary") { +"▶ 開始" }
         }
+    }
+}
+
+/**
+ * Agent コンテナの状態バッジ。Adapter の状態 ([statusBadge]) とは別軸のため分けて出す。
+ *
+ * 再起動ループは「起動に失敗し続けている」異常な状態なので、危険色で強調する。
+ * 画面から気付けなかったために 295 回の再起動が放置された (Issue #20)。
+ */
+private fun kotlinx.html.FlowContent.agentStatusBadge(info: AgentContainerManager.ContainerInfo?) {
+    when (info?.state) {
+        AgentContainerManager.State.RUNNING ->
+            span(classes = "status-badge serving") { +"稼働中" }
+
+        AgentContainerManager.State.RESTARTING ->
+            span(classes = "status-badge failing") { +"再起動中" }
+
+        AgentContainerManager.State.STOPPED ->
+            span(classes = "status-badge stopped") { +"停止中" }
+
+        AgentContainerManager.State.NOT_FOUND, null ->
+            span(classes = "status-badge stopped") { +"未作成" }
     }
 }
 

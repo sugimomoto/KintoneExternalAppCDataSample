@@ -499,6 +499,13 @@ small.description, label small {
   color: var(--c-text-muted);
 }
 
+/* 起動に失敗し続けている状態 (再起動ループ)。停止中と同じグレーにすると
+   異常だと気付けないため、危険色で強調する (Issue #20)。 */
+.status-badge.failing {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
 /* 状態を判定できなかった場合 (.serving / .stopped に対する第 3 の状態)。
    実際に判定失敗を意味するため、注意を促す警告系トークンを当てる。 */
 .status-badge.unknown {

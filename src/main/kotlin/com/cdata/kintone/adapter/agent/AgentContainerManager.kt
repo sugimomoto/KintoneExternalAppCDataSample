@@ -42,7 +42,20 @@ class AgentContainerManager(
         ?: Path.of("./agent").toAbsolutePath().toString(),
 ) {
 
-    enum class State { RUNNING, STOPPED, NOT_FOUND }
+    enum class State {
+        RUNNING,
+
+        /**
+         * 再起動ループ中。起動に失敗し続けている異常な状態 (Issue #20)。
+         *
+         * `inspect` の `State.Running` は再起動ループ中も true を返すため、
+         * 真偽値では表現できない。`State.Status` の `restarting` で判定する。
+         */
+        RESTARTING,
+
+        STOPPED,
+        NOT_FOUND,
+    }
 
     data class ContainerInfo(
         val name: String,
@@ -50,6 +63,11 @@ class AgentContainerManager(
         val image: String,
         val createdAt: Instant?,
         val containerId: String? = null,
+        /**
+         * Docker がこのコンテナを再起動した回数。
+         * コンテナ一覧 API では取得できないため、[listAll] 由来では 0 になる。
+         */
+        val restartCount: Int = 0,
     )
 
     fun containerName(syncName: String): String = "$CONTAINER_PREFIX$syncName"
@@ -58,13 +76,13 @@ class AgentContainerManager(
         val containerName = containerName(syncName)
         return try {
             val inspect = dockerClient.inspectContainerCmd(containerName).exec()
-            val state = if (inspect.state.running == true) State.RUNNING else State.STOPPED
             ContainerInfo(
                 name = containerName,
-                state = state,
+                state = parseState(inspect.state.status, inspect.state.running),
                 image = inspect.config.image ?: agentImage,
                 createdAt = inspect.created?.let { runCatching { Instant.parse(it) }.getOrNull() },
                 containerId = inspect.id,
+                restartCount = inspect.restartCount ?: 0,
             )
         } catch (e: NotFoundException) {
             ContainerInfo(name = containerName, state = State.NOT_FOUND, image = agentImage, createdAt = null)
@@ -172,6 +190,33 @@ class AgentContainerManager(
         }
     }
 
+    /**
+     * 管理対象コンテナの状態を「連携名 -> 状態」で返す。
+     *
+     * 一覧画面が行ごとに `inspect` を呼ばないための入口。
+     * Docker 呼び出しに失敗した場合は空マップを返す（状態表示は補助情報のため）。
+     */
+    fun statusesBySyncName(): Map<String, ContainerInfo> =
+        runCatching {
+            listAll().associateBy { it.name.removePrefix(CONTAINER_PREFIX) }
+        }.onFailure {
+            log.warn(it) { "Agent コンテナの状態取得に失敗しました。状態表示を省略します。" }
+        }.getOrDefault(emptyMap())
+
+    /**
+     * Docker の状態文字列を [State] に変換する。
+     *
+     * `inspect` と一覧 API の両方から呼ぶ。判定を 1 箇所にまとめ、
+     * 片方だけ `restarting` を取りこぼすことを防ぐ。
+     * [status] が得られない場合のみ [running] 真偽にフォールバックする。
+     */
+    private fun parseState(status: String?, running: Boolean?): State = when (status?.lowercase()) {
+        "running" -> State.RUNNING
+        "restarting" -> State.RESTARTING
+        null -> if (running == true) State.RUNNING else State.STOPPED
+        else -> State.STOPPED
+    }
+
     fun listAll(): List<ContainerInfo> {
         return dockerClient.listContainersCmd()
             .withShowAll(true)
@@ -179,14 +224,10 @@ class AgentContainerManager(
             .exec()
             .mapNotNull { c ->
                 val name = c.names.firstOrNull()?.removePrefix("/") ?: return@mapNotNull null
-                val state = when (c.state?.lowercase()) {
-                    "running" -> State.RUNNING
-                    null -> State.NOT_FOUND
-                    else -> State.STOPPED
-                }
                 ContainerInfo(
                     name = name,
-                    state = state,
+                    // 一覧 API は restartCount を返さないため既定の 0 のままになる。
+                    state = parseState(c.state, running = null),
                     image = c.image ?: agentImage,
                     createdAt = c.created?.let { Instant.ofEpochSecond(it) },
                     containerId = c.id,
