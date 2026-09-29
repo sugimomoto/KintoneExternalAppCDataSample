@@ -62,4 +62,46 @@ class ErrorMessageTranslatorTest {
         )
         assertTrue(result.text.contains("再起動"))
     }
+
+    // --- OAuth 認可ウィザード (Issue #12) ---
+
+    @Test
+    fun `OAuth 非対応ドライバーのエラーを案内に変換する`() {
+        val message = ErrorMessageTranslator.translate("RSB <EXEC> is not a valid stored procedure.")
+
+        assertTrue(message.text.contains("OAuth 認可に対応していません"), "実際: ${message.text}")
+        assertEquals(ErrorMessageTranslator.Severity.ERROR, message.severity)
+    }
+
+    @Test
+    fun `クライアント ID の誤りを案内に変換する`() {
+        val raw = "OAUTH [30004] Failed to retrieve OAuth token information. " +
+            "[invalid_client_id] client identifier invalid."
+
+        val message = ErrorMessageTranslator.translate(raw)
+
+        assertTrue(message.text.contains("クライアント ID"), "実際: ${message.text}")
+    }
+
+    @Test
+    fun `認可コードの期限切れを案内に変換する`() {
+        val message = ErrorMessageTranslator.translate("OAUTH [30003] invalid_grant: expired authorization code")
+
+        assertTrue(message.text.contains("認可コード"), "実際: ${message.text}")
+    }
+
+    @Test
+    fun `初回認可が未完了であることを案内に変換する`() {
+        val message = ErrorMessageTranslator.translate("OAUTH [50001] タイムアウトしました")
+
+        assertTrue(message.text.contains("OAuth 認可"), "実際: ${message.text}")
+    }
+
+    @Test
+    fun `OAuth エラーの生メッセージを保持する`() {
+        // 障害調査のため元のメッセージは残す。
+        val raw = "OAUTH [30004] invalid_client_id"
+
+        assertEquals(raw, ErrorMessageTranslator.translate(raw).rawMessage)
+    }
 }

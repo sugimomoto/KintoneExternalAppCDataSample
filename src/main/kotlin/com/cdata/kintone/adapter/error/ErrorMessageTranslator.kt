@@ -55,6 +55,35 @@ object ErrorMessageTranslator {
             severity = Severity.ERROR,
             actions = listOf(UserAction.GO_TO_DRIVERS),
         ),
+        // --- OAuth 認可ウィザード (Issue #12) ---
+        TranslationRule(
+            pattern = Regex("is not a valid stored procedure", RegexOption.IGNORE_CASE),
+            userMessage = "このドライバーは Web UI からの OAuth 認可に対応していません。" +
+                "取得済みのトークン（リフレッシュトークン / JWT 等）を接続設定に入力してください。",
+            severity = Severity.ERROR,
+            actions = listOf(UserAction.GO_TO_CONNECTIONS),
+        ),
+        TranslationRule(
+            pattern = Regex("(invalid_client|invalid_client_id|OAUTH \\[30004\\])", RegexOption.IGNORE_CASE),
+            userMessage = "OAuth クライアント ID またはシークレットが正しくありません。" +
+                "データソース側で発行した値を接続設定で確認してください。",
+            severity = Severity.ERROR,
+            actions = listOf(UserAction.GO_TO_CONNECTIONS),
+        ),
+        TranslationRule(
+            pattern = Regex("(invalid_grant|OAUTH \\[30003\\])", RegexOption.IGNORE_CASE),
+            userMessage = "認可コードが無効か期限切れです。認可 URL を開き直して、" +
+                "新しいコードを取得してください。",
+            severity = Severity.ERROR,
+            actions = listOf(UserAction.RECONNECT),
+        ),
+        TranslationRule(
+            pattern = Regex("OAUTH \\[50001\\]", RegexOption.IGNORE_CASE),
+            userMessage = "OAuth の初回認可が完了していません。" +
+                "データソース接続の編集画面から「OAuth 認可」を実行してください。",
+            severity = Severity.ERROR,
+            actions = listOf(UserAction.GO_TO_CONNECTIONS),
+        ),
         TranslationRule(
             pattern = Regex("(license|lic).*(invalid|expired|not.*found)", RegexOption.IGNORE_CASE),
             userMessage = "データソース用ドライバーのライセンスが有効ではありません。ドライバー画面でアクティベーションしてください。",

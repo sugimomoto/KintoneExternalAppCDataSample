@@ -1,6 +1,7 @@
 package com.cdata.kintone.adapter.web
 
 import com.cdata.kintone.adapter.web.routes.connectKintoneRoutes
+import com.cdata.kintone.adapter.web.routes.connectionOAuthRoutes
 import com.cdata.kintone.adapter.web.routes.connectionsRoutes
 import com.cdata.kintone.adapter.web.routes.driversRoutes
 import com.cdata.kintone.adapter.web.routes.helpRoutes
@@ -79,6 +80,8 @@ internal fun Application.module(context: AppContext) {
         connectKintoneRoutes(context)
         syncLogsRoutes(context)
         tablesRoutes(context)
+        // 順序重要: /connections/{name}/oauth を connectionsRoutes より先に登録する
+        connectionOAuthRoutes(context)
         connectionsRoutes(context)
         driversRoutes(context)
         runtimeRoutes(context)

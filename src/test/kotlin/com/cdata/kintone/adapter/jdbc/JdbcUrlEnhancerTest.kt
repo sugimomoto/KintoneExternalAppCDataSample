@@ -144,4 +144,49 @@ class JdbcUrlEnhancerTest {
         assertFalse(JdbcUrlEnhancer.isCDataDriver("cdata.jdbc"))
         assertFalse(JdbcUrlEnhancer.isCDataDriver(""))
     }
+
+    // --- withInitiateOAuthOff (Issue #12) ---
+
+    @Test
+    fun `withInitiateOAuthOff - GETANDREFRESH を OFF に置き換える`() {
+        // GETANDREFRESH のままだとドライバーがブラウザを開こうとして
+        // ヘッドレスなコンテナでは 60 秒タイムアウトする。
+        val url = "jdbc:salesforce:AuthScheme=OAuth;InitiateOAuth=GETANDREFRESH;OAuthClientId=x;"
+
+        val result = JdbcUrlEnhancer.withInitiateOAuthOff(url)
+
+        assertTrue(result.contains("InitiateOAuth=OFF"), "実際: $result")
+        assertFalse(result.contains("GETANDREFRESH"), "実際: $result")
+        assertTrue(result.contains("OAuthClientId=x"), "他のプロパティが消えている: $result")
+    }
+
+    @Test
+    fun `withInitiateOAuthOff - 指定が無ければ追加する`() {
+        val result = JdbcUrlEnhancer.withInitiateOAuthOff("jdbc:salesforce:AuthScheme=OAuth;")
+
+        assertEquals("jdbc:salesforce:AuthScheme=OAuth;InitiateOAuth=OFF", result)
+    }
+
+    @Test
+    fun `withInitiateOAuthOff - 最初のプロパティにある場合も置き換える`() {
+        val result = JdbcUrlEnhancer.withInitiateOAuthOff("jdbc:salesforce:InitiateOAuth=REFRESH;User=u;")
+
+        assertTrue(result.contains("InitiateOAuth=OFF"), "実際: $result")
+        assertFalse(result.contains("REFRESH"), "実際: $result")
+    }
+
+    @Test
+    fun `withInitiateOAuthOff - 大文字小文字を無視する`() {
+        val result = JdbcUrlEnhancer.withInitiateOAuthOff("jdbc:salesforce:initiateoauth=getandrefresh;")
+
+        assertTrue(result.contains("=OFF"), "実際: $result")
+        assertFalse(result.lowercase().contains("getandrefresh"), "実際: $result")
+    }
+
+    @Test
+    fun `withInitiateOAuthOff - 既に OFF なら変わらない`() {
+        val url = "jdbc:salesforce:AuthScheme=OAuth;InitiateOAuth=OFF;"
+
+        assertTrue(JdbcUrlEnhancer.withInitiateOAuthOff(url).contains("InitiateOAuth=OFF"))
+    }
 }
