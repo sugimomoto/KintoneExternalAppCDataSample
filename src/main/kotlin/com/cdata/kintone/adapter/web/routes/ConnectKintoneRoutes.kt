@@ -3,6 +3,7 @@ package com.cdata.kintone.adapter.web.routes
 import com.cdata.kintone.adapter.agent.KeyPairGeneratorService
 import com.cdata.kintone.adapter.agent.SyncConnectionService
 import com.cdata.kintone.adapter.web.AppContext
+import com.cdata.kintone.adapter.web.views.ConnectNotice
 import com.cdata.kintone.adapter.web.views.connectKintoneView
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
@@ -15,6 +16,26 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
+
+/**
+ * 接続結果を画面の通知に変換する。
+ *
+ * `AuthRejected` だけ復旧手順が違う（接続キーの再発行が必要）ため、
+ * kintone 側の手順を出すフラグを立てる (Issue #21)。
+ */
+private fun noticeFor(result: SyncConnectionService.Result): ConnectNotice = when (result) {
+    is SyncConnectionService.Result.Success ->
+        ConnectNotice(message = "kintone との接続が確立されました。")
+
+    is SyncConnectionService.Result.Pending ->
+        ConnectNotice(error = result.reason)
+
+    is SyncConnectionService.Result.Failure ->
+        ConnectNotice(error = result.reason)
+
+    is SyncConnectionService.Result.AuthRejected ->
+        ConnectNotice(error = result.reason, authRejected = true)
+}
 
 fun Route.connectKintoneRoutes(ctx: AppContext) {
 
@@ -36,7 +57,7 @@ fun Route.connectKintoneRoutes(ctx: AppContext) {
             "failed" -> null to "鍵生成に失敗しました。サーバログを確認してください。"
             else -> null to null
         }
-        call.respondHtml { connectKintoneView(ctx, syncName, infoMessage = infoMessage, error = error) }
+        call.respondHtml { connectKintoneView(ctx, syncName, ConnectNotice(infoMessage = infoMessage, error = error)) }
     }
 
     /** 「接続して開始」 1 ボタン処理。 */
@@ -45,23 +66,10 @@ fun Route.connectKintoneRoutes(ctx: AppContext) {
         val form = call.receiveParameters()
         val token = form["token"]?.trim()
             ?: return@post call.respondHtml {
-                connectKintoneView(ctx, syncName, error = "接続キーを入力してください")
+                connectKintoneView(ctx, syncName, ConnectNotice(error = "接続キーを入力してください"))
             }
-        val result = ctx.syncConnectionService.connect(syncName, token)
-        when (result) {
-            is SyncConnectionService.Result.Success ->
-                call.respondHtml {
-                    connectKintoneView(ctx, syncName, message = "kintone との接続が確立されました。")
-                }
-            is SyncConnectionService.Result.Pending ->
-                call.respondHtml {
-                    connectKintoneView(ctx, syncName, error = result.reason)
-                }
-            is SyncConnectionService.Result.Failure ->
-                call.respondHtml {
-                    connectKintoneView(ctx, syncName, error = result.reason)
-                }
-        }
+        val notice = noticeFor(ctx.syncConnectionService.connect(syncName, token))
+        call.respondHtml { connectKintoneView(ctx, syncName, notice) }
     }
 
     /** Agent 用 RSA 鍵ペアを生成 (公開鍵が無いときに UI から呼ばれる)。 */

@@ -5,6 +5,9 @@ import com.cdata.kintone.adapter.config.TableConfigSet
 import com.cdata.kintone.adapter.jdbc.ConnectionStringMasker
 import com.cdata.kintone.adapter.runtime.AdapterStatus
 import com.cdata.kintone.adapter.web.AppContext
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlinx.html.ButtonType
 import kotlinx.html.FormMethod
 import kotlinx.html.HTML
@@ -82,6 +85,8 @@ private fun kotlinx.html.FlowContent.syncTable(
     active: Map<String, AdapterStatus>,
 ) {
     val agentStatuses = ctx.agentContainerManager?.statusesBySyncName()
+    // 「単に止めた」のか「接続キーを拒否されて止まっている」のかを区別する (Issue #21)。
+    val authRejected = ctx.agentConnectionStatusStore.all()
 
     table(classes = "striped") {
         thead {
@@ -108,7 +113,7 @@ private fun kotlinx.html.FlowContent.syncTable(
                     }
                     if (agentStatuses != null) {
                         td(classes = "status") {
-                            agentStatusBadge(agentStatuses[name])
+                            agentStatusBadge(agentStatuses[name], authRejected[name] != null)
                         }
                     }
                     td {
@@ -223,13 +228,18 @@ private fun kotlinx.html.FlowContent.agentSection(
     section {
         h3 { +"kintone Agent" }
 
+        val rejection = ctx.agentConnectionStatusStore.get(name)
+        if (rejection != null) {
+            authRejectedBanner(name, rejection)
+        }
+
         val containerInfo = ctx.agentContainerManager?.let {
             runCatching { it.status(name) }.getOrNull()
         }
         if (containerInfo != null) {
             p {
                 +"コンテナ: "
-                agentStatusBadge(containerInfo)
+                agentStatusBadge(containerInfo, rejection != null)
                 // 再起動回数は異常の深刻度を示す。0 回のときは出さない (ノイズになる)。
                 if (containerInfo.restartCount > 0) {
                     small(classes = "muted") { +" ${containerInfo.restartCount} 回再起動" }
@@ -429,7 +439,44 @@ private fun kotlinx.html.FlowContent.tableActions(name: String, isActive: Boolea
  * 再起動ループは「起動に失敗し続けている」異常な状態なので、危険色で強調する。
  * 画面から気付けなかったために 295 回の再起動が放置された (Issue #20)。
  */
-private fun kotlinx.html.FlowContent.agentStatusBadge(info: AgentContainerManager.ContainerInfo?) {
+/**
+ * 接続キーが拒否されている連携の警告と復旧導線 (Issue #21)。
+ *
+ * #19 で自動停止するようになったため、画面に出るのは「停止中」だけだった。
+ * 手で止めたのか直す必要があるのかを区別できるようにし、復旧操作へ直接繋ぐ。
+ */
+private fun kotlinx.html.FlowContent.authRejectedBanner(
+    name: String,
+    rejection: com.cdata.kintone.adapter.agent.AgentConnectionStatus,
+) {
+    article(classes = "warning-banner") {
+        p { +"⚠ ${rejection.reason}" }
+        p {
+            small(classes = "muted") { +"検知: ${formatDetectedAt(rejection.detectedAt)}" }
+        }
+        div(classes = "action-bar") {
+            a(href = "/syncs/$name/connect", classes = "button") { +"接続キーを再入力する →" }
+            a(href = "/help", classes = "button secondary outline") { +"手順を見る" }
+        }
+    }
+}
+
+/**
+ * 検知時刻の表示。
+ *
+ * タイムゾーンまで出す。コンテナの既定は UTC で、ホストのローカル時刻とずれる
+ * （`TZ` を設定すればその zone になる）。ずれたまま時刻だけ出すと
+ * 「いつ起きたのか」を読み違える。
+ */
+private fun formatDetectedAt(epochMillis: Long): String =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z")
+        .withZone(ZoneId.systemDefault())
+        .format(Instant.ofEpochMilli(epochMillis))
+
+private fun kotlinx.html.FlowContent.agentStatusBadge(
+    info: AgentContainerManager.ContainerInfo?,
+    authRejected: Boolean = false,
+) {
     when (info?.state) {
         AgentContainerManager.State.RUNNING ->
             span(classes = "status-badge serving") { +"稼働中" }
@@ -437,8 +484,14 @@ private fun kotlinx.html.FlowContent.agentStatusBadge(info: AgentContainerManage
         AgentContainerManager.State.RESTARTING ->
             span(classes = "status-badge failing") { +"再起動中" }
 
+        // 接続キー拒否で止まっている場合は「停止中」と区別する。
+        // 手で止めたのか、直す必要があるのかを一覧で判断できるようにする (Issue #21)。
         AgentContainerManager.State.STOPPED ->
-            span(classes = "status-badge stopped") { +"停止中" }
+            if (authRejected) {
+                span(classes = "status-badge failing") { +"キー拒否" }
+            } else {
+                span(classes = "status-badge stopped") { +"停止中" }
+            }
 
         AgentContainerManager.State.NOT_FOUND, null ->
             span(classes = "status-badge stopped") { +"未作成" }

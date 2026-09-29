@@ -19,6 +19,7 @@ private val log = KotlinLogging.logger {}
  */
 class AgentAuthFailureSweeper(
     private val containerManager: AgentContainerManager,
+    private val connectionStatusStore: AgentConnectionStatusStore = AgentConnectionStatusStore(),
     private val logWindowSeconds: Int = DEFAULT_LOG_WINDOW_SEC,
 ) {
 
@@ -48,6 +49,11 @@ class AgentAuthFailureSweeper(
                 "(kintone 側で接続キーを再発行し、入力し直してください)"
         }
         containerManager.stop(syncName)
+
+        // 停止後はログが出なくなるため、次の起動時には検知できない。理由を残す (Issue #21)。
+        runCatching { connectionStatusStore.record(SyncConnectionService.authRejectedStatus(syncName)) }
+            .onFailure { log.warn(it) { "接続失敗の記録に失敗: $syncName" } }
+
         return syncName
     }
 

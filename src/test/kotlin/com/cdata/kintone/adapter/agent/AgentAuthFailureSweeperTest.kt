@@ -5,10 +5,18 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Path
 
 class AgentAuthFailureSweeperTest {
+
+    @TempDir
+    lateinit var tempDir: Path
+
+    private fun statusStore() = AgentConnectionStatusStore(tempDir.resolve("agent-connection-status.json"))
 
     private val authFailureLog =
         """{"level":"ERROR","msg":"failed to connect to kintone","err":"Unauthenticated desc = invalid token"}"""
@@ -116,5 +124,20 @@ class AgentAuthFailureSweeperTest {
 
         // 全ログを見ると、過去に失敗して復旧済みの連携まで止めてしまう。
         assertEquals(120, since.captured)
+    }
+
+    // --- 接続失敗の記録 (Issue #21) ---
+
+    @Test
+    fun `停止した連携を記録する`() {
+        val containerMgr = containerManager(mapOf("Product" to authFailureLog, "Categories" to healthyLog))
+        val store = statusStore()
+
+        AgentAuthFailureSweeper(containerMgr, store).sweep()
+
+        val recorded = store.get("Product")
+        assertEquals(AgentConnectionStatus.State.AUTH_REJECTED, recorded?.state)
+        assertTrue(recorded!!.reason.contains("接続キー"), "実際のメッセージ: ${recorded.reason}")
+        assertNull(store.get("Categories"), "停止していない連携は記録しない")
     }
 }
