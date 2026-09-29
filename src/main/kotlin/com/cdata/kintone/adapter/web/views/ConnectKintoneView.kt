@@ -16,6 +16,10 @@ import kotlinx.html.h3
 import kotlinx.html.input
 import kotlinx.html.label
 import kotlinx.html.p
+import kotlinx.html.strong
+import kotlinx.html.li
+import kotlinx.html.ol
+import kotlinx.html.h4
 import kotlinx.html.script
 import kotlinx.html.section
 import kotlinx.html.small
@@ -28,12 +32,13 @@ import kotlinx.html.unsafe
 fun HTML.connectKintoneView(
     ctx: AppContext,
     syncName: String,
-    message: String? = null,
-    error: String? = null,
-    infoMessage: String? = null,
-    /** 接続キーが kintone に拒否された場合。kintone 側の再発行手順を併せて出す (Issue #21)。 */
-    authRejected: Boolean = false,
+    notice: ConnectNotice = ConnectNotice(),
 ) {
+    val message = notice.message
+    val error = notice.error
+    val infoMessage = notice.infoMessage
+    val authRejected = notice.authRejected
+
     val publicKey = ctx.publicKeyManager.read()
     val fingerprint = ctx.publicKeyManager.fingerprint()
 
@@ -64,6 +69,10 @@ fun HTML.connectKintoneView(
             article(classes = "warning-banner") {
                 p { +"⚠ $err" }
             }
+        }
+
+        if (authRejected) {
+            authRejectedGuide()
         }
 
         // Step 1: 公開鍵
@@ -184,5 +193,32 @@ fun HTML.connectKintoneView(
  * kintone ドメインを環境変数 `KINTONE_DOMAIN` から読み出す。
  * 設定ストアへの永続化は未実装。未設定なら空文字列を返す。
  */
+/**
+ * 接続キーを拒否されたときの kintone 側の手順 (Issue #21)。
+ *
+ * 「接続キーを再発行してください」だけでは、どの画面のどの操作か分からない。
+ * また拒否の原因は有効期限切れとは限らないため（kintone 側で接続を作り直すと、
+ * 署名も期限も有効なまま拒否される）、その点も明記する。
+ */
+private fun kotlinx.html.FlowContent.authRejectedGuide() {
+    article(classes = "warning-banner") {
+        h4 { +"kintone 側で行う操作" }
+        ol {
+            li { +"kintone の「外部システムのアプリ化」を開く (下の Step 2 のリンク)" }
+            li { +"この連携に対応する接続を選ぶ" }
+            li { +"接続キーを再発行する" }
+            li { +"発行された接続キーを下の Step 3 に貼り付けて「接続して開始」" }
+        }
+        p {
+            small {
+                +"接続を作り直した場合、以前の接続キーは"
+                strong { +"有効期限内でも拒否されます" }
+                +"。接続キーは kintone 側の接続そのものに紐づくため、"
+                +"接続を再作成すると古いキーは無効になります。"
+            }
+        }
+    }
+}
+
 private fun readKintoneDomain(): String =
     System.getenv("KINTONE_DOMAIN") ?: ""

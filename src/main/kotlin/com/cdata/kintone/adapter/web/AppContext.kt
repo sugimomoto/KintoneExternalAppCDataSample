@@ -3,6 +3,7 @@ package com.cdata.kintone.adapter.web
 import com.cdata.kintone.adapter.agent.AdapterReachabilityChecker
 import com.cdata.kintone.adapter.agent.AgentAuthFailureSweeper
 import com.cdata.kintone.adapter.agent.AgentConfigManager
+import com.cdata.kintone.adapter.agent.AgentConnectionStatusStore
 import com.cdata.kintone.adapter.agent.AgentContainerManager
 import com.cdata.kintone.adapter.agent.AgentControlMode
 import com.cdata.kintone.adapter.agent.KeyPairGeneratorService
@@ -37,6 +38,8 @@ class AppContext(
     val agentControlMode: AgentControlMode,
     /** Docker socket が利用可能な場合のみ非 null。 */
     val agentContainerManager: AgentContainerManager?,
+    /** Agent の接続失敗の記録 (Issue #21)。 */
+    val agentConnectionStatusStore: AgentConnectionStatusStore,
     val publicKeyManager: PublicKeyManager,
     val keyPairGeneratorService: KeyPairGeneratorService,
     val syncConnectionService: SyncConnectionService,
@@ -78,6 +81,7 @@ class AppContext(
                 null
             }
             val agentConfigMgr = AgentConfigManager(agentRoot)
+            val connectionStatusStore = AgentConnectionStatusStore()
             val portAllocator = SyncPortAllocator(configSource = source, runner = runner)
 
             val migrated =
@@ -91,7 +95,7 @@ class AppContext(
             // Adapter を先に起動してから棚卸しする。順序を逆にすると、本来つながるはずの
             // Agent を「到達できない」状態で評価してしまう。
             if (startup.stopAuthFailedAgents && containerMgr != null) {
-                sweepAuthFailedAgents(containerMgr)
+                sweepAuthFailedAgents(containerMgr, connectionStatusStore)
             }
 
             return AppContext(
@@ -104,6 +108,7 @@ class AppContext(
                 agentConfigManager = agentConfigMgr,
                 agentControlMode = controlMode,
                 agentContainerManager = containerMgr,
+                agentConnectionStatusStore = connectionStatusStore,
                 publicKeyManager = PublicKeyManager(agentRoot.resolve("public-key.pem")),
                 keyPairGeneratorService = KeyPairGeneratorService(
                     privateKeyPath = agentRoot.resolve("private-key.pem"),
@@ -115,6 +120,7 @@ class AppContext(
                     agentConfigManager = agentConfigMgr,
                     agentContainerManager = containerMgr,
                     reachabilityChecker = AdapterReachabilityChecker(),
+                    connectionStatusStore = connectionStatusStore,
                 ),
                 syncPortAllocator = portAllocator,
                 startedAdapters = started,
@@ -142,8 +148,11 @@ class AppContext(
          *
          * 接続操作の経路だけでは、前のセッションから走り続けているコンテナに手が届かない。
          */
-        private fun sweepAuthFailedAgents(containerMgr: AgentContainerManager) {
-            val stopped = AgentAuthFailureSweeper(containerMgr).sweep()
+        private fun sweepAuthFailedAgents(
+            containerMgr: AgentContainerManager,
+            statusStore: AgentConnectionStatusStore,
+        ) {
+            val stopped = AgentAuthFailureSweeper(containerMgr, statusStore).sweep()
             if (stopped.isEmpty()) return
             log.warn {
                 "接続キーが拒否されている Agent コンテナを停止しました (${stopped.size} 件): " +

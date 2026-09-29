@@ -116,16 +116,24 @@ class SyncConnectionService(
         }
 
         return when (waitForKintoneConnection(syncName, containerMgr, waitTimeoutSec, operationStartedAtMs)) {
-            ConnectionOutcome.CONNECTED -> Result.Success
+            ConnectionOutcome.CONNECTED -> {
+                // 復旧したので過去の拒否記録を消す。残すと警告が出続ける (Issue #21)。
+                runCatching { connectionStatusStore.clear(syncName) }
+                    .onFailure { log.warn(it) { "接続失敗の記録を消せませんでした: $syncName" } }
+                Result.Success
+            }
             ConnectionOutcome.AUTH_FAILED -> {
                 // 接続キーが無効な状態では再試行しても直らない。restart: unless-stopped の
                 // まま放置すると 1 分おきに永久に再試行し続ける (Issue #19)。
                 runCatching { containerMgr.stop(syncName) }
                     .onFailure { log.warn(it) { "認証失敗後の Agent コンテナ停止に失敗: $syncName" } }
-                Result.Failure(
-                    "接続キーが kintone に拒否されました。kintone 側で接続キーを再発行し、入力し直してください。" +
-                        "再試行を止めるため Agent コンテナは停止しました。",
-                )
+
+                val reason = AUTH_REJECTED_REASON
+                // 停止後はログが出なくなり棚卸しでも検知できないため、理由を残す (Issue #21)。
+                runCatching { connectionStatusStore.record(authRejectedStatus(syncName, reason)) }
+                    .onFailure { log.warn(it) { "接続失敗の記録に失敗: $syncName" } }
+
+                Result.AuthRejected(reason)
             }
             ConnectionOutcome.TIMEOUT -> Result.Pending(
                 "Agent は起動しましたが、kintone 接続確認が $waitTimeoutSec 秒以内にできませんでした。" +
@@ -198,6 +206,19 @@ class SyncConnectionService(
         ((System.currentTimeMillis() - operationStartedAtMs) / 1000).toInt() + SINCE_MARGIN_SEC
 
     companion object {
+        /** 接続キー拒否の案内文。画面表示と記録で同じ文言を使う。 */
+        const val AUTH_REJECTED_REASON =
+            "接続キーが kintone に拒否されました。kintone 側で接続キーを再発行し、入力し直してください。" +
+                "再試行を止めるため Agent コンテナは停止しました。"
+
+        /** 認証拒否の記録を組み立てる。接続キーは含めない。 */
+        fun authRejectedStatus(syncName: String, reason: String = AUTH_REJECTED_REASON) = AgentConnectionStatus(
+            syncName = syncName,
+            state = AgentConnectionStatus.State.AUTH_REJECTED,
+            reason = reason,
+            detectedAt = System.currentTimeMillis(),
+        )
+
         /** Agent コンテナから見たホスト側のアドレス (docker-compose の extra_hosts と対応)。 */
         private const val DOCKER_HOST_ALIAS = "host.docker.internal"
         private const val AGENT_PRIVATE_KEY_PATH = "/opt/agent/private-key.pem"
