@@ -356,7 +356,16 @@ object ConfigStore {
 | トライアルライセンス有効化 | `jdbc/DriverActivator.kt` |
 | OAuth キャッシュの分離 | `jdbc/JdbcUrlEnhancer.kt:15` |
 | 接続文字列のプロパティ検出 | `jdbc/JdbcConnectionPropertyInspector.kt` |
+| プロパティ検出用の接続文字列（プローブ）の組み立て | `jdbc/ConnectionPropertyProbe.kt` |
+| プロパティ検出のフォールバック（`getPropertyInfo` 由来の縮退） | `jdbc/DegradedPropertyMapper.kt` |
 | 接続文字列のマスキング | `jdbc/ConnectionStringMasker.kt` |
+
+> ⚠️ **`sys_connection_props` は接続を確立しないと読めません。**
+> 26.x 系のドライバーは空の接続文字列 (`jdbc:sapgateway:`) を検証で弾くため、
+> `ConnectionPropertyProbe` が「安全プロパティのみ → 素の接続文字列 →
+> 必須プロパティのダミー値付き」の順に候補を作り、最初に成功したものを使います。
+> ドライバーごとの分岐は入れないでください（300+ データソースに対して維持できません）。
+> 取得できたかどうかは `ConnectionPropertiesResult.source` で判別します。
 
 > ⚠️ **接続文字列をログ・画面に出すときは、必ず `ConnectionStringMasker.mask()` を通してください。**
 > プロパティ名に `password` / `token` / `secret` / `key` 等を含む値をマスクします。
