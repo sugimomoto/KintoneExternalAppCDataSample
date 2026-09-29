@@ -358,6 +358,7 @@ object ConfigStore {
 | 接続文字列のプロパティ検出 | `jdbc/JdbcConnectionPropertyInspector.kt` |
 | プロパティ検出用の接続文字列（プローブ）の組み立て | `jdbc/ConnectionPropertyProbe.kt` |
 | プロパティ検出のフォールバック（`getPropertyInfo` 由来の縮退） | `jdbc/DegradedPropertyMapper.kt` |
+| 認証方式に応じた必須・表示の切り替え | `jdbc/PropertyHierarchyResolver.kt` / `jdbc/PropertyHierarchy.kt` |
 | 接続文字列のマスキング | `jdbc/ConnectionStringMasker.kt` |
 
 > ⚠️ **`sys_connection_props` は接続を確立しないと読めません。**
@@ -366,6 +367,14 @@ object ConfigStore {
 > 必須プロパティのダミー値付き」の順に候補を作り、最初に成功したものを使います。
 > ドライバーごとの分岐は入れないでください（300+ データソースに対して維持できません）。
 > 取得できたかどうかは `ConnectionPropertiesResult.source` で判別します。
+
+> ⚠️ **`sys_connection_props` の `Required` は静的です。**
+> 認証方式で必須が変わる条件は `Hierarchy` 列（`<依存プロパティ>=<値1>,<値2>`）にあり、
+> `PropertyHierarchyResolver` が現在の入力値で解決します。
+> 依存先は `AuthScheme` だけではなく（実測で 5 種）条件は連鎖するため、
+> プロパティ名を決め打ちした分岐は入れないでください。
+> 判定できないケース（依存先が一覧に無い / 形式が不正 / 循環参照）は
+> 「条件を満たす」に倒しています。非表示に倒すとドライバー更新で画面が空になり得るためです。
 
 > ⚠️ **接続文字列をログ・画面に出すときは、必ず `ConnectionStringMasker.mask()` を通してください。**
 > プロパティ名に `password` / `token` / `secret` / `key` 等を含む値をマスクします。
