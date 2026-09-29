@@ -23,7 +23,33 @@ class AgentAuthFailureSweeper(
 ) {
 
     /** 認証失敗しているコンテナを停止し、停止した連携名を返す。 */
-    fun sweep(): List<String> = TODO()
+    fun sweep(): List<String> {
+        val containers = runCatching { containerManager.listAll() }
+            .onFailure { log.warn(it) { "Agent コンテナの一覧取得に失敗したため棚卸しを行いません" } }
+            .getOrDefault(emptyList())
+
+        // 1 つの失敗で棚卸し全体を止めない。Docker の状態に依存する処理で
+        // console の起動を落とさないため。
+        return containers.mapNotNull { info ->
+            val syncName = info.name.removePrefix(AgentContainerManager.CONTAINER_PREFIX)
+            runCatching { stopIfAuthFailed(syncName) }
+                .onFailure { log.warn(it) { "Agent コンテナの棚卸しに失敗: $syncName" } }
+                .getOrNull()
+        }
+    }
+
+    /** 認証失敗していれば停止して連携名を返す。そうでなければ null。 */
+    private fun stopIfAuthFailed(syncName: String): String? {
+        val logs = containerManager.fetchLogs(syncName, tail = LOG_TAIL, sinceSeconds = logWindowSeconds)
+        if (!AgentLogMarkers.indicatesAuthFailure(logs)) return null
+
+        log.warn {
+            "接続キーが kintone に拒否されているため Agent コンテナを停止します: $syncName " +
+                "(kintone 側で接続キーを再発行し、入力し直してください)"
+        }
+        containerManager.stop(syncName)
+        return syncName
+    }
 
     companion object {
         /**

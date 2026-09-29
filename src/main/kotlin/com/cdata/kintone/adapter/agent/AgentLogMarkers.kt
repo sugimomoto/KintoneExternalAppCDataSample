@@ -28,5 +28,6 @@ object AgentLogMarkers {
 
     fun indicatesConnected(logs: String): Boolean = logs.contains(CONNECTED, ignoreCase = true)
 
-    fun indicatesAuthFailure(logs: String): Boolean = TODO()
+    fun indicatesAuthFailure(logs: String): Boolean =
+        AUTH_FAILURES.any { logs.contains(it, ignoreCase = true) }
 }
