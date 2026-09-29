@@ -6,6 +6,7 @@ import com.cdata.kintone.adapter.jdbc.JdbcConnectionProvider
 import com.cdata.kintone.adapter.jdbc.JdbcUrlEnhancer
 import com.cdata.kintone.adapter.jdbc.OAuthAuthorizer
 import com.cdata.kintone.adapter.jdbc.OAuthCapability
+import com.cdata.kintone.adapter.jdbc.OAuthTokens
 import com.cdata.kintone.adapter.web.AppContext
 import com.cdata.kintone.adapter.web.views.OAuthNotice
 import com.cdata.kintone.adapter.web.views.connectionOAuthView
@@ -53,7 +54,7 @@ fun Route.connectionOAuthRoutes(ctx: AppContext) {
         val notice = if (verifier.isNullOrBlank()) {
             OAuthNotice(error = ErrorMessageTranslator.translate("認可コードを入力してください。"))
         } else {
-            runCatching { completionNotice(name, config, verifier) }
+            runCatching { completionNotice(ctx, name, config, verifier) }
                 .getOrElse { failureNotice(it, "トークンの取得に失敗しました") }
         }
         call.respondHtml { connectionOAuthView(ctx, name, notice) }
@@ -73,12 +74,44 @@ private fun authorizationNotice(name: String, config: JdbcConfig): OAuthNotice =
         )
     }
 
-private fun completionNotice(name: String, config: JdbcConfig, verifier: String): OAuthNotice =
-    withAuthorizer(name, config) { authorizer ->
+/**
+ * 認可コードからトークンを取得し、**接続設定に保存する**。
+ *
+ * プロシージャを実行しただけではキャッシュは作られないため、取得した
+ * リフレッシュトークンを `InitiateOAuth=REFRESH` とともに接続設定へ書き戻す (Issue #34)。
+ * 取得できなかった場合は成功として扱わない。保存していないのに成功表示するのが
+ * #34 の不具合の本質だった。
+ */
+private fun completionNotice(ctx: AppContext, name: String, config: JdbcConfig, verifier: String): OAuthNotice {
+    val tokens = withAuthorizer(name, config) { authorizer ->
         authorizer.fetchAccessToken(verifier, OAuthCapability.callbackUrlOf(config.url))
-        OAuthNotice(
-            message = "OAuth トークンを取得して保存しました。接続テストで確認してください。",
-        )
+    }
+    val refreshToken = tokens.refreshToken
+        ?: return OAuthNotice(error = ErrorMessageTranslator.translate(missingRefreshTokenMessage(tokens)))
+
+    ctx.configSource.saveSharedJdbcConfig(name, JdbcUrlEnhancer.withRefreshToken(config, refreshToken))
+    log.info { "OAuth リフレッシュトークンを接続設定に保存しました: $name" }
+    return OAuthNotice(
+        message = "OAuth トークンを取得し、接続設定に保存しました " +
+            "(InitiateOAuth=REFRESH)。接続テストで確認してください。",
+    )
+}
+
+/**
+ * リフレッシュトークンが取れなかった場合の説明。
+ *
+ * アクセストークンだけ返るケースと、列自体が想定と違うケースを見分けられるようにする (AC-5)。
+ * トークンの値は出さない。
+ */
+private fun missingRefreshTokenMessage(tokens: OAuthTokens): String =
+    if (tokens.accessToken != null) {
+        "リフレッシュトークンを取得できませんでした。" +
+            "アクセストークンのみ返っています。オフラインアクセスのスコープが" +
+            "認可に含まれているか確認してください。"
+    } else {
+        "リフレッシュトークンを取得できませんでした。" +
+            "ドライバーが ${OAuthTokens.REFRESH_TOKEN_COLUMN} 列を返していません。" +
+            "認可コードが期限切れ・使用済みでないか確認してください。"
     }
 
 /**

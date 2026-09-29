@@ -141,16 +141,30 @@ mkdir -p .steering/[YYYYMMDD]-initial-implementation
 **修正が完了したら、必ず実行中のコンテナを最新化する。**
 
 ```bash
-docker compose build adapter-console && docker compose up -d adapter-console
+docker compose build adapter-console && docker compose up -d --force-recreate adapter-console
 ```
 
 - ソースを変更しただけでは `adapter-console` は古いイメージのまま動き続ける。
   「直したはずの挙動が直っていない」という誤解の元になるため、修正のたびに実施する
+- **`--force-recreate` を必ず付ける。** イメージを作り直しても、`docker compose up -d` は
+  「Container adapter-console Running」と表示してコンテナを再作成しないことがある。
+  そのまま古いイメージで動き続ける（実際に起きた）
 - `docker compose build` は作業ツリーからビルドするため、ブランチをマージしていなくても
   現在の内容が反映される
-- 再起動後、変更した画面・API を実際に叩いて反映を確認する
-  （例: `curl -s http://localhost:8080/connections` で起動を待ってから対象を確認）
 - イメージタグは `docker-compose.yml` で固定されているため、同じタグを上書きする形になる
+
+#### 最新化できたかの確認
+
+**タグ名だけでは判断できない。** コンテナが使っているイメージ ID と、
+タグが指す現在のイメージ ID を突き合わせる。
+
+```bash
+docker inspect adapter-console --format '{{.Image}}'
+docker inspect cdata-kintone-adapter:0.4.0 --format '{{.Id}}'
+```
+
+この 2 つが一致していれば最新。加えて、変更した画面・API を実際に叩いて
+反映を確認する（例: `curl -s http://localhost:8080/connections` で起動を待ってから対象を確認）。
 
 ### 機能追加・修正時の手順
 
@@ -198,16 +212,30 @@ mkdir -p .steering/20250115-add-tag-feature
 **修正が完了したら、必ず実行中のコンテナを最新化する。**
 
 ```bash
-docker compose build adapter-console && docker compose up -d adapter-console
+docker compose build adapter-console && docker compose up -d --force-recreate adapter-console
 ```
 
 - ソースを変更しただけでは `adapter-console` は古いイメージのまま動き続ける。
   「直したはずの挙動が直っていない」という誤解の元になるため、修正のたびに実施する
+- **`--force-recreate` を必ず付ける。** イメージを作り直しても、`docker compose up -d` は
+  「Container adapter-console Running」と表示してコンテナを再作成しないことがある。
+  そのまま古いイメージで動き続ける（実際に起きた）
 - `docker compose build` は作業ツリーからビルドするため、ブランチをマージしていなくても
   現在の内容が反映される
-- 再起動後、変更した画面・API を実際に叩いて反映を確認する
-  （例: `curl -s http://localhost:8080/connections` で起動を待ってから対象を確認）
 - イメージタグは `docker-compose.yml` で固定されているため、同じタグを上書きする形になる
+
+#### 最新化できたかの確認
+
+**タグ名だけでは判断できない。** コンテナが使っているイメージ ID と、
+タグが指す現在のイメージ ID を突き合わせる。
+
+```bash
+docker inspect adapter-console --format '{{.Image}}'
+docker inspect cdata-kintone-adapter:0.4.0 --format '{{.Id}}'
+```
+
+この 2 つが一致していれば最新。加えて、変更した画面・API を実際に叩いて
+反映を確認する（例: `curl -s http://localhost:8080/connections` で起動を待ってから対象を確認）。
 
 ## ドキュメント管理の原則
 
@@ -279,8 +307,9 @@ graph TD
 - `.steering/` のディレクトリ名は日付と開発タイトルで明確に識別できるようにする
 - 永続的ドキュメントと作業単位のドキュメントを混同しない
 - コード変更後は必ずリント・型チェックを実施する
-- **修正完了後は必ず `docker compose build adapter-console && docker compose up -d adapter-console` で
-  実行中のコンテナを最新化し、反映を確認する**
+- **修正完了後は必ず `docker compose build adapter-console && docker compose up -d --force-recreate adapter-console` で
+  実行中のコンテナを最新化し、イメージ ID の一致と画面の反映を確認する**
+  （`--force-recreate` なしではコンテナが再作成されず古いイメージのまま動くことがある）
 - 共通のデザインシステム（Tailwind CSS）を使用して統一感を保つ
 - セキュリティを考慮したコーディング（XSS対策、入力バリデーションなど）
 - 図表は必要最小限に留め、メンテナンスコストを抑える

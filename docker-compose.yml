@@ -11,6 +11,11 @@ services:
       dockerfile: Dockerfile
     image: cdata-kintone-adapter:0.4.0
     container_name: adapter-console
+    # CData ライセンスの nodeid は hostname / MAC から決まる。既定では hostname が
+    # コンテナ ID になるため、`up -d --force-recreate` するたびに nodeid が変わり、
+    # 認証済みライセンスが「認証されていない」状態に戻ってしまう。固定して再利用する。
+    hostname: adapter-console
+    mac_address: 02:42:c0:a8:64:10
     ports:
       - "8080:8080"                       # Web UI
       # Sync 用 Adapter ポート (Web UI が動的に採番)
