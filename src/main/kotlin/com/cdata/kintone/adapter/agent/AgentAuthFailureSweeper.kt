@@ -19,6 +19,7 @@ private val log = KotlinLogging.logger {}
  */
 class AgentAuthFailureSweeper(
     private val containerManager: AgentContainerManager,
+    private val connectionStatusStore: AgentConnectionStatusStore = AgentConnectionStatusStore(),
     private val logWindowSeconds: Int = DEFAULT_LOG_WINDOW_SEC,
 ) {
 

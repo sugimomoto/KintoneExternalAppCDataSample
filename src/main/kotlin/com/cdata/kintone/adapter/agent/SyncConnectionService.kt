@@ -24,12 +24,19 @@ class SyncConnectionService(
     private val agentConfigManager: AgentConfigManager,
     private val agentContainerManager: AgentContainerManager?,
     private val reachabilityChecker: AdapterReachabilityChecker = AdapterReachabilityChecker(),
+    private val connectionStatusStore: AgentConnectionStatusStore = AgentConnectionStatusStore(),
 ) {
 
     sealed class Result {
         data object Success : Result()
         data class Pending(val reason: String) : Result()
         data class Failure(val reason: String) : Result()
+
+        /**
+         * 接続キーが kintone に拒否された。再試行では直らないため Agent コンテナは
+         * 停止済み (Issue #19)。復旧には接続キーの再発行が必要 (Issue #21)。
+         */
+        data class AuthRejected(val reason: String) : Result()
     }
 
     fun connect(

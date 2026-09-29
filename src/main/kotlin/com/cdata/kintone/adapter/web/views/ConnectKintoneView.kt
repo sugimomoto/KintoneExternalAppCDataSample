@@ -31,6 +31,8 @@ fun HTML.connectKintoneView(
     message: String? = null,
     error: String? = null,
     infoMessage: String? = null,
+    /** 接続キーが kintone に拒否された場合。kintone 側の再発行手順を併せて出す (Issue #21)。 */
+    authRejected: Boolean = false,
 ) {
     val publicKey = ctx.publicKeyManager.read()
     val fingerprint = ctx.publicKeyManager.fingerprint()

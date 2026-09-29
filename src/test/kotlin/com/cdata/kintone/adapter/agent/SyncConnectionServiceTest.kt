@@ -16,8 +16,10 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -76,13 +78,17 @@ class SyncConnectionServiceTest {
     private fun service(
         containerMgr: AgentContainerManager,
         checker: AdapterReachabilityChecker = reachable(),
+        store: AgentConnectionStatusStore = statusStore(),
     ) = SyncConnectionService(
         configSource = configSource(),
         runner = runner(),
         agentConfigManager = AgentConfigManager(agentRoot),
         agentContainerManager = containerMgr,
         reachabilityChecker = checker,
+        connectionStatusStore = store,
     )
+
+    private fun statusStore() = AgentConnectionStatusStore(agentRoot.resolve("agent-connection-status.json"))
 
     @Test
     fun `running なコンテナは restart される`() {
@@ -130,7 +136,7 @@ class SyncConnectionServiceTest {
     }
 
     @Test
-    fun `トークン失効を検知したら即座に失敗を返す`() {
+    fun `トークン失効を検知したら即座に AuthRejected を返す`() {
         val containerMgr = containerManager(
             AgentContainerManager.State.RUNNING,
             logs = """{"level":"ERROR","msg":"failed to receive request","err":"token has been revoked"}""",
@@ -138,8 +144,9 @@ class SyncConnectionServiceTest {
 
         val result = service(containerMgr).connect(syncName, "expired-token", waitTimeoutSec = 30)
 
-        val failure = assertInstanceOf(SyncConnectionService.Result.Failure::class.java, result)
-        assertTrue(failure.reason.contains("接続キー"), "実際のメッセージ: ${failure.reason}")
+        // 他の失敗と区別する。復旧手順が違うため (Issue #21)
+        val rejected = assertInstanceOf(SyncConnectionService.Result.AuthRejected::class.java, result)
+        assertTrue(rejected.reason.contains("接続キー"), "実際のメッセージ: ${rejected.reason}")
     }
 
     @Test
@@ -180,7 +187,7 @@ class SyncConnectionServiceTest {
 
         val result = service(containerMgr).connect(syncName, "stale-token", waitTimeoutSec = 1)
 
-        assertInstanceOf(SyncConnectionService.Result.Failure::class.java, result)
+        assertInstanceOf(SyncConnectionService.Result.AuthRejected::class.java, result)
         verify(exactly = 1) { containerMgr.stop(syncName, any()) }
     }
 
@@ -218,7 +225,58 @@ class SyncConnectionServiceTest {
 
         val result = service(containerMgr).connect(syncName, "stale-token", waitTimeoutSec = 1)
 
-        val failure = assertInstanceOf(SyncConnectionService.Result.Failure::class.java, result)
-        assertTrue(failure.reason.contains("接続キー"), "実際のメッセージ: ${failure.reason}")
+        val rejected = assertInstanceOf(SyncConnectionService.Result.AuthRejected::class.java, result)
+        assertTrue(rejected.reason.contains("接続キー"), "実際のメッセージ: ${rejected.reason}")
+    }
+
+    // --- 接続失敗の記録 (Issue #21) ---
+
+    @Test
+    fun `認証拒否を記録する`() {
+        val containerMgr = containerManager(
+            AgentContainerManager.State.RUNNING,
+            logs = """{"level":"ERROR","err":"invalid token"}""",
+        )
+        val store = statusStore()
+
+        service(containerMgr, store = store).connect(syncName, "stale-token", waitTimeoutSec = 1)
+
+        // 棚卸しは直近ログで判定するため、停止後は理由が失われる。記録で残す。
+        val recorded = store.get(syncName)
+        assertEquals(AgentConnectionStatus.State.AUTH_REJECTED, recorded?.state)
+        assertTrue(recorded!!.reason.contains("接続キー"), "実際のメッセージ: ${recorded.reason}")
+        assertFalse(recorded.reason.contains("stale-token"), "接続キーを記録してはいけない")
+    }
+
+    @Test
+    fun `接続に成功したら記録を消す`() {
+        val containerMgr = containerManager(
+            AgentContainerManager.State.RUNNING,
+            logs = "successfully connected to kintone",
+        )
+        val store = statusStore()
+        store.record(
+            AgentConnectionStatus(
+                syncName = syncName,
+                state = AgentConnectionStatus.State.AUTH_REJECTED,
+                reason = "以前の拒否",
+                detectedAt = 0L,
+            ),
+        )
+
+        service(containerMgr, store = store).connect(syncName, "fresh-token", waitTimeoutSec = 1)
+
+        assertNull(store.get(syncName), "復旧後も警告が出続けてはいけない")
+    }
+
+    @Test
+    fun `接続確認のタイムアウトは記録しない`() {
+        // 一過性の要因がありうる。恒久的な失敗として扱わない。
+        val containerMgr = containerManager(AgentContainerManager.State.RUNNING, logs = "starting agent")
+        val store = statusStore()
+
+        service(containerMgr, store = store).connect(syncName, "token-123", waitTimeoutSec = 1)
+
+        assertNull(store.get(syncName))
     }
 }

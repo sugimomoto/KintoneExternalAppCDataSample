@@ -61,6 +61,11 @@ fun Route.connectKintoneRoutes(ctx: AppContext) {
                 call.respondHtml {
                     connectKintoneView(ctx, syncName, error = result.reason)
                 }
+            is SyncConnectionService.Result.AuthRejected ->
+                call.respondHtml {
+                    // 接続キーの再発行が必要なケース。復旧手順が他の失敗と違う (Issue #21)。
+                    connectKintoneView(ctx, syncName, error = result.reason, authRejected = true)
+                }
         }
     }
 
