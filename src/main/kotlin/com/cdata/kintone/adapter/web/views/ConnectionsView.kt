@@ -170,10 +170,10 @@ fun HTML.connectionFormView(
                 if (existing != null) {
                     val driverInfo = drivers.firstOrNull { it.driverClass == existing.driverClass }
                     if (driverInfo != null) {
-                        val props = ctx.connectionPropertyInspector.listProperties(
+                        val result = ctx.connectionPropertyInspector.fetchProperties(
                             existing.driverClass, driverInfo.filename,
                         )
-                        propertiesFormContent(props, existingValuesOf(existing))
+                        propertiesFormContent(result.properties, existingValuesOf(existing))
                     }
                 }
             }

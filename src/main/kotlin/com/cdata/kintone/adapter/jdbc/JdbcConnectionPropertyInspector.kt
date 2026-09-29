@@ -3,91 +3,35 @@ package com.cdata.kintone.adapter.jdbc
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.nio.file.Files
 import java.nio.file.Path
-import java.sql.DriverManager
 
 private val log = KotlinLogging.logger {}
 
 /**
- * CData ドライバの `sys_connection_props` システムテーブルから接続プロパティ一覧を取得する。
+ * CData ドライバの接続プロパティ一覧を取得する。Web UI の動的フォーム生成に使う。
  *
- * 取得結果は Web UI の Connection 新規/編集画面で動的フォームを生成するのに使う。
- * 設計詳細: `.steering/20260522-web-ui-and-sqlite/design.md §S-10`
+ * 第一の取得元は `sys_connection_props` システムテーブルだが、読むには接続の確立が必要で、
+ * 26.x 系のドライバは空の接続文字列を検証で弾く。そのため
+ * [ConnectionPropertyProbe] が生成した候補を順に試し、いずれも失敗した場合は
+ * `Driver.getPropertyInfo` 由来の縮退結果へ落とす。
+ *
+ * 設計詳細: `.steering/20260929-connection-props-fetch-fallback/design.md`
+ * 関連: [Issue #15](https://github.com/sugimomoto/KintoneExternalAppCDataSample/issues/15)
  */
 class JdbcConnectionPropertyInspector(
     private val libDir: Path = Path.of("./lib"),
+    private val metadataSource: DriverMetadataSource = JdbcDriverMetadataSource(),
 ) {
 
     private data class CacheKey(val driverClass: String, val jarLastModified: Long)
 
+    /**
+     * 完全取得 (`sys_connection_props`) の結果のみを保持する。
+     * 縮退結果をキャッシュすると、原因を解消しても画面が回復しなくなるため。
+     */
     private val cache = mutableMapOf<CacheKey, List<ConnectionProperty>>()
 
-    /**
-     * 指定ドライバの接続プロパティを取得。
-     * 失敗時は空リスト + ログ警告 (非 CData ドライバ等のフォールバック)。
-     */
-    fun listProperties(driverClass: String, jarFilename: String): List<ConnectionProperty> {
-        val jarPath = libDir.resolve(jarFilename)
-        if (!Files.exists(jarPath)) {
-            log.warn { "JAR not found: $jarPath" }
-            return emptyList()
-        }
-        val key = CacheKey(driverClass, Files.getLastModifiedTime(jarPath).toMillis())
-        cache[key]?.let { return it }
-
-        return try {
-            JdbcConnectionProvider.loadDriver(jarPath.toString(), driverClass)
-            val jdbcPrefix = jdbcPrefixOf(driverClass)
-            DriverManager.getConnection("$jdbcPrefix:").use { conn ->
-                conn.createStatement().use { st ->
-                    st.executeQuery(QUERY).use { rs ->
-                        val list = mutableListOf<ConnectionProperty>()
-                        while (rs.next()) {
-                            list.add(parseRow(rs))
-                        }
-                        cache[key] = list
-                        list
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            log.warn(e) { "sys_connection_props 取得失敗: $driverClass" }
-            emptyList()
-        }
-    }
-
-    private fun parseRow(rs: java.sql.ResultSet): ConnectionProperty {
-        val type = parseType(rs.getString("Type"))
-        val valuesStr = rs.getString("Values")
-        val allowedValues = if (valuesStr.isNullOrBlank()) emptyList() else valuesStr.split(",").map { it.trim() }
-        val sensitivity = parseSensitivity(rs.getString("Sensitivity"))
-        return ConnectionProperty(
-            propertyName = rs.getString("PropertyName") ?: "",
-            displayName = rs.getString("Name") ?: rs.getString("PropertyName") ?: "",
-            shortDescription = rs.getString("ShortDescription") ?: "",
-            type = type,
-            defaultValue = rs.getString("Default"),
-            allowedValues = allowedValues,
-            category = rs.getString("Category") ?: "",
-            required = rs.getBoolean("Required"),
-            sensitivity = sensitivity,
-            visible = rs.getBoolean("Visible"),
-            hierarchy = rs.getString("Hierarchy") ?: "",
-            ordinal = rs.getInt("Ordinal"),
-            categoryOrdinal = rs.getInt("CatOrdinal"),
-        )
-    }
-
-    private fun parseType(s: String?): PropertyType = when (s?.lowercase()) {
-        "boolean" -> PropertyType.BOOLEAN
-        "int" -> PropertyType.INT
-        else -> PropertyType.STRING
-    }
-
-    private fun parseSensitivity(s: String?): Sensitivity = when (s?.uppercase()) {
-        "PASSWORD" -> Sensitivity.PASSWORD
-        "SENSITIVE" -> Sensitivity.SENSITIVE
-        else -> Sensitivity.NONE
-    }
+    /** 指定ドライバの接続プロパティを、取得経路の情報付きで返す。 */
+    fun fetchProperties(driverClass: String, jarFilename: String): ConnectionPropertiesResult = TODO()
 
     fun invalidateCache() {
         cache.clear()
@@ -105,13 +49,5 @@ class JdbcConnectionPropertyInspector(
             }
             return "jdbc:${parts[2]}"
         }
-
-        private val QUERY = """
-            SELECT PropertyName, Name, ShortDescription, Type, Values, Default,
-                   Category, Required, Sensitivity, Visible, Hierarchy,
-                   Ordinal, CatOrdinal
-            FROM sys_connection_props
-            ORDER BY CatOrdinal, Ordinal
-        """.trimIndent()
     }
 }

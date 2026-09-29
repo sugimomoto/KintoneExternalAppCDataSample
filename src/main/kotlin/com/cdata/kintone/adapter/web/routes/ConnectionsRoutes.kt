@@ -56,9 +56,9 @@ fun Route.connectionsRoutes(ctx: AppContext) {
         val (driverClass, jarFilename) = driverParam.split("|", limit = 2).let {
             if (it.size == 2) it[0] to it[1] else return@get call.respondText("invalid driver param")
         }
-        val props = ctx.connectionPropertyInspector.listProperties(driverClass, jarFilename)
+        val result = ctx.connectionPropertyInspector.fetchProperties(driverClass, jarFilename)
         val html = createHTML().div {
-            propertiesFormContent(props)
+            propertiesFormContent(result.properties)
         }
         call.respondText(html, io.ktor.http.ContentType.Text.Html)
     }
