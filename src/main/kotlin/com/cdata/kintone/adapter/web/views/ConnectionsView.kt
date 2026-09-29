@@ -5,6 +5,7 @@ import com.cdata.kintone.adapter.jdbc.ConnectionPropertiesResult
 import com.cdata.kintone.adapter.jdbc.ConnectionProperty
 import com.cdata.kintone.adapter.jdbc.ConnectionStringMasker
 import com.cdata.kintone.adapter.jdbc.OAuthCapability
+import com.cdata.kintone.adapter.jdbc.authSchemeDefaultOf
 import com.cdata.kintone.adapter.jdbc.PropertyHierarchyResolver
 import com.cdata.kintone.adapter.jdbc.PropertySource
 import com.cdata.kintone.adapter.jdbc.PropertyType
@@ -60,6 +61,10 @@ fun HTML.connectionsListView(ctx: AppContext, blockedDelete: BlockedDelete? = nu
         }
 
         blockedDelete?.let { blocked -> blockedDeleteNotice(blocked) }
+
+        // 接続テスト結果の差し替え先。テーブルの外に置く。操作列に入れると
+        // 長いメッセージでレイアウトが崩れる (Issue #42)。
+        div { attributes["id"] = CONNECTION_TEST_RESULT_ID }
 
         if (names.isEmpty()) {
             article {
@@ -134,6 +139,11 @@ private fun kotlinx.html.TR.unreadableCells(name: String, reason: String) {
 }
 
 /**
+ * 接続テスト結果バナーの差し替え先 id。ビューとハンドラで共有する。
+ */
+internal const val CONNECTION_TEST_RESULT_ID = "connection-test-result"
+
+/**
  * 接続テストボタン。
  *
  * ハンドラは HTML 断片を返すため、フォーム送信すると裸の断片がページとして表示されて
@@ -144,17 +154,16 @@ private fun kotlinx.html.TR.unreadableCells(name: String, reason: String) {
  * 実行中を示し (`htmx-indicator`)、連打を防ぐ (`hx-disabled-elt`)。
  */
 private fun kotlinx.html.FlowContent.connectionTestButton(name: String) {
-    div(classes = "inline-form") {
-        attributes["id"] = "conn-test-$name"
-        button(type = ButtonType.button, classes = "secondary outline") {
-            attributes["hx-post"] = "/connections/$name/test"
-            attributes["hx-target"] = "#conn-test-$name"
-            attributes["hx-disabled-elt"] = "this"
-            +"接続テスト"
-            // htmx が .htmx-indicator / .htmx-request の CSS を自前で注入するため
-            // app.css への追加は不要。
-            span(classes = "htmx-indicator") { +" 実行中…" }
-        }
+    button(type = ButtonType.button, classes = "secondary outline") {
+        attributes["hx-post"] = "/connections/$name/test"
+        // 差し替え先はテーブルの外の共有バナー。ボタン自身を対象にすると
+        // 結果表示でボタンが消えて再テストできない (Issue #42)。
+        attributes["hx-target"] = "#$CONNECTION_TEST_RESULT_ID"
+        attributes["hx-disabled-elt"] = "this"
+        +"接続テスト"
+        // htmx は要求元の要素に htmx-request を付けるため、target が外でも効く。
+        // .htmx-indicator の CSS は htmx が自前で注入するので app.css の追加は不要。
+        span(classes = "htmx-indicator") { +" 実行中…" }
     }
 }
 
@@ -350,10 +359,9 @@ private fun kotlinx.html.FlowContent.oauthAuthorizationLink(
     properties: ConnectionPropertiesResult,
 ) {
     // 実効値で判定する。#27 以降、既定値は接続文字列に保存されないため
-    // AuthScheme 未指定が普通に起こる。
-    val authScheme = OAuthCapability.authSchemeOf(config.url)
-        ?: properties.properties.firstOrNull { it.propertyName.equals("AuthScheme", ignoreCase = true) }
-            ?.defaultValue
+    // AuthScheme 未指定が普通に起こる。解決は OAuthCapability に一本化しており、
+    // 新規保存時のリダイレクト判定と同じ基準になる (Issue #43)。
+    val authScheme = OAuthCapability.effectiveAuthScheme(config.url, authSchemeDefaultOf(properties))
     if (!OAuthCapability.requiresBrowserAuthorization(authScheme)) return
 
     article(classes = "info-banner") {

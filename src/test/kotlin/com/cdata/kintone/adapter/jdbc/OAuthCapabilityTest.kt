@@ -68,4 +68,59 @@ class OAuthCapabilityTest {
     fun `末尾の AuthScheme もセミコロン無しで取り出せる`() {
         assertEquals("OAuth", OAuthCapability.authSchemeOf("jdbc:salesforce:User=u;AuthScheme=OAuth"))
     }
+
+    // --- 実効 AuthScheme の解決 (Issue #43) ---
+
+    @Test
+    fun `effectiveAuthScheme - URL の値が既定値より優先される`() {
+        val scheme = OAuthCapability.effectiveAuthScheme("jdbc:salesforce:AuthScheme=Basic;", "OAuth")
+
+        assertEquals("Basic", scheme)
+    }
+
+    @Test
+    fun `effectiveAuthScheme - URL に無ければ既定値を使う`() {
+        // #27 以降、既定値は接続文字列に保存されないため未指定が普通に起こる。
+        val scheme = OAuthCapability.effectiveAuthScheme("jdbc:salesforce:User=u;", "OAuth")
+
+        assertEquals("OAuth", scheme)
+    }
+
+    @Test
+    fun `effectiveAuthScheme - 両方無ければ null`() {
+        assertNull(OAuthCapability.effectiveAuthScheme("jdbc:salesforce:User=u;", null))
+    }
+
+    @Test
+    fun `effectiveAuthScheme - 既定値が空白なら null`() {
+        assertNull(OAuthCapability.effectiveAuthScheme("jdbc:salesforce:User=u;", "   "))
+    }
+
+    @Test
+    fun `requiresBrowserAuthorization - URL の値が OAuth なら true`() {
+        assertTrue(OAuthCapability.requiresBrowserAuthorization("jdbc:salesforce:AuthScheme=OAuth;", null))
+    }
+
+    @Test
+    fun `requiresBrowserAuthorization - URL に無く既定値が OAuth なら true`() {
+        // AuthScheme を明示せず保存した OAuth 接続も認可ウィザードへ送る (AC-10)。
+        assertTrue(OAuthCapability.requiresBrowserAuthorization("jdbc:googlesheets:", "OAuth"))
+    }
+
+    @Test
+    fun `requiresBrowserAuthorization - URL に無く既定値が Basic なら false`() {
+        assertFalse(OAuthCapability.requiresBrowserAuthorization("jdbc:salesforce:User=u;", "Basic"))
+    }
+
+    @Test
+    fun `requiresBrowserAuthorization - URL の値が既定値を上書きして false になる`() {
+        // 既定が OAuth のドライバーでも、明示的に Basic を選んだ接続は対象外。
+        assertFalse(OAuthCapability.requiresBrowserAuthorization("jdbc:salesforce:AuthScheme=Basic;", "OAuth"))
+    }
+
+    @Test
+    fun `requiresBrowserAuthorization - ブラウザ認可を伴わない OAuth 系は false`() {
+        assertFalse(OAuthCapability.requiresBrowserAuthorization("jdbc:salesforce:", "OAuthJWT"))
+        assertFalse(OAuthCapability.requiresBrowserAuthorization("jdbc:salesforce:", "OAuthPassword"))
+    }
 }

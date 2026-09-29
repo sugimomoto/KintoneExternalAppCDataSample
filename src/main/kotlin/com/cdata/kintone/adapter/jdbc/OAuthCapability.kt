@@ -40,6 +40,24 @@ object OAuthCapability {
         authScheme?.trim()?.lowercase() in BROWSER_AUTH_SCHEMES
 
     /**
+     * 実効の `AuthScheme`。接続文字列に明示された値を優先し、無ければ [authSchemeDefault]。
+     *
+     * #27 以降、既定値は接続文字列に保存されないため未指定が普通に起こる。
+     * 「URL の値 → ドライバーの既定値」という解決を**ここに一本化**する。
+     * 経路ごとに書くと、画面の導線と保存時の判定が食い違う (Issue #43)。
+     */
+    fun effectiveAuthScheme(jdbcUrl: String, authSchemeDefault: String?): String? =
+        authSchemeOf(jdbcUrl) ?: authSchemeDefault?.trim()?.takeIf { it.isNotEmpty() }
+
+    /**
+     * 実効値を解決してからブラウザ認可の要否を判定する。
+     *
+     * [authSchemeDefault] はドライバーが `sys_connection_props` で返す `AuthScheme` の既定値。
+     */
+    fun requiresBrowserAuthorization(jdbcUrl: String, authSchemeDefault: String?): Boolean =
+        requiresBrowserAuthorization(effectiveAuthScheme(jdbcUrl, authSchemeDefault))
+
+    /**
      * 接続文字列から `AuthScheme` の値を取り出す。明示されていなければ null。
      *
      * 区切りは `;` だけでなく `:` も見る。CData の接続文字列は
