@@ -82,15 +82,4 @@ fun Route.connectKintoneRoutes(ctx: AppContext) {
         }
         call.respondRedirect("/syncs/$syncName/connect?keypair=$flag")
     }
-
-    /**
-     * kintone ドメインの永続化エンドポイント (未実装スタブ)。
-     * 現状は環境変数 KINTONE_DOMAIN を使う運用のため、何も保存しない。
-     */
-    post("/syncs/{name}/connect/save-domain") {
-        call.respondText(
-            "ドメインは現状 KINTONE_DOMAIN 環境変数から読み込んでいます。永続化は未実装です。",
-            status = HttpStatusCode.OK,
-        )
-    }
 }

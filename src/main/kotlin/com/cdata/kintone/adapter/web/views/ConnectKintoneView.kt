@@ -4,7 +4,6 @@ import com.cdata.kintone.adapter.web.AppContext
 import kotlinx.html.ButtonType
 import kotlinx.html.FormMethod
 import kotlinx.html.HTML
-import kotlinx.html.InputType
 import kotlinx.html.a
 import kotlinx.html.article
 import kotlinx.html.button
@@ -13,7 +12,6 @@ import kotlinx.html.div
 import kotlinx.html.form
 import kotlinx.html.h2
 import kotlinx.html.h3
-import kotlinx.html.input
 import kotlinx.html.label
 import kotlinx.html.p
 import kotlinx.html.strong
@@ -120,30 +118,21 @@ fun HTML.connectKintoneView(
             }
         }
 
-        // Step 2: kintone 管理画面リンク
+        // Step 2: kintone 管理画面での操作案内
+        //
+        // ドメインの入力欄は置かない。Adapter は kintone のドメインを必要としない
+        // （Agent が kintone へアウトバウンドで接続し、Adapter は Agent に gRPC を
+        // 提供するだけ）。以前は入力欄と「保存して開く」があったが、保存先が未実装で
+        // KINTONE_DOMAIN もコンテナに渡っておらず、押しても何も起きなかった (Issue #51)。
         section {
             h3 { +"Step 2: kintone 管理画面でコネクタを追加" }
-            form(action = "/syncs/$syncName/connect/save-domain", method = FormMethod.post) {
-                label {
-                    +"kintone ドメイン (例: example.cybozu.com):"
-                    input(type = InputType.text, name = "domain") {
-                        placeholder = "example.cybozu.com"
-                        value = readKintoneDomain()
-                    }
-                }
-                button(type = ButtonType.submit, classes = "secondary") { +"保存して開く" }
+            p {
+                +"kintone の管理画面で「外部システムのアプリ化」を開き、この連携に対応する"
+                +"コネクタを追加してください。発行された接続キーを Step 3 に貼り付けます。"
             }
-            val domain = readKintoneDomain()
-            if (domain.isNotBlank()) {
-                div(classes = "action-bar") {
-                    a(
-                        href = "https://$domain/k/admin/system/admin/dataConnector.html",
-                        target = "_blank",
-                        classes = "button secondary outline",
-                    ) {
-                        +"kintone 管理画面を開く ↗"
-                    }
-                }
+            p {
+                +"管理画面のパス: "
+                code { +"https://<kintone ドメイン>$ADMIN_CONNECTOR_PATH" }
             }
         }
 
@@ -189,10 +178,9 @@ fun HTML.connectKintoneView(
     }
 }
 
-/**
- * kintone ドメインを環境変数 `KINTONE_DOMAIN` から読み出す。
- * 設定ストアへの永続化は未実装。未設定なら空文字列を返す。
- */
+/** kintone 管理画面の「外部システムのアプリ化」のパス。 */
+private const val ADMIN_CONNECTOR_PATH = "/k/admin/system/admin/dataConnector.html"
+
 /**
  * 接続キーを拒否されたときの kintone 側の手順 (Issue #21)。
  *
@@ -204,7 +192,7 @@ private fun kotlinx.html.FlowContent.authRejectedGuide() {
     article(classes = "warning-banner") {
         h4 { +"kintone 側で行う操作" }
         ol {
-            li { +"kintone の「外部システムのアプリ化」を開く (下の Step 2 のリンク)" }
+            li { +"kintone の管理画面で「外部システムのアプリ化」を開く (パスは下の Step 2)" }
             li { +"この連携に対応する接続を選ぶ" }
             li { +"接続キーを再発行する" }
             li { +"発行された接続キーを下の Step 3 に貼り付けて「接続して開始」" }
@@ -219,6 +207,3 @@ private fun kotlinx.html.FlowContent.authRejectedGuide() {
         }
     }
 }
-
-private fun readKintoneDomain(): String =
-    System.getenv("KINTONE_DOMAIN") ?: ""
