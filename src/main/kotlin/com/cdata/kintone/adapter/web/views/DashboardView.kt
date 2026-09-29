@@ -32,8 +32,6 @@ fun HTML.dashboardView(ctx: AppContext) {
     val totalSyncs = ctx.configSource.listTables().size
     val totalConnections = ctx.configSource.listSharedJdbcConfigs().size
     val totalDrivers = ctx.driverManager.listDrivers().size
-    val phase1Detected = ctx.configDir.resolve("server.yaml").toFile().exists() &&
-        !ctx.configDir.resolve("tables").toFile().exists()
 
     layout(
         pageTitle = "ダッシュボード",
@@ -51,19 +49,6 @@ fun HTML.dashboardView(ctx: AppContext) {
                 kpiCard(totalSyncs.toString(), "連携 (合計)")
                 kpiCard(totalConnections.toString(), "データソース接続")
                 kpiCard(totalDrivers.toString(), "ドライバー")
-            }
-        }
-
-        if (phase1Detected) {
-            article(classes = "warning-banner") {
-                p {
-                    +"⚠ Phase 1 構成を検出しました: "
-                    code { +"config/server.yaml" }
-                    +" 等が直下にあります。マルチテーブル構成への移行をおすすめします。"
-                }
-                form(action = "/migrate/phase1-to-tables", method = FormMethod.post) {
-                    button(type = ButtonType.submit) { +"新階層に移行する" }
-                }
             }
         }
 
