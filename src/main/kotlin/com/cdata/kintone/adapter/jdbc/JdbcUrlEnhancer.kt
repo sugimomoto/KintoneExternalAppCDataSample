@@ -38,6 +38,22 @@ object JdbcUrlEnhancer {
     }
 
     /**
+     * `InitiateOAuth` を `OFF` にした接続文字列を返す。
+     *
+     * OAuth 認可ウィザードで接続を張るときに使う。`GETANDREFRESH` のままだと
+     * ドライバーが自分のマシンでブラウザを開こうとし、ヘッドレスなコンテナでは
+     * 60 秒タイムアウトする (Issue #12)。保存済みの設定は書き換えない。
+     */
+    fun withInitiateOAuthOff(jdbcUrl: String): String {
+        val replaced = INITIATE_OAUTH_REGEX.replace(jdbcUrl) { match ->
+            match.value.substringBefore('=') + "=OFF"
+        }
+        if (replaced != jdbcUrl) return replaced
+        val trimmed = jdbcUrl.trimEnd(';')
+        return "$trimmed;InitiateOAuth=OFF"
+    }
+
+    /**
      * OAuth キャッシュパスを付与した設定を返す。**接続を張る経路はこれを通る。**
      *
      * `OAuthSettingsLocation` は CData ドライバー固有のプロパティなので、
@@ -66,5 +82,7 @@ object JdbcUrlEnhancer {
      * CData の接続文字列は `jdbc:<product>:<最初のプロパティ>=...` の形なので、
      * 最初のプロパティに書かれた場合は直前が `:` になる。
      */
+    private val INITIATE_OAUTH_REGEX = Regex("""(?i)(?:^|[;:])\s*InitiateOAuth\s*=[^;]*""")
+
     private val KEY_REGEX = Regex("""(?i)(?:^|[;:])\s*OAuthSettingsLocation\s*=""")
 }
