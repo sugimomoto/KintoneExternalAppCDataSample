@@ -122,6 +122,8 @@ class AgentContainerManager(
                     LABEL_MANAGED to "true",
                 ),
             )
+            // console と時刻を揃える。ログを並べて読むため (Issue #25)。
+            .withEnv(timeZoneEnv(System.getenv("TZ")))
             .exec()
         log.info { "Created container: $containerName (id=${resp.id})" }
         return status(syncName)
@@ -276,7 +278,8 @@ class AgentContainerManager(
          * 時刻を揃える必要があり、かつ既定値を compose とコードで二重に持たないため
          * (Issue #25)。未設定なら何も渡さない（イメージ既定の UTC になる）。
          */
-        fun timeZoneEnv(timeZone: String?): List<String> = TODO()
+        fun timeZoneEnv(timeZone: String?): List<String> =
+            timeZone?.takeIf { it.isNotBlank() }?.let { listOf("TZ=${it.trim()}") } ?: emptyList()
 
         /**
          * 標準的な Docker socket (`/var/run/docker.sock`) に接続する。

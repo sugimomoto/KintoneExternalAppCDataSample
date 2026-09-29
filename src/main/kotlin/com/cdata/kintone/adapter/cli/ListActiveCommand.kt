@@ -44,8 +44,9 @@ class ListActiveCommand : CliktCommand(name = "list-active") {
     }
 
     companion object {
+        // どの zone の時刻か判別できるようにする (Issue #25)
         private val FORMATTER = DateTimeFormatter
-            .ofPattern("yyyy-MM-dd HH:mm:ss")
+            .ofPattern("yyyy-MM-dd HH:mm:ss z")
             .withZone(ZoneId.systemDefault())
     }
 }

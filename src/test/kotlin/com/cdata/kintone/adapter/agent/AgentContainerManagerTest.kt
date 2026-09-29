@@ -120,6 +120,7 @@ class AgentContainerManagerTest {
         every { createCmd.withName(any()) } returns createCmd
         every { createCmd.withHostConfig(any()) } returns createCmd
         every { createCmd.withLabels(any<Map<String, String>>()) } returns createCmd
+        every { createCmd.withEnv(any<List<String>>()) } returns createCmd
         every { createCmd.exec() } returns mockk { every { id } returns "new-id" }
         every { dockerClient.createContainerCmd(any<String>()) } returns createCmd
         val startCmd = mockk<StartContainerCmd> { every { exec() } returns null }

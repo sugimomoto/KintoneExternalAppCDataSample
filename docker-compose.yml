@@ -28,6 +28,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # 画面・ログの時刻をホストのローカル時刻に合わせる (Issue #25)。
+      # 未設定だとイメージ既定の UTC になる。Agent コンテナにも同じ値が渡る。
+      TZ: ${TZ:-Asia/Tokyo}
       # Agent コンテナ作成時の bind マウント解決用 (ホスト上の絶対パス)
       HOST_AGENT_ROOT: ${PWD}/agent
       # データソース用環境変数 (.env から読み込み)

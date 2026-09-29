@@ -508,6 +508,22 @@ cd lib && java -jar cdata.jdbc.salesforce.jar -license
 OAuth 初回認証で 60 秒以内にブラウザでログインしなかった場合。
 `test-connection` をターミナルから直接実行し、ブラウザで認証してください。
 
+### 画面やログの時刻がずれている
+
+コンテナの既定タイムゾーンは UTC です。`docker-compose.yml` は
+`TZ: ${TZ:-Asia/Tokyo}` を渡すため通常は日本時間になりますが、別のタイムゾーンで
+運用する場合は環境変数で上書きしてください (Issue #25)。
+
+```bash
+TZ=America/New_York docker compose up -d adapter-console
+```
+
+- 画面・CLI の時刻表示にはタイムゾーンが併記されます（例: `2026-09-29 15:45:55 JST`）
+- **既存の Agent コンテナには反映されません。** Agent コンテナは作成時に `TZ` を
+  受け取るため、作り直すまで従来のタイムゾーンのままです
+- ライブログ (`/syncs/{name}/logs`) の行頭のタイムスタンプは Docker Engine が
+  付けるもので、常に UTC です
+
 ### Web UI に変更が反映されない
 
 `docker compose restart` だけでは古い jar のままです。
