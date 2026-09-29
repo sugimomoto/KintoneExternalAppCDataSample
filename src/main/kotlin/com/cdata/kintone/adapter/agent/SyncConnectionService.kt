@@ -138,7 +138,11 @@ class SyncConnectionService(
         containerMgr: AgentContainerManager,
     ): AgentContainerManager.ContainerInfo =
         when (containerMgr.status(syncName).state) {
-            AgentContainerManager.State.RUNNING -> {
+            // 再起動ループ中も、最新の agent.json を読ませるために restart する。
+            // 接続キーを入れ替えた直後はこの経路を通る。
+            AgentContainerManager.State.RUNNING,
+            AgentContainerManager.State.RESTARTING,
+            -> {
                 log.info { "Agent コンテナが起動中のため再起動して agent.json を再読み込みします: $syncName" }
                 containerMgr.restart(syncName)
             }

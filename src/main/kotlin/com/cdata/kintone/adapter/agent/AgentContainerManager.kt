@@ -42,7 +42,20 @@ class AgentContainerManager(
         ?: Path.of("./agent").toAbsolutePath().toString(),
 ) {
 
-    enum class State { RUNNING, STOPPED, NOT_FOUND }
+    enum class State {
+        RUNNING,
+
+        /**
+         * 再起動ループ中。起動に失敗し続けている異常な状態 (Issue #20)。
+         *
+         * `inspect` の `State.Running` は再起動ループ中も true を返すため、
+         * 真偽値では表現できない。`State.Status` の `restarting` で判定する。
+         */
+        RESTARTING,
+
+        STOPPED,
+        NOT_FOUND,
+    }
 
     data class ContainerInfo(
         val name: String,
@@ -50,6 +63,11 @@ class AgentContainerManager(
         val image: String,
         val createdAt: Instant?,
         val containerId: String? = null,
+        /**
+         * Docker がこのコンテナを再起動した回数。
+         * コンテナ一覧 API では取得できないため、[listAll] 由来では 0 になる。
+         */
+        val restartCount: Int = 0,
     )
 
     fun containerName(syncName: String): String = "$CONTAINER_PREFIX$syncName"
@@ -171,6 +189,14 @@ class AgentContainerManager(
             false
         }
     }
+
+    /**
+     * 管理対象コンテナの状態を「連携名 -> 状態」で返す。
+     *
+     * 一覧画面が行ごとに `inspect` を呼ばないための入口。
+     * Docker 呼び出しに失敗した場合は空マップを返す（状態表示は補助情報のため）。
+     */
+    fun statusesBySyncName(): Map<String, ContainerInfo> = TODO()
 
     fun listAll(): List<ContainerInfo> {
         return dockerClient.listContainersCmd()

@@ -24,9 +24,17 @@ class AgentContainerManagerTest {
     private val dockerClient: DockerClient = mockk()
 
     /** 起動中コンテナとして inspect が応答するようにする。 */
-    private fun stubRunningContainer() {
+    private fun stubRunningContainer() = stubContainer(status = "running", running = true)
+
+    /**
+     * inspect の応答を組み立てる。
+     *
+     * `status` に null を渡すと Docker からステータス文字列が得られないケースを再現する。
+     */
+    private fun stubContainer(status: String?, running: Boolean, restartCount: Int = 0) {
         val state = mockk<InspectContainerResponse.ContainerState> {
-            every { running } returns true
+            every { this@mockk.running } returns running
+            every { this@mockk.status } returns status
         }
         val config = mockk<com.github.dockerjava.api.model.ContainerConfig> {
             every { image } returns "kintone-data-connector-agent:0.9.2"
@@ -36,6 +44,7 @@ class AgentContainerManagerTest {
             every { this@mockk.config } returns config
             every { created } returns "2026-09-29T00:00:00.000000000Z"
             every { id } returns "container-id"
+            every { this@mockk.restartCount } returns restartCount
         }
         val cmd = mockk<InspectContainerCmd> { every { exec() } returns inspect }
         every { dockerClient.inspectContainerCmd(any()) } returns cmd
@@ -122,5 +131,113 @@ class AgentContainerManagerTest {
         verify(exactly = 1) { createCmd.exec() }
         verify(exactly = 1) { startCmd.exec() }
         assertEquals(AgentContainerManager.State.NOT_FOUND, info.state)
+    }
+
+    // --- 状態判定 (Issue #20) ---
+
+    @Test
+    fun `status - restarting は RESTARTING として返す`() {
+        // 再起動ループ中も State.Running は true を返すため、真偽値では判定できない。
+        stubContainer(status = "restarting", running = true, restartCount = 295)
+
+        val info = AgentContainerManager(dockerClient).status("Product")
+
+        assertEquals(AgentContainerManager.State.RESTARTING, info.state)
+    }
+
+    @Test
+    fun `status - running は RUNNING として返す`() {
+        stubContainer(status = "running", running = true)
+
+        assertEquals(
+            AgentContainerManager.State.RUNNING,
+            AgentContainerManager(dockerClient).status("Categories").state,
+        )
+    }
+
+    @Test
+    fun `status - exited は STOPPED として返す`() {
+        stubContainer(status = "exited", running = false)
+
+        assertEquals(
+            AgentContainerManager.State.STOPPED,
+            AgentContainerManager(dockerClient).status("Product").state,
+        )
+    }
+
+    @Test
+    fun `status - paused や dead を RUNNING と誤判定しない`() {
+        listOf("paused", "dead", "removing", "created").forEach { status ->
+            stubContainer(status = status, running = false)
+            assertEquals(
+                AgentContainerManager.State.STOPPED,
+                AgentContainerManager(dockerClient).status("Product").state,
+                "status=$status",
+            )
+        }
+    }
+
+    @Test
+    fun `status - ステータス文字列が無ければ running 真偽にフォールバックする`() {
+        stubContainer(status = null, running = true)
+        assertEquals(
+            AgentContainerManager.State.RUNNING,
+            AgentContainerManager(dockerClient).status("Categories").state,
+        )
+
+        stubContainer(status = null, running = false)
+        assertEquals(
+            AgentContainerManager.State.STOPPED,
+            AgentContainerManager(dockerClient).status("Product").state,
+        )
+    }
+
+    @Test
+    fun `status - 再起動回数を返す`() {
+        stubContainer(status = "restarting", running = true, restartCount = 295)
+
+        assertEquals(295, AgentContainerManager(dockerClient).status("Product").restartCount)
+    }
+
+    // --- statusesBySyncName (Issue #20) ---
+
+    @Test
+    fun `statusesBySyncName - コンテナ名の接頭辞を剥がして連携名をキーにする`() {
+        stubListContainers(
+            listOf("kintone-agent-Product" to "restarting", "kintone-agent-Categories" to "running"),
+        )
+
+        val statuses = AgentContainerManager(dockerClient).statusesBySyncName()
+
+        assertEquals(setOf("Product", "Categories"), statuses.keys)
+        assertEquals(AgentContainerManager.State.RESTARTING, statuses["Product"]?.state)
+        assertEquals(AgentContainerManager.State.RUNNING, statuses["Categories"]?.state)
+    }
+
+    @Test
+    fun `statusesBySyncName - Docker 呼び出しが失敗したら空マップを返す`() {
+        // 状態表示は補助情報。一覧本体が見られなくなるほうが困る。
+        every { dockerClient.listContainersCmd() } throws RuntimeException("docker unavailable")
+
+        assertEquals(emptyMap<String, AgentContainerManager.ContainerInfo>(), AgentContainerManager(dockerClient).statusesBySyncName())
+    }
+
+    /** コンテナ一覧 API の応答を組み立てる。 */
+    private fun stubListContainers(nameAndState: List<Pair<String, String>>) {
+        val containers = nameAndState.map { (name, state) ->
+            mockk<com.github.dockerjava.api.model.Container> {
+                every { names } returns arrayOf("/$name")
+                every { this@mockk.state } returns state
+                every { image } returns "kintone-data-connector-agent:0.9.2"
+                every { created } returns 1_759_000_000L
+                every { id } returns "id-$name"
+            }
+        }
+        val cmd = mockk<com.github.dockerjava.api.command.ListContainersCmd> {
+            every { withShowAll(any()) } returns this
+            every { withLabelFilter(any<Map<String, String>>()) } returns this
+            every { exec() } returns containers
+        }
+        every { dockerClient.listContainersCmd() } returns cmd
     }
 }
