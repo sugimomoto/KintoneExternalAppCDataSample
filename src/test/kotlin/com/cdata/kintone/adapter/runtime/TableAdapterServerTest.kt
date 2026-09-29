@@ -53,7 +53,7 @@ class TableAdapterServerTest {
         val server = TableAdapterServer(
             tableName = "test-$port",
             config = configFor(port),
-            connectionProviderFactory = { _ -> FakeConnectionProvider() },
+            connectionProviderFactory = { _, _ -> FakeConnectionProvider() },
         ).also { it.start() }
         servers.add(server)
         return server
@@ -82,7 +82,7 @@ class TableAdapterServerTest {
         val server = TableAdapterServer(
             tableName = "auto",
             config = configFor(0),
-            connectionProviderFactory = { _ -> FakeConnectionProvider() },
+            connectionProviderFactory = { _, _ -> FakeConnectionProvider() },
         ).also { it.start() }
         servers.add(server)
         assertNotEquals(0, server.actualPort)
@@ -106,4 +106,24 @@ class TableAdapterServerTest {
     }
 
     private fun freePort(): Int = java.net.ServerSocket(0).use { it.localPort }
+
+    @Test
+    fun `OAuth キャッシュキーをプロバイダに渡す`() {
+        // キャッシュパスの決定は JdbcConnectionProvider 側に一本化した (Issue #11)。
+        // TableAdapterServer はキーを渡すだけで、URL を組み立てない。
+        val passedKeys = mutableListOf<String>()
+        val server = TableAdapterServer(
+            tableName = "Account",
+            config = configFor(0),
+            oauthCacheKey = "sf-main",
+            connectionProviderFactory = { _, key ->
+                passedKeys += key
+                FakeConnectionProvider()
+            },
+        )
+
+        server.use { it.start() }
+
+        assertEquals(listOf("sf-main"), passedKeys)
+    }
 }

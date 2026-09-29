@@ -158,7 +158,7 @@ fun Route.connectionsRoutes(ctx: AppContext) {
         val config = ctx.configSource.loadSharedJdbcConfig(name)
             ?: return@post call.respondText("Not found: $name", status = HttpStatusCode.NotFound)
         val result = runCatching {
-            JdbcConnectionProvider(config).use { provider ->
+            JdbcConnectionProvider(config, oauthCacheKey = name).use { provider ->
                 provider.connection().use { conn ->
                     conn.metaData.let { md ->
                         "${md.databaseProductName} ${md.databaseProductVersion} / ${md.driverName} ${md.driverVersion}"

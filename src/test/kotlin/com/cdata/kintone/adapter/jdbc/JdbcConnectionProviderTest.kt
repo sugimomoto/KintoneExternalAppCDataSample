@@ -18,7 +18,7 @@ class JdbcConnectionProviderTest {
 
     @Test
     fun `H2 で接続が取得できる`() {
-        JdbcConnectionProvider(h2Config()).use { provider ->
+        JdbcConnectionProvider(h2Config(), oauthCacheKey = "test").use { provider ->
             provider.connection().use { conn ->
                 assertNotNull(conn)
                 val rs = conn.createStatement().executeQuery("SELECT 1")
@@ -30,7 +30,7 @@ class JdbcConnectionProviderTest {
 
     @Test
     fun `close でプールが閉じる`() {
-        val provider = JdbcConnectionProvider(h2Config())
+        val provider = JdbcConnectionProvider(h2Config(), oauthCacheKey = "test")
         provider.connection().use { /* 取得確認のみ */ }
         provider.close()
         assertThrows<Exception> {
@@ -42,7 +42,7 @@ class JdbcConnectionProviderTest {
     fun `classpath に既にあるドライバは動的ロードをスキップ`() {
         // 存在しない JAR パスでも、classpath に Driver があれば成功する
         val config = h2Config().copy(driverJar = "/path/to/nowhere.jar")
-        JdbcConnectionProvider(config).use { provider ->
+        JdbcConnectionProvider(config, oauthCacheKey = "test").use { provider ->
             provider.connection().use { conn ->
                 assertNotNull(conn)
             }
@@ -57,7 +57,7 @@ class JdbcConnectionProviderTest {
             url = "jdbc:nonexistent://",
         )
         assertThrows<JdbcDriverLoadException> {
-            JdbcConnectionProvider(config)
+            JdbcConnectionProvider(config, oauthCacheKey = "test")
         }
     }
 

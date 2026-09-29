@@ -24,7 +24,7 @@ private val log = KotlinLogging.logger {}
  */
 class MultiAdapterRunner(
     private val configSource: ConfigSource,
-    private val connectionProviderFactory: (JdbcConfig) -> ConnectionProvider = ::JdbcConnectionProvider,
+    private val connectionProviderFactory: (JdbcConfig, String) -> ConnectionProvider = ::JdbcConnectionProvider,
     private val activeFile: ActiveAdaptersFile? = null,
 ) : AutoCloseable {
 
@@ -45,6 +45,8 @@ class MultiAdapterRunner(
         val server = TableAdapterServer(
             tableName = tableName,
             config = set,
+            // OAuth キャッシュは接続単位で共有する。インライン設定なら連携名 (Issue #11)。
+            oauthCacheKey = configSource.sharedJdbcRefOf(tableName) ?: tableName,
             connectionProviderFactory = connectionProviderFactory,
         )
         server.start()

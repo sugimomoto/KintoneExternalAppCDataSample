@@ -38,7 +38,7 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
             ?: return@get call.respondRedirect("/syncs/new")
         val jdbc = ctx.configSource.loadSharedJdbcConfig(connectionName)
             ?: return@get call.respondText("Connection not found", status = HttpStatusCode.NotFound)
-        val tables = JdbcConnectionProvider(jdbc).use { provider ->
+        val tables = JdbcConnectionProvider(jdbc, oauthCacheKey = connectionName).use { provider ->
             provider.connection().use { conn ->
                 JdbcMetadataInspector(conn).listTables()
             }
@@ -56,7 +56,7 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
         val jdbc = ctx.configSource.loadSharedJdbcConfig(connectionName)
             ?: return@get call.respondText("Connection not found", status = HttpStatusCode.NotFound)
         val tableName = tableLabel.substringAfter(".")
-        val columns = JdbcConnectionProvider(jdbc).use { provider ->
+        val columns = JdbcConnectionProvider(jdbc, oauthCacheKey = connectionName).use { provider ->
             provider.connection().use { conn ->
                 JdbcMetadataInspector(conn).listColumns(tableName)
             }
@@ -75,8 +75,9 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
             ?: return@post call.respondText("Connection not found", status = HttpStatusCode.NotFound)
         val tableName = tableLabel.substringAfter(".")
 
-        val (primaryKey, recommendedRecordIdType, mappings) = JdbcConnectionProvider(jdbc).use { provider ->
-            provider.connection().use { conn ->
+        val provider = JdbcConnectionProvider(jdbc, oauthCacheKey = connectionName)
+        val (primaryKey, recommendedRecordIdType, mappings) = provider.use {
+            it.connection().use { conn ->
                 val inspector = JdbcMetadataInspector(conn)
                 val pk = inspector.findPrimaryKey(tableName)
                     ?: throw IllegalStateException("主キーが定義されていません: $tableName")

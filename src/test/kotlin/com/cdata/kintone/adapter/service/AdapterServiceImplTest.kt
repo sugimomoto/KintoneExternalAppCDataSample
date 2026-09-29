@@ -101,7 +101,7 @@ class AdapterServiceImplTest {
     @Test
     fun `getCapability で設定値を返す`() = runBlocking {
         val config = buildConfig()
-        provider = JdbcConnectionProvider(config.jdbc)
+        provider = JdbcConnectionProvider(config.jdbc, oauthCacheKey = "test")
         val service = AdapterServiceImpl(config, provider)
         val response = service.getCapability(GetCapabilityRequest.getDefaultInstance())
         assertEquals(true, response.payload.selectOperationSupported)
@@ -112,7 +112,7 @@ class AdapterServiceImplTest {
     @Test
     fun `getSchema でフィールド定義を返す`() = runBlocking {
         val config = buildConfig()
-        provider = JdbcConnectionProvider(config.jdbc)
+        provider = JdbcConnectionProvider(config.jdbc, oauthCacheKey = "test")
         val service = AdapterServiceImpl(config, provider)
         val response = service.getSchema(GetSchemaRequest.getDefaultInstance())
         val schema = response.payload.schemaMap
@@ -125,7 +125,7 @@ class AdapterServiceImplTest {
     @Test
     fun `count ACTUAL は実件数を返す`() = runBlocking {
         val config = buildConfig(countStrategy = CountStrategy.ACTUAL)
-        provider = JdbcConnectionProvider(config.jdbc)
+        provider = JdbcConnectionProvider(config.jdbc, oauthCacheKey = "test")
         val service = AdapterServiceImpl(config, provider)
         val request = CountRequest.newBuilder()
             .setPayload(
@@ -139,7 +139,7 @@ class AdapterServiceImplTest {
     @Test
     fun `count ALWAYS_ZERO は常に 0`() = runBlocking {
         val config = buildConfig(countStrategy = CountStrategy.ALWAYS_ZERO)
-        provider = JdbcConnectionProvider(config.jdbc)
+        provider = JdbcConnectionProvider(config.jdbc, oauthCacheKey = "test")
         val service = AdapterServiceImpl(config, provider)
         val request = CountRequest.newBuilder()
             .setPayload(
@@ -153,7 +153,7 @@ class AdapterServiceImplTest {
     @Test
     fun `search 未サポート時は UNIMPLEMENTED`() = runBlocking {
         val config = buildConfig(searchSupported = false)
-        provider = JdbcConnectionProvider(config.jdbc)
+        provider = JdbcConnectionProvider(config.jdbc, oauthCacheKey = "test")
         val service = AdapterServiceImpl(config, provider)
         val ex = assertThrows<StatusException> {
             service.search(SearchRequest.getDefaultInstance())
@@ -164,7 +164,7 @@ class AdapterServiceImplTest {
     @Test
     fun `aggregate 未サポート時は UNIMPLEMENTED`() = runBlocking {
         val config = buildConfig()
-        provider = JdbcConnectionProvider(config.jdbc)
+        provider = JdbcConnectionProvider(config.jdbc, oauthCacheKey = "test")
         val service = AdapterServiceImpl(config, provider)
         val ex = assertThrows<StatusException> {
             service.aggregate(AggregateRequest.getDefaultInstance())

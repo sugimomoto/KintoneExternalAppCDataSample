@@ -30,7 +30,7 @@ class ListTablesCommand : CliktCommand(name = "list-tables") {
         val (name, jdbcConfig) = SharedJdbcResolver.resolve(source, jdbcName)
         echo("Connection: $name")
 
-        JdbcConnectionProvider(jdbcConfig).use { provider ->
+        JdbcConnectionProvider(jdbcConfig, oauthCacheKey = name).use { provider ->
             provider.connection().use { conn ->
                 val tables = JdbcMetadataInspector(conn).listTables()
                 if (tables.isEmpty()) {

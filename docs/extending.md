@@ -354,7 +354,7 @@ object ConfigStore {
 | 接続プールの設定 | `jdbc/JdbcConnectionProvider.kt`（HikariCP） |
 | ドライバ jar の動的ロード | `jdbc/JdbcDriverManager.kt`（URLClassLoader による隔離） |
 | トライアルライセンス有効化 | `jdbc/DriverActivator.kt` |
-| OAuth キャッシュの分離 | `jdbc/JdbcUrlEnhancer.kt:15` |
+| OAuth キャッシュパスの決定 | `jdbc/JdbcUrlEnhancer.kt` (`applyOAuthCache`) |
 | 接続文字列のプロパティ検出 | `jdbc/JdbcConnectionPropertyInspector.kt` |
 | プロパティ検出用の接続文字列（プローブ）の組み立て | `jdbc/ConnectionPropertyProbe.kt` |
 | プロパティ検出のフォールバック（`getPropertyInfo` 由来の縮退） | `jdbc/DegradedPropertyMapper.kt` |
@@ -383,10 +383,24 @@ object ConfigStore {
 > 実際にこれで JWT がログに平文で出ていました
 > （[Issue #10](https://github.com/sugimomoto/KintoneExternalAppCDataSample/issues/10)）。
 
-**OAuth キャッシュの分離も重要です。** 同じドライバを使う複数の連携が
-1 つのキャッシュファイルを取り合うと再認証が頻発します。`JdbcUrlEnhancer` が
-`OAuthSettingsLocation` を `run/oauth/<連携名>.txt` に自動で振り分けています。
-接続文字列を組み立て直す改修をする場合、**この処理を外さないこと**。
+**OAuth キャッシュパスの決定は `JdbcConnectionProvider` に一本化されています。**
+`OAuthSettingsLocation` を `run/oauth/<データソース接続名>.txt` に割り当てます。
+
+- キャッシュの単位は**データソース接続**です。同じ接続を参照する複数の連携が
+  1 つのキャッシュを共有します。連携ごとに分けると、リフレッシュトークンを
+  更新する提供元で互いのトークンを無効化し合います
+- 共有接続を参照しないインライン設定の連携では、連携名をキーに使います
+- 付与するのは**接続を張るときだけ**です。保存済みの接続文字列は書き換えません
+- `OAuthSettingsLocation` は CData 固有のプロパティなので、CData 以外の
+  ドライバーには付与しません（H2 は未知の `;KEY=VALUE` を接続エラーにします）
+
+> ⚠️ **`JdbcConnectionProvider` のコンストラクタは `oauthCacheKey` を必須にしています。**
+> 新しく接続を張る経路を追加すると、キーを渡さない限りコンパイルエラーになります。
+> これは意図的な設計です。以前は「呼び出し側で `JdbcUrlEnhancer` を通す」規約に
+> していたため、実行時だけ付与されて接続テスト・ウィザード・CLI の 6 経路が漏れ、
+> テストで認可したトークンが実行時に使われない状態になっていました
+> （[Issue #11](https://github.com/sugimomoto/KintoneExternalAppCDataSample/issues/11)）。
+> 接続文字列のマスク処理も同じ「規約で担保」方式で 2 回漏れています（#10 → #16）。
 
 ---
 
