@@ -25,6 +25,19 @@ data class PropertyHierarchy(
 
     companion object {
         /** 解析できない場合は null を返す。呼び出し側は「条件なし」として扱う。 */
-        fun parse(raw: String): PropertyHierarchy? = TODO()
+        fun parse(raw: String): PropertyHierarchy? {
+            val separator = raw.indexOf('=')
+            if (separator < 0) return null
+            val dependsOn = raw.substring(0, separator).trim()
+            val allowedValues = raw.substring(separator + 1)
+                .split(',')
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+            return if (dependsOn.isEmpty() || allowedValues.isEmpty()) {
+                null
+            } else {
+                PropertyHierarchy(dependsOn, allowedValues)
+            }
+        }
     }
 }
