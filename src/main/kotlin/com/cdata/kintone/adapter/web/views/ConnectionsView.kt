@@ -4,6 +4,7 @@ import com.cdata.kintone.adapter.config.JdbcConfig
 import com.cdata.kintone.adapter.jdbc.ConnectionPropertiesResult
 import com.cdata.kintone.adapter.jdbc.ConnectionProperty
 import com.cdata.kintone.adapter.jdbc.ConnectionStringMasker
+import com.cdata.kintone.adapter.jdbc.PropertyHierarchyResolver
 import com.cdata.kintone.adapter.jdbc.PropertySource
 import com.cdata.kintone.adapter.jdbc.PropertyType
 import com.cdata.kintone.adapter.jdbc.Sensitivity
@@ -15,6 +16,7 @@ import kotlinx.html.InputType
 import kotlinx.html.a
 import kotlinx.html.article
 import kotlinx.html.button
+import kotlinx.html.classes
 import kotlinx.html.code
 import kotlinx.html.details
 import kotlinx.html.div
@@ -147,11 +149,12 @@ fun HTML.connectionFormView(
                 +"JDBC ドライバー:"
                 select {
                     name = "driver"
-                    attributes["hx-get"] = "/connections/properties"
+                    attributes["hx-post"] = "/connections/properties"
                     attributes["hx-trigger"] = "change"
                     attributes["hx-target"] = "#properties-form-container"
-                    attributes["hx-include"] = "this"
-                    attributes["hx-vals"] = "js:{prefill: false}"
+                    attributes["hx-include"] = "closest form"
+                    // 別ドライバーの入力値を引き継がない
+                    attributes["hx-vals"] = """{"prefill": "false"}"""
                     option {
                         value = ""
                         +"-- ドライバーを選択 --"
@@ -166,7 +169,9 @@ fun HTML.connectionFormView(
                 }
             }
 
-            // 動的プロパティフォーム挿入箇所
+            // 動的プロパティフォーム挿入箇所。
+            // 認証方式など条件に使われる入力欄が変わると、その入力欄自身が
+            // ここを差し替える (propertyFieldTargets を参照)。
             div {
                 attributes["id"] = "properties-form-container"
                 if (existing != null) {
@@ -287,13 +292,22 @@ private fun kotlinx.html.FlowContent.propertyCategories(
     props: List<ConnectionProperty>,
     existingValues: Map<String, String>,
 ) {
-    val visibleProps = props.filter { it.visible && it.propertyName.isNotBlank() }
+    // 認証方式などの条件 (Hierarchy) で、いま意味を持つプロパティだけに絞る。
+    // 依存先が非表示のものも参照できるよう、解決には全件を渡す。
+    val resolved = PropertyHierarchyResolver.resolve(props, existingValues)
+    val dependencies = PropertyHierarchyResolver.dependencyNames(props).map { it.lowercase() }.toSet()
+
+    val visibleProps = resolved.filter { it.visible && it.propertyName.isNotBlank() }
+    val hiddenByCondition = props.count { it.visible && it.propertyName.isNotBlank() } - visibleProps.size
     val byCategory = visibleProps.groupBy { it.category.ifBlank { "Other" } }
 
     p {
         small {
-            +"全 ${props.size} プロパティ、表示中 ${visibleProps.size} 件。"
-            +" 必須プロパティを含むカテゴリーを展開しています。その他はカテゴリーを開いて確認してください。"
+            +"全 ${props.size} プロパティ、表示中 ${visibleProps.size} 件"
+            if (hiddenByCondition > 0) {
+                +" (認証方式などの条件で ${hiddenByCondition} 件を非表示)"
+            }
+            +"。 必須プロパティを含むカテゴリーを展開しています。その他はカテゴリーを開いて確認してください。"
         }
     }
 
@@ -315,14 +329,18 @@ private fun kotlinx.html.FlowContent.propertyCategories(
         if (expanded) {
             section {
                 h3 { +categoryLabel(category) }
-                catProps.forEach { propertyField(it, existingValues[it.propertyName]) }
+                catProps.forEach {
+                    propertyField(it, existingValues[it.propertyName], it.propertyName.lowercase() in dependencies)
+                }
             }
         } else {
             details {
                 summary {
                     +"${categoryLabel(category)} (${catProps.size} 件)"
                 }
-                catProps.forEach { propertyField(it, existingValues[it.propertyName]) }
+                catProps.forEach {
+                    propertyField(it, existingValues[it.propertyName], it.propertyName.lowercase() in dependencies)
+                }
             }
         }
     }
@@ -353,7 +371,15 @@ private fun categoryLabel(category: String): String = when (category) {
     else -> category
 }
 
-private fun kotlinx.html.FlowContent.propertyField(prop: ConnectionProperty, currentValue: String?) {
+/**
+ * @param isDependency 他プロパティの条件から参照されているか。
+ *   true のとき入力欄に目印を付け、変更時にフォームを再描画させる。
+ */
+private fun kotlinx.html.FlowContent.propertyField(
+    prop: ConnectionProperty,
+    currentValue: String?,
+    isDependency: Boolean = false,
+) {
     val value = currentValue ?: prop.defaultValue ?: ""
     label(classes = "property-row") {
         div {
@@ -368,25 +394,20 @@ private fun kotlinx.html.FlowContent.propertyField(prop: ConnectionProperty, cur
         when {
             prop.type == PropertyType.BOOLEAN -> {
                 input(type = InputType.checkBox, name = "prop.${prop.propertyName}") {
+                    propertyFieldTargets(isDependency, "change")
                     checked = value.equals("true", ignoreCase = true)
                 }
             }
             prop.type == PropertyType.INT -> {
                 input(type = InputType.number, name = "prop.${prop.propertyName}") {
+                    propertyFieldTargets(isDependency, "keyup changed delay:200ms")
                     this.value = value
-                    attributes["hx-trigger"] = "keyup changed delay:200ms"
-                    attributes["hx-post"] = "/connections/preview-url"
-                    attributes["hx-target"] = "#url-preview-container"
-                    attributes["hx-include"] = "closest form"
                 }
             }
             prop.allowedValues.isNotEmpty() -> {
                 select {
+                    propertyFieldTargets(isDependency, "change")
                     name = "prop.${prop.propertyName}"
-                    attributes["hx-trigger"] = "change"
-                    attributes["hx-post"] = "/connections/preview-url"
-                    attributes["hx-target"] = "#url-preview-container"
-                    attributes["hx-include"] = "closest form"
                     option {
                         this.value = ""
                         +"-- 未指定 --"
@@ -402,20 +423,14 @@ private fun kotlinx.html.FlowContent.propertyField(prop: ConnectionProperty, cur
             }
             prop.sensitivity != Sensitivity.NONE -> {
                 input(type = InputType.password, name = "prop.${prop.propertyName}") {
+                    propertyFieldTargets(isDependency, "keyup changed delay:200ms")
                     this.value = value
-                    attributes["hx-trigger"] = "keyup changed delay:200ms"
-                    attributes["hx-post"] = "/connections/preview-url"
-                    attributes["hx-target"] = "#url-preview-container"
-                    attributes["hx-include"] = "closest form"
                 }
             }
             else -> {
                 input(type = InputType.text, name = "prop.${prop.propertyName}") {
+                    propertyFieldTargets(isDependency, "keyup changed delay:200ms")
                     this.value = value
-                    attributes["hx-trigger"] = "keyup changed delay:200ms"
-                    attributes["hx-post"] = "/connections/preview-url"
-                    attributes["hx-target"] = "#url-preview-container"
-                    attributes["hx-include"] = "closest form"
                 }
             }
         }
@@ -423,6 +438,30 @@ private fun kotlinx.html.FlowContent.propertyField(prop: ConnectionProperty, cur
         if (prop.hierarchy.isNotBlank()) {
             small(classes = "hierarchy-hint") { +"ⓘ ${prop.hierarchy} の条件で有効" }
         }
+    }
+}
+
+/**
+ * プロパティ入力欄の htmx 設定。
+ *
+ * 認証方式など**他プロパティの条件に使われる入力欄**は、変更されたら
+ * フォーム全体を作り直す。必須・表示がその値で変わるため。
+ * それ以外は従来どおり接続文字列プレビューだけを更新する。
+ *
+ * トリガーをコンテナ側に `hx-trigger="change from:.property-dependency"` として
+ * 置く方法は使えない。htmx 1.x はこのセレクタを要素の初期化時にしか解決せず、
+ * 後から差し込まれた入力欄を拾わないため。
+ */
+private fun kotlinx.html.CommonAttributeGroupFacade.propertyFieldTargets(isDependency: Boolean, trigger: String) {
+    attributes["hx-trigger"] = trigger
+    attributes["hx-include"] = "closest form"
+    if (isDependency) {
+        classes = setOf("property-dependency")
+        attributes["hx-post"] = "/connections/properties"
+        attributes["hx-target"] = "#properties-form-container"
+    } else {
+        attributes["hx-post"] = "/connections/preview-url"
+        attributes["hx-target"] = "#url-preview-container"
     }
 }
 

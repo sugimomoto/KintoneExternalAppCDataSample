@@ -47,20 +47,30 @@ fun Route.connectionsRoutes(ctx: AppContext) {
     }
 
     /**
-     * ドライバ選択時に動的フォームを返す HTMX エンドポイント。
-     * `?driver=<driverClass>|<jarFilename>` を受けて `sys_connection_props` 結果を返す。
+     * 動的プロパティフォームを返す HTMX エンドポイント。
+     *
+     * ドライバー選択時と、認証方式など条件に使われるプロパティの変更時に呼ばれる。
+     * 後者では入力済みの値を保ったまま再描画する必要があるため、フォーム値ごと
+     * 受け取れるよう POST にしている (Issue #14)。認証情報がクエリ文字列に
+     * 載らない利点もある。
      */
-    get("/connections/properties") {
-        val driverParam = call.request.queryParameters["driver"]
-            ?: return@get call.respondText("missing driver param")
+    post("/connections/properties") {
+        val form = call.receiveParameters()
+        val driverParam = form["driver"]
+            ?: return@post call.respondText("missing driver param")
         val (driverClass, jarFilename) = driverParam.split("|", limit = 2).let {
-            if (it.size == 2) it[0] to it[1] else return@get call.respondText("invalid driver param")
+            if (it.size == 2) it[0] to it[1] else return@post call.respondText("invalid driver param")
         }
+        // ドライバーを切り替えたときは、前のドライバーの入力値を引き継がない。
+        val values = if (form["prefill"] == "false") emptyMap() else propertyValuesOf(form)
+
         val result = ctx.connectionPropertyInspector.fetchProperties(driverClass, jarFilename)
         val html = createHTML().div {
-            propertiesFormContent(result)
+            propertiesFormContent(result, values)
         }
-        call.respondText(html, io.ktor.http.ContentType.Text.Html)
+        // 条件に使われる入力欄はプレビュー更新ではなくこちらを呼ぶため、
+        // 接続文字列プレビューは out-of-band で一緒に差し替える。
+        call.respondText(html + urlPreviewOutOfBand(driverClass, values), io.ktor.http.ContentType.Text.Html)
     }
 
     /**
@@ -172,16 +182,46 @@ fun Route.connectionsRoutes(ctx: AppContext) {
  * - 値が空のものはスキップ
  * - URL 直接入力 (`jdbc.url.manual`) が指定されていればそちらを優先
  */
-private fun buildUrlFromForm(jdbcPrefix: String, form: Parameters, fallbackUrl: String? = null): String {
-    form["jdbc.url.manual"]?.takeIf { it.isNotBlank() }?.let { return it }
-    val pairs = form.entries()
+/**
+ * 接続文字列プレビューの out-of-band 差し替え断片。
+ * `#url-preview-container` の中身だけでなく要素ごと置き換えるため、class も付け直す。
+ */
+private fun urlPreviewOutOfBand(driverClass: String, values: Map<String, String>): String {
+    val jdbcPrefix = runCatching { JdbcConnectionPropertyInspector.jdbcPrefixOf(driverClass) }
+        .getOrElse { return "" }
+    return createHTML().div(classes = "url-preview-sticky") {
+        attributes["id"] = "url-preview-container"
+        attributes["hx-swap-oob"] = "true"
+        p {
+            // 生の接続文字列を DOM に載せない (Issue #16)。
+            code { +ConnectionStringMasker.mask(buildUrlFromValues(jdbcPrefix, values)) }
+        }
+    }
+}
+
+/** フォームの `prop.<PropertyName>` を プロパティ名 -> 値 のマップにする。 */
+private fun propertyValuesOf(form: Parameters): Map<String, String> =
+    form.entries()
         .asSequence()
         .filter { it.key.startsWith("prop.") }
         .mapNotNull { (key, values) ->
-            val v = values.firstOrNull()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            val name = key.removePrefix("prop.")
-            "$name=$v"
+            val value = values.firstOrNull() ?: return@mapNotNull null
+            key.removePrefix("prop.") to value
         }
-        .joinToString(";")
+        .toMap()
+
+private fun buildUrlFromForm(jdbcPrefix: String, form: Parameters, fallbackUrl: String? = null): String {
+    form["jdbc.url.manual"]?.takeIf { it.isNotBlank() }?.let { return it }
+    return buildUrlFromValues(jdbcPrefix, propertyValuesOf(form), fallbackUrl)
+}
+
+private fun buildUrlFromValues(
+    jdbcPrefix: String,
+    values: Map<String, String>,
+    fallbackUrl: String? = null,
+): String {
+    val pairs = values.entries
+        .filter { it.value.isNotBlank() }
+        .joinToString(";") { "${it.key}=${it.value}" }
     return if (pairs.isEmpty()) fallbackUrl ?: "$jdbcPrefix:" else "$jdbcPrefix:$pairs;"
 }
