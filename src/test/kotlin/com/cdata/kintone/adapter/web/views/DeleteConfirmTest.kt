@@ -65,4 +65,30 @@ class DeleteConfirmTest {
     fun `エスケープ対象を含まない値はそのまま返す`() {
         assertEquals("demo-account", DeleteConfirm.escapeJsString("demo-account"))
     }
+
+    // --- データソース接続の削除 (Issue #36) ---
+
+    @Test
+    fun `データソース削除も confirm を返す JS 式になっている`() {
+        val onSubmit = DeleteConfirm.connectionDeleteOnSubmit("Salesforce1")
+
+        assertTrue(onSubmit.startsWith("return confirm('"), "実際: $onSubmit")
+        assertTrue(onSubmit.endsWith("')"), "実際: $onSubmit")
+    }
+
+    @Test
+    fun `データソース名がメッセージに含まれる`() {
+        val message = DeleteConfirm.connectionDeleteOnSubmit("Salesforce1")
+
+        assertTrue(message.contains("Salesforce1"), "実際: $message")
+        assertTrue(message.contains("取り消せません"), "実際: $message")
+    }
+
+    @Test
+    fun `シングルクォートを含むデータソース名でも式が壊れない`() {
+        val onSubmit = DeleteConfirm.connectionDeleteOnSubmit("it's-a-source")
+
+        assertTrue(onSubmit.contains("it\\'s-a-source"), "実際: $onSubmit")
+        assertFalse(onSubmit.contains("it's-a-source"), "未エスケープの ' が残っている: $onSubmit")
+    }
 }
