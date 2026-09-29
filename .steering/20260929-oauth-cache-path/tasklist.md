@@ -55,7 +55,7 @@ TDD（規約 4.2）で進める。
 | AC-3 忘れるとコンパイルエラー | ✅ | 必須引数化により main 7 箇所 + test 10 箇所がコンパイルエラーになった |
 | AC-4 明示指定を尊重 | ✅ | `JdbcUrlEnhancerTest`。**既存バグを修正**（下記） |
 | AC-5 同一接続の連携でキャッシュ共有 | ✅ | `SqliteConfigSourceTest` + `TableAdapterServerTest` |
-| AC-6 テスト・ウィザード・実行時が同一 | ✅ | 実機ログで同一パスを確認 |
+| AC-6 テスト・ウィザード・実行時が同一 | ⚠️ | 実装は一本化したが、**既存 4 接続は既定値が保存済みで一本化が効かない**（#27） |
 | AC-7 インライン設定でも動作 | ✅ | `sharedJdbcRefOf` が null → 連携名にフォールバック |
 | AC-8 キー決定のユニットテスト | ✅ | `JdbcUrlEnhancerTest` に 8 件追加 |
 | AC-9 ディレクトリを抜け出さない | ✅ | `cachePathFor` のテストを `../../etc/passwd` 等で追加 |
@@ -96,3 +96,28 @@ jdbc:salesforce:User=u;OAuthSettingsLocation=./x.txt;   ← 既存テストは�
 想定だったが、CData 判定が必要になったため `applyOAuthCache(config, cacheKey, baseDir)`
 として `JdbcConfig` を受け取る入口を追加した。これにより判定・パス生成・付与の 3 つが
 1 つの純粋関数に収まり、テストしやすくなった。
+
+### 実機確認で見つかった前提崩れ（#27 として起票）
+
+接続テストのログで、保存済みの接続文字列に既に `OAuthSettingsLocation` が
+入っていることが分かった。
+
+```
+jdbc:googlesheets:...;OAuthSettingsLocation=%APPDATA%\CData\GoogleSheets Data Provider\OAuthSettings.txt;...
+```
+
+ドライバーが返す既定値と突き合わせると一致していた。
+
+| プロパティ | ドライバーの既定値 | 保存された値 |
+|---|---|---|
+| `OAuthSettingsLocation` | `%APPDATA%\CData\GoogleSheets Data Provider\OAuthSettings.txt` | 同じ |
+| `Pagesize` | `1000` | 同じ |
+| `Verbosity` | `1` | 同じ |
+
+原因は**動的プロパティフォームが既定値をそのまま保存している**こと。
+本件は「利用者の明示指定を尊重する」仕様（AC-4）なので、
+既定値が保存されている接続では一本化が効かない。
+
+登録済み 5 接続のうち 4 件がこの状態。
+[#27](https://github.com/sugimomoto/KintoneExternalAppCDataSample/issues/27) として起票した。
+本件の修正自体は正しく動いており、#27 を直せば既存接続にも効く。
