@@ -161,7 +161,10 @@ fun Route.connectionsRoutes(ctx: AppContext) {
     }
 
     /**
-     * 接続テスト。フォーム値 (まだ保存前でも) で接続を試みる。
+     * 接続テスト。**保存済みの設定**で接続を試みる。
+     *
+     * レイアウトを含まない HTML 断片を返す。呼び出し側は htmx で行内を差し替えること
+     * （フォーム送信すると裸の断片がページとして表示される (Issue #40)）。
      */
     post("/connections/{name}/test") {
         val name = call.parameters["name"]!!
@@ -180,7 +183,9 @@ fun Route.connectionsRoutes(ctx: AppContext) {
             if (result.isSuccess) {
                 p { +"●Connected: ${result.getOrNull()}" }
             } else {
-                p { +"●Failed: ${result.exceptionOrNull()?.message}" }
+                // 例外メッセージに接続文字列が含まれる場合があるため必ずマスクを通す。
+                // メッセージはロケール依存なので分類はしない (#19 の方針)。
+                p { +"●Failed: ${ConnectionStringMasker.mask(result.exceptionOrNull()?.message ?: "")}" }
             }
         }
         call.respondText(html, io.ktor.http.ContentType.Text.Html)

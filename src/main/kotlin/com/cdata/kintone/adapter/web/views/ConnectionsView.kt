@@ -78,7 +78,9 @@ fun HTML.connectionsListView(ctx: AppContext, blockedDelete: BlockedDelete? = nu
                     }
                     tbody {
                         names.forEach { name ->
-                            connectionRow(name, ctx.configSource.loadSharedJdbcConfig(name))
+                            // 行単位で失敗を閉じ込める。1 行壊れただけで一覧全体が
+                            // 500 になり、正常な接続も操作できなくなる (Issue #39)。
+                            connectionRow(name, ConnectionRow.load { ctx.configSource.loadSharedJdbcConfig(name) })
                         }
                     }
                 }
@@ -88,29 +90,84 @@ fun HTML.connectionsListView(ctx: AppContext, blockedDelete: BlockedDelete? = nu
 }
 
 /** データソース接続 1 行。操作列が増えて `connectionsListView` が長くなるため切り出している。 */
-private fun kotlinx.html.TBODY.connectionRow(name: String, config: JdbcConfig?) {
+private fun kotlinx.html.TBODY.connectionRow(name: String, row: ConnectionRow) {
     tr {
         td { a(href = "/connections/$name") { +name } }
-        td { code { +(config?.driverClass ?: "-") } }
-        // 全文は title で参照する。マスク済みの値のみを入れること
-        // (生の接続文字列を入れると DOM に平文の資格情報が載る)。
-        val masked = ConnectionStringMasker.mask(config?.url ?: "")
-        td(classes = "cell-truncate") {
-            attributes["title"] = masked
-            code { +masked }
+        when (row) {
+            is ConnectionRow.Loaded -> loadedCells(name, row.config)
+            is ConnectionRow.Unreadable -> unreadableCells(name, row.reason)
         }
-        td(classes = "cell-actions") {
-            form(action = "/connections/$name/test", method = FormMethod.post, classes = "inline-form") {
-                button(type = ButtonType.submit, classes = "secondary outline") { +"接続テスト" }
-            }
-            a(href = "/connections/$name/edit", classes = "button secondary") { +"編集" }
-            // 参照中かどうかで出し分けない。一覧描画時に判定すると全連携の jdbc_ref を
-            // 毎回引くことになる。押したときにハンドラ側で判定して拒否する (Issue #36)。
-            form(action = "/connections/$name/delete", method = FormMethod.post, classes = "inline-form") {
-                attributes["onsubmit"] = DeleteConfirm.connectionDeleteOnSubmit(name)
-                button(type = ButtonType.submit, classes = "danger") { +"削除" }
-            }
+    }
+}
+
+/** 設定が読めた行のドライバークラス・接続文字列・操作。 */
+private fun kotlinx.html.TR.loadedCells(name: String, config: JdbcConfig) {
+    td { code { +config.driverClass } }
+    // 全文は title で参照する。マスク済みの値のみを入れること
+    // (生の接続文字列を入れると DOM に平文の資格情報が載る)。
+    val masked = ConnectionStringMasker.mask(config.url)
+    td(classes = "cell-truncate") {
+        attributes["title"] = masked
+        code { +masked }
+    }
+    td(classes = "cell-actions") {
+        connectionTestButton(name)
+        a(href = "/connections/$name/edit", classes = "button secondary") { +"編集" }
+        deleteButton(name)
+    }
+}
+
+/**
+ * 設定が読めなかった行。
+ *
+ * 操作は削除だけにする。接続テストも編集も設定の中身を必要とするため成立しないが、
+ * 削除は名前だけで足りる。画面から復旧できる導線を残す (Issue #39)。
+ */
+private fun kotlinx.html.TR.unreadableCells(name: String, reason: String) {
+    td { span(classes = "status-badge failing") { +"読み込めません" } }
+    td(classes = "cell-truncate") {
+        attributes["title"] = reason
+        // 理由もマスクを通す。壊れた JSON の断片に資格情報が残っている可能性がある。
+        small(classes = "muted") { +ConnectionStringMasker.mask(reason) }
+    }
+    td(classes = "cell-actions") { deleteButton(name) }
+}
+
+/**
+ * 接続テストボタン。
+ *
+ * ハンドラは HTML 断片を返すため、フォーム送信すると裸の断片がページとして表示されて
+ * しまう。htmx で行内を差し替えて一覧に留まる (Issue #40)。
+ * `DriversView` のライセンス検証と同じ流儀。
+ *
+ * 接続テストは OAuth 絡みでタイムアウトまで数十秒かかることがあるため、
+ * 実行中を示し (`htmx-indicator`)、連打を防ぐ (`hx-disabled-elt`)。
+ */
+private fun kotlinx.html.FlowContent.connectionTestButton(name: String) {
+    div(classes = "inline-form") {
+        attributes["id"] = "conn-test-$name"
+        button(type = ButtonType.button, classes = "secondary outline") {
+            attributes["hx-post"] = "/connections/$name/test"
+            attributes["hx-target"] = "#conn-test-$name"
+            attributes["hx-disabled-elt"] = "this"
+            +"接続テスト"
+            // htmx が .htmx-indicator / .htmx-request の CSS を自前で注入するため
+            // app.css への追加は不要。
+            span(classes = "htmx-indicator") { +" 実行中…" }
         }
+    }
+}
+
+/**
+ * 削除ボタン。
+ *
+ * 参照中かどうかで出し分けない。一覧描画時に判定すると全連携の jdbc_ref を
+ * 毎回引くことになる。押したときにハンドラ側で判定して拒否する (Issue #36)。
+ */
+private fun kotlinx.html.FlowContent.deleteButton(name: String) {
+    form(action = "/connections/$name/delete", method = FormMethod.post, classes = "inline-form") {
+        attributes["onsubmit"] = DeleteConfirm.connectionDeleteOnSubmit(name)
+        button(type = ButtonType.submit, classes = "danger") { +"削除" }
     }
 }
 
