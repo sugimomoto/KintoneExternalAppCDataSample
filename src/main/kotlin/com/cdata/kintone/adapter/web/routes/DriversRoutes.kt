@@ -6,6 +6,7 @@ import com.cdata.kintone.adapter.web.views.driverActivateResultView
 import com.cdata.kintone.adapter.web.views.driverActivateView
 import com.cdata.kintone.adapter.web.views.driversListView
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.MultiPartData
 import io.ktor.http.content.PartData
 import io.ktor.http.content.forEachPart
 import io.ktor.server.html.respondHtml
@@ -16,6 +17,10 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
+import com.cdata.kintone.adapter.web.views.licenseVerificationResult
+import kotlinx.html.div
+import kotlinx.html.span
+import kotlinx.html.stream.createHTML
 import io.ktor.utils.io.jvm.javaio.toInputStream
 
 fun Route.driversRoutes(ctx: AppContext) {
@@ -24,28 +29,10 @@ fun Route.driversRoutes(ctx: AppContext) {
     }
 
     post("/drivers/upload") {
-        var uploadedFilename: String? = null
-        var uploadError: String? = null
-        call.receiveMultipart().forEachPart { part ->
-            when (part) {
-                is PartData.FileItem -> {
-                    val filename = part.originalFileName ?: "uploaded.jar"
-                    try {
-                        part.provider().toInputStream().use { stream ->
-                            val info = ctx.driverManager.upload(filename, stream)
-                            uploadedFilename = info.filename
-                        }
-                    } catch (e: IllegalArgumentException) {
-                        uploadError = e.message
-                    }
-                }
-                else -> {}
-            }
-            part.dispose()
-        }
+        val error = receiveDriverJar(ctx, call.receiveMultipart())
         ctx.connectionPropertyInspector.invalidateCache()
-        if (uploadError != null) {
-            call.respondText("Upload failed: $uploadError", status = HttpStatusCode.BadRequest)
+        if (error != null) {
+            call.respondText("Upload failed: $error", status = HttpStatusCode.BadRequest)
         } else {
             call.respondRedirect("/drivers")
         }
@@ -74,10 +61,53 @@ fun Route.driversRoutes(ctx: AppContext) {
         call.respondHtml { driverActivateResultView(ctx, filename, success, msg, stdout) }
     }
 
+    post("/drivers/{filename}/verify-license") {
+        val html = licenseVerificationHtml(ctx, call.parameters["filename"]!!)
+        call.respondText(html, io.ktor.http.ContentType.Text.Html)
+    }
+
     post("/drivers/{filename}/delete") {
         val filename = call.parameters["filename"]!!
         ctx.driverManager.delete(filename)
         ctx.connectionPropertyInspector.invalidateCache()
         call.respondRedirect("/drivers")
     }
+}
+
+/**
+ * ライセンスが実際に使えるかを検証した結果のフラグメント。
+ *
+ * `.lic` の有無では分からないため明示的に確認する。
+ * 検証はライセンスファイルを書き換えない (Issue #31)。
+ * ドライバークラスが判別できない場合はその旨を返す。
+ */
+private fun licenseVerificationHtml(ctx: AppContext, filename: String): String {
+    val driverClass = ctx.driverManager.listDrivers()
+        .firstOrNull { it.filename == filename }
+        ?.driverClass
+        ?: return createHTML().span { +"ドライバークラスを判別できません" }
+
+    val verification = ctx.licenseVerifier.verify(driverClass, filename)
+    return createHTML().div { licenseVerificationResult(verification) }
+}
+
+/**
+ * アップロードされた JAR を `lib/` に保存する。失敗した場合はその理由を返す。
+ *
+ * multipart の解析とファイル保存を `driversRoutes` から切り出している。
+ */
+private suspend fun receiveDriverJar(ctx: AppContext, multipart: MultiPartData): String? {
+    var error: String? = null
+    multipart.forEachPart { part ->
+        if (part is PartData.FileItem) {
+            val filename = part.originalFileName ?: "uploaded.jar"
+            try {
+                part.provider().toInputStream().use { stream -> ctx.driverManager.upload(filename, stream) }
+            } catch (e: IllegalArgumentException) {
+                error = e.message
+            }
+        }
+        part.dispose()
+    }
+    return error
 }

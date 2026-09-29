@@ -24,6 +24,14 @@ interface DriverMetadataSource {
 
     /** [url] で接続して `sys_connection_props` を読む。接続できない場合は例外を投げる。 */
     fun sysConnectionProps(url: String): List<ConnectionProperty>
+
+    /**
+     * [url] で接続して `sys_procedures` を読む。
+     *
+     * この SELECT には**ライセンス認証が必要**（`sys_connection_props` は不要）。
+     * ライセンスが実際に使えるかの検証に使う ([LicenseVerifier])。
+     */
+    fun sysProcedureNames(url: String): List<String>
 }
 
 /** `DriverManager` を使う [DriverMetadataSource] の実装。 */
@@ -45,6 +53,19 @@ class JdbcDriverMetadataSource : DriverMetadataSource {
                     buildList {
                         while (rs.next()) {
                             add(parseRow(rs))
+                        }
+                    }
+                }
+            }
+        }
+
+    override fun sysProcedureNames(url: String): List<String> =
+        DriverManager.getConnection(url).use { conn ->
+            conn.createStatement().use { statement ->
+                statement.executeQuery(PROCEDURES_QUERY).use { rs ->
+                    buildList {
+                        while (rs.next()) {
+                            rs.getString("ProcedureName")?.let { add(it) }
                         }
                     }
                 }
@@ -85,6 +106,8 @@ class JdbcDriverMetadataSource : DriverMetadataSource {
     }
 
     private companion object {
+        const val PROCEDURES_QUERY = "SELECT ProcedureName FROM sys_procedures"
+
         val QUERY = """
             SELECT PropertyName, Name, ShortDescription, Type, Values, Default,
                    Category, Required, Sensitivity, Visible, Hierarchy,

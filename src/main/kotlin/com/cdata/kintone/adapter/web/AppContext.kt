@@ -13,6 +13,7 @@ import com.cdata.kintone.adapter.config.ConfigSource
 import com.cdata.kintone.adapter.config.ConfigStore
 import com.cdata.kintone.adapter.jdbc.JdbcConnectionPropertyInspector
 import com.cdata.kintone.adapter.jdbc.JdbcDriverManager
+import com.cdata.kintone.adapter.jdbc.LicenseVerifier
 import com.cdata.kintone.adapter.runtime.ActiveAdaptersFile
 import com.cdata.kintone.adapter.runtime.MultiAdapterRunner
 import com.cdata.kintone.adapter.runtime.PortMigrator
@@ -40,6 +41,8 @@ class AppContext(
     val agentContainerManager: AgentContainerManager?,
     /** Agent の接続失敗の記録 (Issue #21)。 */
     val agentConnectionStatusStore: AgentConnectionStatusStore,
+    /** ライセンスが実際に使えるかの検証 (Issue #31)。 */
+    val licenseVerifier: LicenseVerifier,
     val publicKeyManager: PublicKeyManager,
     val keyPairGeneratorService: KeyPairGeneratorService,
     val syncConnectionService: SyncConnectionService,
@@ -105,6 +108,7 @@ class AppContext(
                 configDir = configDir,
                 libDir = libDir,
                 connectionPropertyInspector = JdbcConnectionPropertyInspector(libDir),
+                licenseVerifier = LicenseVerifier(libDir),
                 agentConfigManager = agentConfigMgr,
                 agentControlMode = controlMode,
                 agentContainerManager = containerMgr,
