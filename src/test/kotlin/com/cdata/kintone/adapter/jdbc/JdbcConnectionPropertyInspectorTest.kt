@@ -45,6 +45,8 @@ class JdbcConnectionPropertyInspectorTest {
             return driverProperties
         }
 
+        override fun sysProcedureNames(url: String): List<String> = emptyList()
+
         override fun sysConnectionProps(url: String): List<ConnectionProperty> {
             attemptedUrls += url
             if (url !in succeedingUrls) throw SQLException("CORE [50003] Validation error")
