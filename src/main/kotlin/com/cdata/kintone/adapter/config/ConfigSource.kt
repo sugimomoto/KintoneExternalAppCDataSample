@@ -30,6 +30,14 @@ interface ConfigSource {
      */
     fun loadSharedJdbcConfig(name: String): JdbcConfig?
 
+    /**
+     * 連携が参照している共通 JDBC 設定の名前。インライン設定の場合は null。
+     *
+     * OAuth トークンキャッシュを**接続単位**で共有するために使う (Issue #11)。
+     * [loadTableSet] は `JdbcConfig` に解決してしまうため、参照名が分からない。
+     */
+    fun sharedJdbcRefOf(tableName: String): String? = null
+
     /** 共通 JDBC 設定の名前一覧。フェーズ2-B Web UI の Connections 画面で使用。 */
     fun listSharedJdbcConfigs(): List<String>
 

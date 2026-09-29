@@ -51,7 +51,7 @@ class TableAdapterServer(
         // OAuth キャッシュをテーブル別に分離（ユーザが明示指定済みなら尊重）
         val cachePath = JdbcUrlEnhancer.cachePathFor(oauthCacheBaseDir, tableName)
         val effectiveJdbc = config.jdbc.copy(
-            url = JdbcUrlEnhancer.withOAuthCachePerTable(config.jdbc.url, cachePath),
+            url = JdbcUrlEnhancer.withOAuthCache(config.jdbc.url, cachePath),
         )
         val provider = connectionProviderFactory(effectiveJdbc)
         connectionProvider = provider

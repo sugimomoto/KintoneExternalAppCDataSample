@@ -3,6 +3,7 @@ package com.cdata.kintone.adapter.jdbc
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Test
 
 /**
@@ -15,9 +16,9 @@ import org.junit.jupiter.api.Test
 class JdbcUrlEnhancerTest {
 
     @Test
-    fun `withOAuthCachePerTable - 既存 URL に OAuthSettingsLocation を付与`() {
+    fun `withOAuthCache - 既存 URL に OAuthSettingsLocation を付与`() {
         val url = "jdbc:salesforce:User=u;Password=p;"
-        val result = JdbcUrlEnhancer.withOAuthCachePerTable(url, "./run/oauth/account.txt")
+        val result = JdbcUrlEnhancer.withOAuthCache(url, "./run/oauth/account.txt")
         assertTrue(
             result.contains("OAuthSettingsLocation=./run/oauth/account.txt"),
             "result was: $result",
@@ -28,17 +29,17 @@ class JdbcUrlEnhancerTest {
     }
 
     @Test
-    fun `withOAuthCachePerTable - 既に OAuthSettingsLocation がある場合は変更しない`() {
+    fun `withOAuthCache - 既に OAuthSettingsLocation がある場合は変更しない`() {
         val url = "jdbc:salesforce:User=u;OAuthSettingsLocation=./existing.txt;"
-        val result = JdbcUrlEnhancer.withOAuthCachePerTable(url, "./run/oauth/account.txt")
+        val result = JdbcUrlEnhancer.withOAuthCache(url, "./run/oauth/account.txt")
         assertEquals(url, result)
         assertFalse(result.contains("/run/oauth/account.txt"))
     }
 
     @Test
-    fun `withOAuthCachePerTable - 末尾セミコロンの有無に関わらず正しく付与`() {
-        val a = JdbcUrlEnhancer.withOAuthCachePerTable("jdbc:foo:User=u", "/p.txt")
-        val b = JdbcUrlEnhancer.withOAuthCachePerTable("jdbc:foo:User=u;", "/p.txt")
+    fun `withOAuthCache - 末尾セミコロンの有無に関わらず正しく付与`() {
+        val a = JdbcUrlEnhancer.withOAuthCache("jdbc:foo:User=u", "/p.txt")
+        val b = JdbcUrlEnhancer.withOAuthCache("jdbc:foo:User=u;", "/p.txt")
         assertTrue(a.endsWith("OAuthSettingsLocation=/p.txt"), "a=$a")
         assertTrue(b.endsWith("OAuthSettingsLocation=/p.txt"), "b=$b")
         // セミコロンで区切られている
@@ -57,5 +58,31 @@ class JdbcUrlEnhancerTest {
         val path = JdbcUrlEnhancer.cachePathFor("./run", "../etc")
         // パストラバーサルを防ぐためサニタイズ
         assertFalse(path.contains(".."), "サニタイズ後パス: $path")
+    }
+
+    @Test
+    fun `cachePathFor - パス区切りを含むキーでディレクトリを抜け出さない`() {
+        listOf("../../etc/passwd", "a/b", "a\\b", "..").forEach { key ->
+            val path = JdbcUrlEnhancer.cachePathFor("./run", key)
+            assertFalse(path.contains(".."), "抜け出している: $path")
+            assertTrue(path.startsWith("./run/oauth/"), "実際: $path")
+        }
+    }
+
+    @Test
+    fun `cachePathFor - 同じキーなら同じパスになる`() {
+        // 接続テストと実行時で保存先が食い違わないことが本質 (Issue #11)。
+        assertEquals(
+            JdbcUrlEnhancer.cachePathFor("./run", "googlesheets-main"),
+            JdbcUrlEnhancer.cachePathFor("./run", "googlesheets-main"),
+        )
+    }
+
+    @Test
+    fun `cachePathFor - 異なるキーは別パスになる`() {
+        assertNotEquals(
+            JdbcUrlEnhancer.cachePathFor("./run", "conn-a"),
+            JdbcUrlEnhancer.cachePathFor("./run", "conn-b"),
+        )
     }
 }

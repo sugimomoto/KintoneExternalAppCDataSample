@@ -183,4 +183,40 @@ class SqliteConfigSourceTest {
         val source2 = SqliteConfigSource(path)
         assertEquals(listOf("a"), source2.listTables())
     }
+
+    // --- OAuth キャッシュを接続単位で共有するための参照名解決 (Issue #11) ---
+
+    @Test
+    fun `sharedJdbcRefOf - 共通 JDBC を参照する連携は参照名を返す`(@TempDir tempDir: Path) {
+        val source = newSource(tempDir)
+        source.saveSharedJdbcConfig("sf-main", sampleJdbc())
+        source.saveTableSetWithRef("Account", sampleTableSet(), jdbcRef = "sf-main")
+
+        assertEquals("sf-main", source.sharedJdbcRefOf("Account"))
+    }
+
+    @Test
+    fun `sharedJdbcRefOf - 同じ接続を参照する複数の連携が同じ名前を返す`(@TempDir tempDir: Path) {
+        // 同一接続の連携がキャッシュを共有できることが本質。
+        val source = newSource(tempDir)
+        source.saveSharedJdbcConfig("sf-main", sampleJdbc())
+        source.saveTableSetWithRef("Account", sampleTableSet("Account"), jdbcRef = "sf-main")
+        source.saveTableSetWithRef("Contact", sampleTableSet("Contact"), jdbcRef = "sf-main")
+
+        assertEquals("sf-main", source.sharedJdbcRefOf("Account"))
+        assertEquals(source.sharedJdbcRefOf("Account"), source.sharedJdbcRefOf("Contact"))
+    }
+
+    @Test
+    fun `sharedJdbcRefOf - インライン設定の連携は null を返す`(@TempDir tempDir: Path) {
+        val source = newSource(tempDir)
+        source.saveTableSet("Inline", sampleTableSet("Inline"))
+
+        assertNull(source.sharedJdbcRefOf("Inline"))
+    }
+
+    @Test
+    fun `sharedJdbcRefOf - 存在しない連携は null を返す`(@TempDir tempDir: Path) {
+        assertNull(newSource(tempDir).sharedJdbcRefOf("NotExist"))
+    }
 }
