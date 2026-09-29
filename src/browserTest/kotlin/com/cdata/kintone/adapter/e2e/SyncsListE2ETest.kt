@@ -10,6 +10,7 @@ import com.cdata.kintone.adapter.config.TableConfigSet
 import com.cdata.kintone.adapter.config.ConfigStore
 import com.cdata.kintone.adapter.metadata.ColumnType
 import com.cdata.kintone.adapter.metadata.RecordIdType
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.nio.file.Path
@@ -65,5 +66,44 @@ class SyncsListE2ETest : BrowserTestBase() {
         assertTrue(page.locator("a:has-text(\"kintone と接続\")").count() > 0)
         assertTrue(page.locator("a:has-text(\"ログを見る\")").count() > 0)
         assertTrue(page.locator("a:has-text(\"編集\")").count() > 0)
+    }
+
+    @Test
+    fun `E2E-03d 一覧の各行に削除ボタンが表示される`() {
+        page.navigate("$baseUrl/syncs")
+
+        val row = page.locator("tr[data-table=\"demo-account\"]")
+        assertTrue(row.count() > 0, "demo-account の行が見つからない")
+        // has-text は部分一致のため、別機能の「agent.json を削除」を拾わないよう
+        // フォームの action で特定する。
+        assertTrue(
+            row.locator("form[action=\"/syncs/demo-account/delete\"] button.danger").count() > 0,
+            "行の操作列に削除ボタンが無い",
+        )
+    }
+
+    @Test
+    fun `E2E-03e 確認ダイアログでキャンセルすると削除されない`() {
+        page.navigate("$baseUrl/syncs")
+        // confirm を拒否する。ブラウザ標準の confirm なので Playwright 側で dismiss する。
+        page.onDialog { it.dismiss() }
+
+        page.locator("form[action=\"/syncs/demo-account/delete\"] button.danger").click()
+        page.waitForTimeout(500.0)
+
+        assertTrue(
+            page.locator("tr[data-table=\"demo-account\"]").count() > 0,
+            "キャンセルしたのに連携が消えている",
+        )
+    }
+
+    @Test
+    fun `E2E-03f 詳細画面の連携削除フォームは 1 つだけ`() {
+        // 一覧と詳細で tableActions() を共用しているため、詳細画面に独立した
+        // 削除フォームを残すとボタンが 2 つ並ぶ (Issue #8)。
+        // 「agent.json を削除」は別機能なので action で区別する。
+        page.navigate("$baseUrl/syncs/demo-account")
+
+        assertEquals(1, page.locator("form[action=\"/syncs/demo-account/delete\"]").count())
     }
 }

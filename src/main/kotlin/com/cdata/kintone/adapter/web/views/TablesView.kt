@@ -143,10 +143,7 @@ fun HTML.tableDetailView(ctx: AppContext, name: String, set: TableConfigSet) {
             a(href = "/syncs/$name/connect", classes = "button") { +"kintone と接続 →" }
             a(href = "/syncs/$name/logs", classes = "button secondary outline") { +"ログを見る" }
             a(href = "/syncs/$name/edit", classes = "button secondary") { +"編集" }
-            form(action = "/syncs/$name/delete", method = FormMethod.post, classes = "inline-form") {
-                attributes["onsubmit"] = "return confirm('連携 \"$name\" を削除しますか？稼働中の Adapter + Agent コンテナも停止・削除します。')"
-                button(type = ButtonType.submit, classes = "danger") { +"削除" }
-            }
+            // 削除ボタンは tableActions() が描画する。ここに置くと 2 つ並ぶため持たない。
         }
 
         section {
@@ -430,6 +427,14 @@ private fun kotlinx.html.FlowContent.tableActions(name: String, isActive: Boolea
         form(action = "/syncs/$name/start", method = FormMethod.post, classes = "inline-form") {
             button(type = ButtonType.submit, classes = "secondary") { +"▶ 開始" }
         }
+    }
+
+    // 稼働状態で出し分けない。SSE は tr[data-table] の .status セルしか更新しないため、
+    // 出し分けると SSE 更新後に表示が実態とずれる (Issue #8)。
+    // 破壊的な操作なので開始/停止より右に置く。
+    form(action = "/syncs/$name/delete", method = FormMethod.post, classes = "inline-form") {
+        attributes["onsubmit"] = DeleteConfirm.syncDeleteOnSubmit(name)
+        button(type = ButtonType.submit, classes = "danger") { +"削除" }
     }
 }
 
