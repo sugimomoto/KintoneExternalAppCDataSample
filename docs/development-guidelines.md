@@ -455,7 +455,8 @@ CLAUDE.md のルールに従う。
 
 - ERROR/WARN/INFO レベル：機密情報を出さない
 - DEBUG レベル：SQL 文・パラメータを出してよいが、本番では DEBUG OFF
-- 接続文字列の `Password=xxx` 部分は常にマスキング
+- 接続文字列は**必ず `jdbc/ConnectionStringMasker.mask()` を通してから**ログ出力・画面表示する
+  - 自前の正規表現でマスクしないこと（列挙漏れで機密が素通りする。Issue #10 の原因）
 
 ---
 

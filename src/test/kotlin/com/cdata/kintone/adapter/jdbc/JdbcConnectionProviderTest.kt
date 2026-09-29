@@ -61,17 +61,4 @@ class JdbcConnectionProviderTest {
         }
     }
 
-    @Test
-    fun `maskUrl で Password を伏せる`() {
-        val url = "jdbc:salesforce:User=alice;Password=secret;SecurityToken=token123;"
-        val masked = JdbcConnectionProvider.maskUrl(url)
-        assertEquals("jdbc:salesforce:User=alice;Password=***;SecurityToken=token123;", masked)
-    }
-
-    @Test
-    fun `maskUrl で password 小文字も対応`() {
-        val url = "jdbc:postgresql://host:5432/db?user=u&password=s3cr3t"
-        val masked = JdbcConnectionProvider.maskUrl(url)
-        assertEquals("jdbc:postgresql://host:5432/db?user=u&password=***", masked)
-    }
 }

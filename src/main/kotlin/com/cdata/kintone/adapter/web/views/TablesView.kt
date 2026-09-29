@@ -1,5 +1,6 @@
 package com.cdata.kintone.adapter.web.views
 
+import com.cdata.kintone.adapter.jdbc.ConnectionStringMasker
 import com.cdata.kintone.adapter.config.TableConfigSet
 import com.cdata.kintone.adapter.web.AppContext
 import kotlinx.html.ButtonType
@@ -132,7 +133,7 @@ fun HTML.tableDetailView(ctx: AppContext, name: String, set: TableConfigSet) {
             ul {
                 li { +"Driver: "; code { +set.jdbc.driverClass } }
                 li { +"Driver JAR: "; code { +set.jdbc.driverJar } }
-                li { +"URL (masked): "; code { +maskUrl(set.jdbc.url) } }
+                li { +"URL (masked): "; code { +ConnectionStringMasker.mask(set.jdbc.url) } }
                 li { +"Pool size: "; code { +set.jdbc.pool.maximumPoolSize.toString() } }
             }
         }
@@ -398,11 +399,4 @@ private fun driverDescription(set: TableConfigSet?): String {
     if (set == null) return "(load error)"
     val cls = set.jdbc.driverClass
     return cls.substringAfter("cdata.jdbc.").substringBefore('.')
-}
-
-private fun maskUrl(url: String): String {
-    return url
-        .replace(Regex("(?i)(password=)([^;]*)"), "\$1***")
-        .replace(Regex("(?i)(securitytoken=)([^;]*)"), "\$1***")
-        .replace(Regex("(?i)(oauthclientsecret=)([^;]*)"), "\$1***")
 }

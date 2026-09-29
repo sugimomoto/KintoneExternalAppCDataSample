@@ -1,5 +1,6 @@
 package com.cdata.kintone.adapter.web.views
 
+import com.cdata.kintone.adapter.jdbc.ConnectionStringMasker
 import com.cdata.kintone.adapter.config.JdbcConfig
 import com.cdata.kintone.adapter.jdbc.ConnectionProperty
 import com.cdata.kintone.adapter.jdbc.PropertyType
@@ -69,7 +70,7 @@ fun HTML.connectionsListView(ctx: AppContext) {
                         tr {
                             td { a(href = "/connections/$name") { +name } }
                             td { code { +(config?.driverClass ?: "-") } }
-                            td { code { +maskUrlGeneric(config?.url ?: "") } }
+                            td { code { +ConnectionStringMasker.mask(config?.url ?: "") } }
                             td {
                                 form(action = "/connections/$name/test", method = FormMethod.post, classes = "inline-form") {
                                     button(type = ButtonType.submit, classes = "secondary outline") { +"Test" }
@@ -353,6 +354,3 @@ fun existingValuesOf(config: JdbcConfig): Map<String, String> {
     map["__url__"] = config.url
     return map
 }
-
-fun maskUrlGeneric(url: String): String =
-    url.replace(Regex("(?i)(password|securitytoken|oauthclientsecret|oauthaccesstoken|oauthrefreshtoken)=([^;]*)"), "$1=***")
