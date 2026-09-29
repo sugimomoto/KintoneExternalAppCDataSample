@@ -12,8 +12,8 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 
 /**
- * Adapter 全体の設定。4つのファイル (`server.yaml`, `jdbc.yaml`, `table.yaml`, `capability.yaml`) を
- * 統合した実行時設定を表す。
+ * Adapter 全体の設定。設定ストア (SQLite) の 1 連携分の行から組み立てた実行時設定を表す。
+ * server / jdbc / table / capability の 4 つの設定を 1 つに束ねたもの。
  */
 data class AdapterConfig(
     val server: ServerConfig,
