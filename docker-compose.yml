@@ -14,6 +14,8 @@ services:
     ports:
       - "8080:8080"                       # Web UI
       # Sync 用 Adapter ポート (Web UI が動的に採番)
+      # ⚠ この範囲は PortAllocator.DEFAULT_START / DEFAULT_END と必ず一致させること。
+      #    ズレると Agent コンテナから host.docker.internal:<port> に到達できない (Issue #3)。
       - "18000-18099:18000-18099"
     volumes:
       - ./config:/app/config

@@ -3,6 +3,7 @@ package com.cdata.kintone.adapter.web.views
 import com.cdata.kintone.adapter.metadata.ColumnInfo
 import com.cdata.kintone.adapter.metadata.RecordIdType
 import com.cdata.kintone.adapter.metadata.TableInfo
+import com.cdata.kintone.adapter.runtime.PortAllocator
 import com.cdata.kintone.adapter.web.AppContext
 import kotlinx.html.ButtonType
 import kotlinx.html.FormMethod
@@ -193,6 +194,8 @@ fun HTML.wizardStep4View(
     recommendedRecordIdType: RecordIdType,
     mappings: List<WizardMapping>,
 ) {
+    // 空きポートを提示する。使い切っている場合は空欄にして保存時にエラーを出す。
+    val suggestedPort = runCatching { ctx.syncPortAllocator.allocate() }.getOrNull()
     layout(
         pageTitle = "New Table — Step 4",
         mode = ctx.configSourceMode,
@@ -271,8 +274,11 @@ fun HTML.wizardStep4View(
                     }
                 }
                 label {
-                    +"Server Port (0 で auto): "
-                    input(type = InputType.number, name = "port") { value = "0" }
+                    // port: 0 (OS 任意ポート) は Docker の publish 範囲外を掴むため使わない (Issue #3)
+                    +"Server Port (Docker 公開範囲 ${PortAllocator.publishedRangeLabel} / 空欄で自動採番): "
+                    input(type = InputType.number, name = "port") {
+                        value = suggestedPort?.toString() ?: ""
+                    }
                 }
                 label {
                     +"Filterable fields (カンマ区切り, kintone field_id): "

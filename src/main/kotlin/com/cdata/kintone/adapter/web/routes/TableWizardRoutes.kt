@@ -110,7 +110,18 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
         val configName = form["configName"]!!
         val primaryKey = form["primaryKeyColumn"]!!
         val recordIdType = form["recordIdType"]?.let { RecordIdType.valueOf(it) } ?: RecordIdType.TEXT
-        val port = form["port"]?.toIntOrNull() ?: 0
+        // 空欄 / 0 (auto) は publish 範囲から採番する。範囲外の ephemeral port を掴ませない (Issue #3)。
+        val requestedPort = form["port"]?.trim()?.toIntOrNull() ?: 0
+        val port = if (requestedPort > 0) {
+            requestedPort
+        } else {
+            runCatching { ctx.syncPortAllocator.allocate() }.getOrElse {
+                return@post call.respondText(
+                    it.message ?: "Adapter 用ポートを採番できませんでした",
+                    status = HttpStatusCode.Conflict,
+                )
+            }
+        }
         val filterableFields = form["filterableFields"]?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
         val sortableFields = form["sortableFields"]?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
 

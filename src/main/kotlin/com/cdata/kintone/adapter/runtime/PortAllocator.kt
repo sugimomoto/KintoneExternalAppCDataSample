@@ -76,8 +76,21 @@ class PortAllocator(
     private fun pickOsPort(): Int = ServerSocket(0).use { it.localPort }
 
     companion object {
-        /** デフォルト範囲。フェーズ1 default の 8083 と被らないよう少し上の帯域を予約する想定。 */
+        /**
+         * デフォルト範囲 = Docker で publish している Adapter ポートの範囲。
+         *
+         * `docker-compose.yml` の `18000-18099:18000-18099` と**必ず一致させること**。
+         * この範囲外のポートで Adapter を listen すると、Agent コンテナからは
+         * `host.docker.internal:<port>` に到達できず `adapter is unavailable` になる
+         * (Issue #3)。
+         */
         const val DEFAULT_START = 18_000
-        const val DEFAULT_END = 19_000
+        const val DEFAULT_END = 18_099
+
+        /** [port] が Docker の publish 範囲内かどうか。 */
+        fun isPublished(port: Int): Boolean = port in DEFAULT_START..DEFAULT_END
+
+        /** UI / ログ表示用の範囲文字列 (例: `18000-18099`)。 */
+        val publishedRangeLabel: String get() = "$DEFAULT_START-$DEFAULT_END"
     }
 }

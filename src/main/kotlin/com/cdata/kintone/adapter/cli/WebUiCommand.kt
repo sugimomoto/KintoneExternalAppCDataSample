@@ -52,6 +52,12 @@ class WebUiCommand : CliktCommand(name = "web-ui") {
         echo("  Config Source: ${context.configSourceMode.name.lowercase()}")
         echo("  Config dir:    $configDir")
         echo("  Lib dir:       $libDir")
+        if (context.migratedPorts.isNotEmpty()) {
+            echo("  Port 移行:     ${context.migratedPorts.size} 件 " +
+                context.migratedPorts.joinToString(", ") { "${it.syncName}→${it.newPort}" })
+        }
+        echo("  Adapter 起動:  ${context.startedAdapters.size} 件" +
+            if (context.startedAdapters.isEmpty()) "" else " (${context.startedAdapters.joinToString(", ")})")
         echo("")
         echo("Ctrl-C で停止")
 

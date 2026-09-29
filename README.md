@@ -261,6 +261,34 @@ java -jar build/libs/adapter-*-all.jar export-yaml --out-dir ./config-backup
 - `agent/bin/linux_<arch>/kintone-data-connector-agent` が存在し実行権限ありか
 - `HOST_AGENT_ROOT` 環境変数がホスト側の絶対パスを指しているか
 
+### kintone で「Adapterが利用できません」(GAIA_AU01)
+
+Agent は kintone に接続できているが、**Agent → Adapter の gRPC が通っていない**状態。
+`docker logs kintone-agent-<連携名>` に次が出る。
+
+```
+"msg":"failed to call GetCapability","err":"... dial tcp ...:43343: connect: connection refused"
+"msg":"failed to handle operation request","err":"adapter is unavailable ..."
+```
+
+確認する順番:
+
+1. **Adapter のポートが公開範囲内か**
+   `config/tables/<連携名>/server.yaml` の `port` が **18000-18099** の範囲にあるか。
+   `port: "0"`（auto）になっていると publish 範囲外の ephemeral port を掴むため必ず到達不可。
+   → adapter-console を再起動すると `PortMigrator` が自動で範囲内へ移行する
+2. **Adapter が起動しているか**
+   `docker logs adapter-console` の起動サマリ `Adapter 起動: N 件` を確認
+3. **agent.json が最新のポートを指しているか**
+   `agent/tables/<連携名>/agent.json` の `adapter_addr` と `server.yaml` の `port` が一致しているか
+   → 一致していない場合は Web UI から「接続して開始」をやり直す
+
+### Agent コンテナが `Restarting` を繰り返す
+
+`docker logs kintone-agent-<連携名>` に `Unauthenticated desc = invalid token` /
+`token has been revoked` が出ている場合、接続キーが失効している。
+kintone 側で接続キーを再発行し、Web UI の「接続して開始」で入力し直す。
+
 ### `What went wrong: 25.0.2` などの Java バージョンエラー
 
 Gradle 8.x が Java 25 未対応。JDK 21 を使う:

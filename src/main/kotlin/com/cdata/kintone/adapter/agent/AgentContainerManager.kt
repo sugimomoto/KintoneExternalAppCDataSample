@@ -5,6 +5,7 @@ import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.command.CreateContainerResponse
 import com.github.dockerjava.api.exception.ConflictException
 import com.github.dockerjava.api.exception.NotFoundException
+import com.github.dockerjava.api.exception.NotModifiedException
 import com.github.dockerjava.api.model.AccessMode
 import com.github.dockerjava.api.model.Bind
 import com.github.dockerjava.api.model.Frame
@@ -116,11 +117,30 @@ class AgentContainerManager(
             log.info { "Started container: $containerName" }
         } catch (e: NotFoundException) {
             log.warn { "Container not found at start: $containerName" }
-        } catch (e: Exception) {
-            // 既に running は OK
-            if (e.message?.contains("already started", ignoreCase = true) != true) throw e
+        } catch (e: NotModifiedException) {
+            // Docker Engine API は起動済みコンテナの start に 304 を返す。これは正常系。
+            log.debug(e) { "Container already started: $containerName" }
         }
         return status(syncName)
+    }
+
+    /**
+     * コンテナを再起動する。`agent.json` はプロセス起動時にしか読まれないため、
+     * 設定を変更したあとに確実へ反映させたい場合はこちらを使う。
+     *
+     * コンテナが存在しない場合は作成して起動する。
+     */
+    fun restart(syncName: String, timeoutSec: Int = 10): ContainerInfo {
+        val containerName = containerName(syncName)
+        return try {
+            dockerClient.restartContainerCmd(containerName).withTimeout(timeoutSec).exec()
+            log.info { "Restarted container: $containerName" }
+            status(syncName)
+        } catch (e: NotFoundException) {
+            log.warn(e) { "Container not found at restart, creating: $containerName" }
+            // start() が内部で ensureCreated() を呼ぶ
+            start(syncName)
+        }
     }
 
     fun stop(syncName: String, timeoutSec: Int = 10): ContainerInfo {
@@ -130,8 +150,9 @@ class AgentContainerManager(
             log.info { "Stopped container: $containerName" }
         } catch (e: NotFoundException) {
             return status(syncName)
-        } catch (e: Exception) {
-            if (e.message?.contains("not running", ignoreCase = true) != true) throw e
+        } catch (e: NotModifiedException) {
+            // 停止済みコンテナの stop も 304。これは正常系。
+            log.debug(e) { "Container already stopped: $containerName" }
         }
         return status(syncName)
     }
