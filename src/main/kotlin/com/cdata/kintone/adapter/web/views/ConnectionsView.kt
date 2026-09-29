@@ -39,13 +39,15 @@ import kotlinx.html.span
 import kotlinx.html.summary
 import kotlinx.html.table
 import kotlinx.html.tbody
+import kotlinx.html.li
+import kotlinx.html.ul
 import kotlinx.html.td
 import kotlinx.html.th
 import kotlinx.html.thead
 import kotlinx.html.textArea
 import kotlinx.html.tr
 
-fun HTML.connectionsListView(ctx: AppContext) {
+fun HTML.connectionsListView(ctx: AppContext, blockedDelete: BlockedDelete? = null) {
     val names = ctx.configSource.listSharedJdbcConfigs()
     layout(
         pageTitle = "データソース",
@@ -56,6 +58,8 @@ fun HTML.connectionsListView(ctx: AppContext) {
             h2 { +"データソース接続 (${names.size} 件)" }
             a(href = "/connections/new", classes = "button") { +"+ 新しいデータソース接続" }
         }
+
+        blockedDelete?.let { blocked -> blockedDeleteNotice(blocked) }
 
         if (names.isEmpty()) {
             article {
@@ -74,31 +78,58 @@ fun HTML.connectionsListView(ctx: AppContext) {
                     }
                     tbody {
                         names.forEach { name ->
-                            val config = ctx.configSource.loadSharedJdbcConfig(name)
-                            tr {
-                                td { a(href = "/connections/$name") { +name } }
-                                td { code { +(config?.driverClass ?: "-") } }
-                                // 全文は title で参照する。マスク済みの値のみを入れること
-                                // (生の接続文字列を入れると DOM に平文の資格情報が載る)。
-                                val masked = ConnectionStringMasker.mask(config?.url ?: "")
-                                td(classes = "cell-truncate") {
-                                    attributes["title"] = masked
-                                    code { +masked }
-                                }
-                                td(classes = "cell-actions") {
-                                    form(
-                                        action = "/connections/$name/test",
-                                        method = FormMethod.post,
-                                        classes = "inline-form",
-                                    ) {
-                                        button(type = ButtonType.submit, classes = "secondary outline") { +"接続テスト" }
-                                    }
-                                    a(href = "/connections/$name/edit", classes = "button secondary") { +"編集" }
-                                }
-                            }
+                            connectionRow(name, ctx.configSource.loadSharedJdbcConfig(name))
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** データソース接続 1 行。操作列が増えて `connectionsListView` が長くなるため切り出している。 */
+private fun kotlinx.html.TBODY.connectionRow(name: String, config: JdbcConfig?) {
+    tr {
+        td { a(href = "/connections/$name") { +name } }
+        td { code { +(config?.driverClass ?: "-") } }
+        // 全文は title で参照する。マスク済みの値のみを入れること
+        // (生の接続文字列を入れると DOM に平文の資格情報が載る)。
+        val masked = ConnectionStringMasker.mask(config?.url ?: "")
+        td(classes = "cell-truncate") {
+            attributes["title"] = masked
+            code { +masked }
+        }
+        td(classes = "cell-actions") {
+            form(action = "/connections/$name/test", method = FormMethod.post, classes = "inline-form") {
+                button(type = ButtonType.submit, classes = "secondary outline") { +"接続テスト" }
+            }
+            a(href = "/connections/$name/edit", classes = "button secondary") { +"編集" }
+            // 参照中かどうかで出し分けない。一覧描画時に判定すると全連携の jdbc_ref を
+            // 毎回引くことになる。押したときにハンドラ側で判定して拒否する (Issue #36)。
+            form(action = "/connections/$name/delete", method = FormMethod.post, classes = "inline-form") {
+                attributes["onsubmit"] = DeleteConfirm.connectionDeleteOnSubmit(name)
+                button(type = ButtonType.submit, classes = "danger") { +"削除" }
+            }
+        }
+    }
+}
+
+/**
+ * 参照中のため削除できなかったことを伝える。
+ *
+ * 先に参照元の連携を削除すればデータソースも削除できる、と分かるように
+ * 参照元の連携名を全件出す (AC-6, AC-7)。
+ */
+private fun kotlinx.html.FlowContent.blockedDeleteNotice(blocked: BlockedDelete) {
+    article(classes = "warning-banner") {
+        p {
+            +"データソース接続 "
+            code { +blocked.connectionName }
+            +" は次の連携が使用しているため削除できません。先に連携を削除してください。"
+        }
+        ul {
+            blocked.referencingTables.forEach { tableName ->
+                li { a(href = "/syncs/$tableName") { +tableName } }
             }
         }
     }

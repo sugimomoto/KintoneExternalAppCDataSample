@@ -2,10 +2,12 @@ package com.cdata.kintone.adapter.web.routes
 
 import com.cdata.kintone.adapter.jdbc.ConnectionStringMasker
 import com.cdata.kintone.adapter.config.JdbcConfig
+import com.cdata.kintone.adapter.config.JdbcReferenceIndex
 import com.cdata.kintone.adapter.config.PoolConfig
 import com.cdata.kintone.adapter.jdbc.JdbcConnectionPropertyInspector
 import com.cdata.kintone.adapter.jdbc.JdbcConnectionProvider
 import com.cdata.kintone.adapter.web.AppContext
+import com.cdata.kintone.adapter.web.views.BlockedDelete
 import com.cdata.kintone.adapter.web.views.connectionFormView
 import com.cdata.kintone.adapter.web.views.connectionsListView
 import com.cdata.kintone.adapter.web.views.propertiesFormContent
@@ -146,6 +148,14 @@ fun Route.connectionsRoutes(ctx: AppContext) {
 
     post("/connections/{name}/delete") {
         val name = call.parameters["name"]!!
+        // 参照中の接続を消すと連携の loadTableSet が ConfigParseException で失敗し、
+        // 起動できなくなる。UI にその動線を作らないため削除を拒否する (Issue #36)。
+        val referencing = JdbcReferenceIndex.tablesReferencing(referenceMapOf(ctx), name)
+        if (referencing.isNotEmpty()) {
+            return@post call.respondHtml {
+                connectionsListView(ctx, BlockedDelete(name, referencing))
+            }
+        }
         ctx.configSource.deleteSharedJdbcConfig(name)
         call.respondRedirect("/connections")
     }
@@ -209,3 +219,11 @@ private fun buildUrlFromValues(
         .joinToString(";") { "${it.key}=${it.value}" }
     return if (pairs.isEmpty()) fallbackUrl ?: "$jdbcPrefix:" else "$jdbcPrefix:$pairs;"
 }
+
+/**
+ * 連携名 → 参照先データソース名。inline JDBC の連携は `null` になる。
+ *
+ * `ConfigSource` に専用 API を足さず、既存の `listTables` + `sharedJdbcRefOf` で組む。
+ */
+private fun referenceMapOf(ctx: AppContext): Map<String, String?> =
+    ctx.configSource.listTables().associateWith { ctx.configSource.sharedJdbcRefOf(it) }
