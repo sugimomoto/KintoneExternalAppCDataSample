@@ -243,4 +243,24 @@ class AgentContainerManagerTest {
         }
         every { dockerClient.listContainersCmd() } returns cmd
     }
+
+    // --- TZ の引き継ぎ (Issue #25) ---
+
+    @Test
+    fun `timeZoneEnv - TZ が設定されていれば env として渡す`() {
+        // Agent のログと console のログを並べて読むため、時刻を揃える必要がある。
+        assertEquals(listOf("TZ=Asia/Tokyo"), AgentContainerManager.timeZoneEnv("Asia/Tokyo"))
+    }
+
+    @Test
+    fun `timeZoneEnv - TZ が未設定なら何も渡さない`() {
+        // 渡すべき値が無いときに空文字を渡すとイメージ側の解決が壊れる恐れがある。
+        assertEquals(emptyList<String>(), AgentContainerManager.timeZoneEnv(null))
+    }
+
+    @Test
+    fun `timeZoneEnv - TZ が空文字なら何も渡さない`() {
+        assertEquals(emptyList<String>(), AgentContainerManager.timeZoneEnv(""))
+        assertEquals(emptyList<String>(), AgentContainerManager.timeZoneEnv("   "))
+    }
 }

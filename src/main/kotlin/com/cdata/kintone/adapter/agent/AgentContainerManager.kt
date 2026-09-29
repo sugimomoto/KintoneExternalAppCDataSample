@@ -270,6 +270,15 @@ class AgentContainerManager(
         const val LABEL_MANAGED = "com.cdata.adapter.managed"
 
         /**
+         * Agent コンテナに渡す `TZ` 環境変数。
+         *
+         * console 自身の `TZ` を引き継ぐ。Agent と console のログを並べて読むため
+         * 時刻を揃える必要があり、かつ既定値を compose とコードで二重に持たないため
+         * (Issue #25)。未設定なら何も渡さない（イメージ既定の UTC になる）。
+         */
+        fun timeZoneEnv(timeZone: String?): List<String> = TODO()
+
+        /**
          * 標準的な Docker socket (`/var/run/docker.sock`) に接続する。
          * 接続できない環境では `available = false` の AgentControlMode を別途使う。
          */
