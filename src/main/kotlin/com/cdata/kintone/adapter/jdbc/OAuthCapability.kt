@@ -46,8 +46,29 @@ object OAuthCapability {
      * `jdbc:<product>:<最初のプロパティ>=...` の形で、最初に書かれた場合は
      * 直前が `:` になる。
      */
-    fun authSchemeOf(jdbcUrl: String): String? =
-        AUTH_SCHEME_REGEX.find(jdbcUrl)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() }
+    fun authSchemeOf(jdbcUrl: String): String? = propertyOf(jdbcUrl, "AuthScheme")
 
-    private val AUTH_SCHEME_REGEX = Regex("""(?i)(?:^|[;:])\s*AuthScheme\s*=\s*([^;]*)""")
+    /**
+     * 接続文字列から `CallbackURL` を取り出す。明示されていなければ null。
+     *
+     * 未指定の場合はドライバーの既定値（Salesforce なら `http://localhost:33333`）が
+     * 使われる。認可後のリダイレクト先がそこになり、ブラウザは接続エラーになるが、
+     * URL のクエリに `code=` が付くので値はコピーできる。
+     */
+    fun callbackUrlOf(jdbcUrl: String): String? = propertyOf(jdbcUrl, "CallbackURL")
+
+    /**
+     * 接続文字列から任意のプロパティ値を取り出す。
+     *
+     * 区切りは `;` だけでなく `:` も見る。CData の接続文字列は
+     * `jdbc:<product>:<最初のプロパティ>=...` の形で、最初に書かれた場合は
+     * 直前が `:` になる。
+     */
+    private fun propertyOf(jdbcUrl: String, propertyName: String): String? =
+        Regex("""(?i)(?:^|[;:])\s*$propertyName\s*=\s*([^;]*)""")
+            .find(jdbcUrl)
+            ?.groupValues
+            ?.get(1)
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
 }

@@ -4,6 +4,7 @@ import com.cdata.kintone.adapter.config.JdbcConfig
 import com.cdata.kintone.adapter.jdbc.ConnectionPropertiesResult
 import com.cdata.kintone.adapter.jdbc.ConnectionProperty
 import com.cdata.kintone.adapter.jdbc.ConnectionStringMasker
+import com.cdata.kintone.adapter.jdbc.OAuthCapability
 import com.cdata.kintone.adapter.jdbc.PropertyHierarchyResolver
 import com.cdata.kintone.adapter.jdbc.PropertySource
 import com.cdata.kintone.adapter.jdbc.PropertyType
@@ -131,6 +132,13 @@ fun HTML.connectionFormView(
             return@layout
         }
 
+        // 動的プロパティは導線の判定とフォーム描画の両方で使うため、ここで 1 回だけ取る。
+        val propertiesResult = propertiesResultFor(ctx, drivers, existing)
+
+        if (editMode) {
+            oauthAuthorizationLinkIfNeeded(existingName, existing, propertiesResult)
+        }
+
         val postAction = if (editMode) "/connections/$existingName" else "/connections"
         form(action = postAction, method = FormMethod.post, classes = "connection-form") {
             attributes["id"] = "connection-form"
@@ -174,14 +182,8 @@ fun HTML.connectionFormView(
             // ここを差し替える (propertyFieldTargets を参照)。
             div {
                 attributes["id"] = "properties-form-container"
-                if (existing != null) {
-                    val driverInfo = drivers.firstOrNull { it.driverClass == existing.driverClass }
-                    if (driverInfo != null) {
-                        val result = ctx.connectionPropertyInspector.fetchProperties(
-                            existing.driverClass, driverInfo.filename,
-                        )
-                        propertiesFormContent(result, existingValuesOf(existing))
-                    }
+                if (existing != null && propertiesResult != null) {
+                    propertiesFormContent(propertiesResult, existingValuesOf(existing))
                 }
             }
 
@@ -219,6 +221,61 @@ fun HTML.connectionFormView(
             } else {
                 p { small { +"(ドライバ選択後にプレビューが表示されます)" } }
             }
+        }
+    }
+}
+
+/** 編集対象の接続に対応する動的プロパティ。新規作成時やドライバー不明時は null。 */
+private fun propertiesResultFor(
+    ctx: AppContext,
+    drivers: List<com.cdata.kintone.adapter.jdbc.JdbcDriverInfo>,
+    existing: JdbcConfig?,
+): ConnectionPropertiesResult? {
+    val config = existing ?: return null
+    val driverInfo = drivers.firstOrNull { it.driverClass == config.driverClass } ?: return null
+    return ctx.connectionPropertyInspector.fetchProperties(config.driverClass, driverInfo.filename)
+}
+
+/** 必要な情報が揃っているときだけ OAuth 認可の導線を描画する。 */
+private fun kotlinx.html.FlowContent.oauthAuthorizationLinkIfNeeded(
+    connectionName: String?,
+    config: JdbcConfig?,
+    properties: ConnectionPropertiesResult?,
+) {
+    if (connectionName == null || config == null || properties == null) return
+    oauthAuthorizationLink(connectionName, config, properties)
+}
+
+/**
+ * OAuth 認可ウィザードへの導線。
+ *
+ * ブラウザ認可が必要な認証方式のときだけ出す。`OAuthPassword` / `OAuthJWT` などは
+ * プロパティ入力だけで完結するため対象にしない。
+ * ドライバーが認可プロシージャを持つかはウィザード側で判定する
+ * （編集画面を開くたびに接続を張るのを避けるため）。
+ *
+ * 関連: [Issue #12](https://github.com/sugimomoto/KintoneExternalAppCDataSample/issues/12)
+ */
+private fun kotlinx.html.FlowContent.oauthAuthorizationLink(
+    connectionName: String,
+    config: JdbcConfig,
+    properties: ConnectionPropertiesResult,
+) {
+    // 実効値で判定する。#27 以降、既定値は接続文字列に保存されないため
+    // AuthScheme 未指定が普通に起こる。
+    val authScheme = OAuthCapability.authSchemeOf(config.url)
+        ?: properties.properties.firstOrNull { it.propertyName.equals("AuthScheme", ignoreCase = true) }
+            ?.defaultValue
+    if (!OAuthCapability.requiresBrowserAuthorization(authScheme)) return
+
+    article(classes = "info-banner") {
+        p {
+            +"この接続は OAuth 認可 ("
+            code { +(authScheme ?: "OAuth") }
+            +") を使います。初回はブラウザでの認可が必要です。"
+        }
+        div(classes = "action-bar") {
+            a(href = "/connections/$connectionName/oauth", classes = "button") { +"OAuth 認可を行う →" }
         }
     }
 }
