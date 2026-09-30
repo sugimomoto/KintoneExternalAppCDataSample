@@ -2,6 +2,8 @@ package com.cdata.kintone.adapter.web.routes
 
 import com.cdata.kintone.adapter.config.JdbcConfig
 import com.cdata.kintone.adapter.error.ErrorMessageTranslator
+import com.cdata.kintone.adapter.jdbc.AuthorizationCodeExtractor
+import com.cdata.kintone.adapter.jdbc.AuthorizationCodeInput
 import com.cdata.kintone.adapter.jdbc.JdbcConnectionProvider
 import com.cdata.kintone.adapter.jdbc.JdbcUrlEnhancer
 import com.cdata.kintone.adapter.jdbc.OAuthAuthorizer
@@ -43,19 +45,33 @@ fun Route.connectionOAuthRoutes(ctx: AppContext) {
         call.respondHtml { connectionOAuthView(ctx, name, notice) }
     }
 
-    /** 認可コードからトークンを取得し、OAuth キャッシュに保存する。 */
+    /** 認可コードからトークンを取得し、接続設定に保存する。 */
     post("/connections/{name}/oauth/token") {
         val name = call.parameters["name"]!!
         val config = ctx.configSource.loadSharedJdbcConfig(name)
             ?: return@post call.respondText("Not found: $name", status = HttpStatusCode.NotFound)
-        // 認可コードはログに出さない (Issue #12)。
-        val verifier = call.receiveParameters()["verifier"]?.trim()
+        // 入力値はログに出さない。リダイレクト URL ごと認可コードを含む (Issue #12)。
+        // URL をそのまま貼れるように code= を抽出する (Issue #57)。
+        val input = AuthorizationCodeExtractor.extract(call.receiveParameters()["verifier"].orEmpty())
 
-        val notice = if (verifier.isNullOrBlank()) {
-            OAuthNotice(error = ErrorMessageTranslator.translate("認可コードを入力してください。"))
-        } else {
-            runCatching { completionNotice(ctx, name, config, verifier) }
-                .getOrElse { failureNotice(it, "トークンの取得に失敗しました") }
+        val notice = when (input) {
+            is AuthorizationCodeInput.Empty -> OAuthNotice(
+                error = ErrorMessageTranslator.translate(
+                    "認可コード、またはリダイレクト先の URL を入力してください。",
+                ),
+            )
+
+            // プロバイダが返す値 (access_denied 等) をそのまま見せる。
+            // ロケール依存のメッセージは分類しない方針 (#19)。
+            is AuthorizationCodeInput.Error -> OAuthNotice(
+                error = ErrorMessageTranslator.translate(
+                    "認可が拒否されました (${input.value})。Step 1 からやり直してください。",
+                ),
+            )
+
+            is AuthorizationCodeInput.Code ->
+                runCatching { completionNotice(ctx, name, config, input.value) }
+                    .getOrElse { failureNotice(it, "トークンの取得に失敗しました") }
         }
         call.respondHtml { connectionOAuthView(ctx, name, notice) }
     }

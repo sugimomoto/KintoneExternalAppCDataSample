@@ -114,35 +114,35 @@ private fun kotlinx.html.FlowContent.authorizationSteps(
     }
 
     section {
-        h3 { +"Step 2: 認可コードを貼り付ける" }
+        h3 { +"Step 2: リダイレクト先の URL を貼り付ける" }
         article(classes = "warning-banner") {
             p {
                 +"認可後のリダイレクト先 ("
                 code { +(callbackUrl ?: "ドライバー既定の localhost") }
                 +") はブラウザでエラー表示になりますが、"
-                strong { +"アドレスバーの URL に code= が付きます" }
-                +"。その値をコピーしてください。"
+                strong { +"アドレスバーの URL に認可コードが含まれています" }
+                +"。"
             }
             ol {
                 li { +"Step 1 のリンクを開いて認可する" }
-                li { +"リダイレクト後のアドレスバーを見る" }
-                li { +"code= の後ろの値（次の & まで）をコピーする" }
+                li { +"リダイレクト後のアドレスバーの URL を全部コピーする" }
                 li { +"下の欄に貼り付けて「認可を完了する」" }
             }
         }
         form(action = "/connections/$connectionName/oauth/token", method = FormMethod.post) {
             label {
-                +"認可コード (code= の値):"
+                +"リダイレクト先の URL（または認可コード）:"
                 input(type = InputType.text, name = "verifier") {
                     required = true
-                    placeholder = "aPrxsmIEeqM9PiQroGEWP1UiE..."
+                    placeholder = "http://localhost:33333/?code=..."
                 }
             }
             button(type = ButtonType.submit) { +"認可を完了する" }
         }
         p {
             small(classes = "muted") {
-                +"認可コードは 1 回しか使えません。失敗した場合は Step 1 からやり直してください。"
+                +"URL から code= の値を自動で取り出します。認可コードだけを貼り付けても構いません。"
+                +"認可コードは 1 回しか使えないため、失敗した場合は Step 1 からやり直してください。"
             }
         }
     }
