@@ -123,4 +123,51 @@ class OAuthCapabilityTest {
         assertFalse(OAuthCapability.requiresBrowserAuthorization("jdbc:salesforce:", "OAuthJWT"))
         assertFalse(OAuthCapability.requiresBrowserAuthorization("jdbc:salesforce:", "OAuthPassword"))
     }
+
+    // --- 実効コールバック URL (Issue #55) ---
+
+    @Test
+    fun `effectiveCallbackUrl - 設定されていればその値を使う`() {
+        val url = "jdbc:googlesheets:AuthScheme=OAuth;CallbackURL=http://localhost:9999;"
+
+        assertEquals("http://localhost:9999", OAuthCapability.effectiveCallbackUrl(url))
+    }
+
+    @Test
+    fun `effectiveCallbackUrl - 未設定なら既定値を使う`() {
+        // ドライバー既定値に委ねると Google 系は OOB になり認可できない。
+        assertEquals(
+            OAuthCapability.DEFAULT_CALLBACK_URL,
+            OAuthCapability.effectiveCallbackUrl("jdbc:googlesheets:AuthScheme=OAuth;"),
+        )
+    }
+
+    @Test
+    fun `effectiveCallbackUrl - 空白なら既定値を使う`() {
+        assertEquals(
+            OAuthCapability.DEFAULT_CALLBACK_URL,
+            OAuthCapability.effectiveCallbackUrl("jdbc:googlesheets:CallbackURL=   ;AuthScheme=OAuth;"),
+        )
+    }
+
+    @Test
+    fun `effectiveCallbackUrl - 最初のプロパティに書かれていても拾う`() {
+        val url = "jdbc:salesforce:CallbackURL=http://localhost:9999;AuthScheme=OAuth;"
+
+        assertEquals("http://localhost:9999", OAuthCapability.effectiveCallbackUrl(url))
+    }
+
+    @Test
+    fun `effectiveCallbackUrl - 大文字小文字が違っても拾う`() {
+        val url = "jdbc:salesforce:callbackurl=http://localhost:9999;"
+
+        assertEquals("http://localhost:9999", OAuthCapability.effectiveCallbackUrl(url))
+    }
+
+    @Test
+    fun `DEFAULT_CALLBACK_URL - 組み込みアプリが受け付ける localhost コールバック`() {
+        // ポートは CData の組み込み OAuth アプリ側に登録されている値。
+        // Salesforce 系はドライバーが oauth.cdata.com + state=base64(この値) に変換する。
+        assertEquals("http://localhost:33333", OAuthCapability.DEFAULT_CALLBACK_URL)
+    }
 }
