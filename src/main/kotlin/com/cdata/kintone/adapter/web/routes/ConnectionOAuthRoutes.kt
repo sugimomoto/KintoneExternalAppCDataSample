@@ -61,13 +61,18 @@ fun Route.connectionOAuthRoutes(ctx: AppContext) {
     }
 }
 
-/** 認可 URL を生成する。プロシージャが無いドライバーは専用の案内を返す。 */
+/**
+ * 認可 URL を生成する。プロシージャが無いドライバーは専用の案内を返す。
+ *
+ * コールバックは [OAuthCapability.effectiveCallbackUrl] で決める。未設定のまま
+ * ドライバー既定値に委ねると Google 系が OOB になり認可できない (Issue #55)。
+ */
 private fun authorizationNotice(name: String, config: JdbcConfig): OAuthNotice =
     withAuthorizer(name, config) { authorizer ->
         if (!authorizer.hasAuthorizationProcedure()) {
             return@withAuthorizer OAuthNotice(error = unsupportedDriverMessage())
         }
-        val callbackUrl = OAuthCapability.callbackUrlOf(config.url)
+        val callbackUrl = OAuthCapability.effectiveCallbackUrl(config.url)
         OAuthNotice(
             authorizationUrl = authorizer.authorizationUrl(callbackUrl),
             callbackUrl = callbackUrl,
@@ -84,7 +89,7 @@ private fun authorizationNotice(name: String, config: JdbcConfig): OAuthNotice =
  */
 private fun completionNotice(ctx: AppContext, name: String, config: JdbcConfig, verifier: String): OAuthNotice {
     val tokens = withAuthorizer(name, config) { authorizer ->
-        authorizer.fetchAccessToken(verifier, OAuthCapability.callbackUrlOf(config.url))
+        authorizer.fetchAccessToken(verifier, OAuthCapability.effectiveCallbackUrl(config.url))
     }
     val refreshToken = tokens.refreshToken
         ?: return OAuthNotice(error = ErrorMessageTranslator.translate(missingRefreshTokenMessage(tokens)))

@@ -67,6 +67,33 @@ object OAuthCapability {
     fun authSchemeOf(jdbcUrl: String): String? = propertyOf(jdbcUrl, "AuthScheme")
 
     /**
+     * CData の組み込み OAuth アプリが受け付けるローカルコールバック。
+     *
+     * ポートは組み込みアプリ側に登録されている値なので変更できない。
+     * 認可後この URL に飛ぶとブラウザは接続エラーになるが、クエリに `code=` が
+     * 付くので値をコピーできる。
+     */
+    const val DEFAULT_CALLBACK_URL = "http://localhost:33333"
+
+    /**
+     * 認可とトークン交換に渡す実効コールバック。設定値があればそれ、無ければ [DEFAULT_CALLBACK_URL]。
+     *
+     * **未設定でもドライバー既定値に委ねない。** 既定値はプロバイダごとに違い、
+     * Google 系は Google が廃止した OOB (`urn:ietf:wg:oauth:2.0:oob`) になるため
+     * `invalid_request` で認可できない (Issue #55)。
+     *
+     * [DEFAULT_CALLBACK_URL] を渡せばドライバーがプロバイダごとに適切な形へ変換する。
+     * Salesforce 系は `oauth.cdata.com` + `state=base64(localhost)` になり、
+     * **未指定時の結果と完全に一致する**ため回帰しない（実機で確認済み）。
+     * なお `oauth.cdata.com` を明示すると両プロバイダとも拒否される。
+     *
+     * `GetOAuthAccessToken` は認可時と同じ `CallbackUrl` を要求するため、
+     * **認可とトークン交換の両方がこの関数を通ること。**
+     */
+    fun effectiveCallbackUrl(jdbcUrl: String): String =
+        callbackUrlOf(jdbcUrl) ?: DEFAULT_CALLBACK_URL
+
+    /**
      * 接続文字列から `CallbackURL` を取り出す。明示されていなければ null。
      *
      * 未指定の場合はドライバーの既定値（Salesforce なら `http://localhost:33333`）が
