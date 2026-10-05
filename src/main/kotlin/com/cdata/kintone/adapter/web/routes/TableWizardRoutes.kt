@@ -13,6 +13,7 @@ import com.cdata.kintone.adapter.metadata.FieldTypeSuggester
 import com.cdata.kintone.adapter.jdbc.ConnectionStringMasker
 import io.github.oshai.kotlinlogging.KotlinLogging
 import com.cdata.kintone.adapter.web.views.Step3Content
+import com.cdata.kintone.adapter.metadata.ColumnInfo
 import com.cdata.kintone.adapter.metadata.JdbcMetadataInspector
 import com.cdata.kintone.adapter.metadata.TableInfo
 import com.cdata.kintone.adapter.metadata.RecordIdType
@@ -81,6 +82,8 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
         val tableName = form["table"]!!
         val configName = form["configName"]!!
         val schema = form["schema"]?.takeIf { it.isNotBlank() }
+        // 主キーが無いテーブルで利用者が選んだレコード ID 列 (Issue #66)。
+        val recordIdColumn = form["recordIdColumn"]?.takeIf { it.isNotBlank() }
         val selectedColumns = form.getAll("selectedColumns") ?: emptyList()
 
         val jdbc = ctx.configSource.loadSharedJdbcConfig(connectionName)
@@ -89,7 +92,7 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
         // 例外を投げない。以前は主キーが無いと IllegalStateException が未処理となり
         // 500 で画面が真っ白になっていた (Issue #64)。
         val result = runCatching {
-            computeStep4(jdbc, connectionName, tableName, schema, selectedColumns)
+            computeStep4(jdbc, connectionName, TableInfo(schema, tableName), selectedColumns, recordIdColumn)
         }.getOrElse { cause ->
             log.warn(cause) { "step4 の算出に失敗しました: $tableName" }
             // 例外メッセージに接続文字列が含まれる場合に備えてマスクする。
@@ -112,10 +115,15 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
 
             // 失敗は step3 に戻して理由を出す。専用のエラーページを作らないのは、
             // 前のステップに戻れる状態を保つため。
+            // 候補があれば選ばせる。無ければ連携できない旨を伝える (Issue #66)。
             is Step4Result.NoPrimaryKey -> call.respondHtml {
                 wizardStep3View(
                     ctx, connectionName, table, configName,
-                    Step3Content(result.candidates, noPrimaryKeyMessage(result.tableName)),
+                    if (result.candidates.isEmpty()) {
+                        Step3Content(emptyList(), noPrimaryKeyMessage(result.tableName))
+                    } else {
+                        Step3Content(result.candidates, recordIdCandidates = result.candidates)
+                    },
                 )
             }
 
@@ -226,17 +234,21 @@ private fun toSnakeCase(s: String): String {
 private fun computeStep4(
     jdbc: JdbcConfig,
     connectionName: String,
-    tableName: String,
-    schema: String?,
+    table: TableInfo,
     selectedColumns: List<String>,
+    recordIdColumn: String?,
 ): Step4Result = JdbcConnectionProvider(jdbc, oauthCacheKey = connectionName).use { provider ->
     provider.connection().use { conn ->
         val inspector = JdbcMetadataInspector(conn)
-        val allColumns = inspector.listColumns(tableName, schema)
-        val pk = inspector.findPrimaryKey(tableName, schema)
-            ?: return@use Step4Result.NoPrimaryKey(tableName, allColumns)
+        val allColumns = inspector.listColumns(table.name, table.schema)
+        val idColumn = resolveRecordIdColumn(inspector, table, allColumns, recordIdColumn)
+            // 候補は型で絞って詰める。ビューが型判定を知らなくて済む (Issue #66)。
+            ?: return@use Step4Result.NoPrimaryKey(
+                table.name,
+                allColumns.filter { FieldTypeSuggester.canBeRecordId(it.jdbcType) },
+            )
         val maps = allColumns
-            .filter { it.name in selectedColumns && it.name != pk.column }
+            .filter { it.name in selectedColumns && it.name != idColumn.name }
             .map { col ->
                 WizardMapping(
                     kintoneFieldId = toSnakeCase(col.name),
@@ -244,8 +256,34 @@ private fun computeStep4(
                     columnType = FieldTypeSuggester.suggest(col.jdbcType).name,
                 )
             }
-        Step4Result.Ready(pk.column, FieldTypeSuggester.suggestRecordIdType(pk.jdbcType), maps)
+        Step4Result.Ready(
+            idColumn.name,
+            FieldTypeSuggester.suggestRecordIdType(idColumn.jdbcType),
+            maps,
+        )
     }
+}
+
+/**
+ * レコード ID に使う列を決める。
+ *
+ * 利用者が選んだ列があればそれを使い、無ければ主キーを探す。どちらも無ければ null。
+ * 利用者の選択を優先するのは、主キーが無いテーブルで選ばせた直後の再送信を
+ * 成立させるため (Issue #66)。
+ */
+private fun resolveRecordIdColumn(
+    inspector: JdbcMetadataInspector,
+    table: TableInfo,
+    allColumns: List<ColumnInfo>,
+    recordIdColumn: String?,
+): ColumnInfo? {
+    recordIdColumn?.let { name ->
+        // 型が合わない列を指定された場合は採用しない。候補は型で絞って出しているが、
+        // 直接 POST された場合に備える。
+        return allColumns.firstOrNull { it.name == name && FieldTypeSuggester.canBeRecordId(it.jdbcType) }
+    }
+    val pk = inspector.findPrimaryKey(table.name, table.schema) ?: return null
+    return allColumns.firstOrNull { it.name == pk.column }
 }
 
 /**

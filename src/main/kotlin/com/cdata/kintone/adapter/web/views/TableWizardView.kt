@@ -21,6 +21,7 @@ import kotlinx.html.h4
 import kotlinx.html.input
 import kotlinx.html.label
 import kotlinx.html.option
+import kotlinx.html.strong
 import kotlinx.html.p
 import kotlinx.html.section
 import kotlinx.html.select
@@ -176,7 +177,46 @@ data class Step3Content(
     val columns: List<ColumnInfo>,
     /** 失敗の理由。null なら何も表示しない。 */
     val error: String? = null,
+    /**
+     * レコード ID 列の候補。空でなければ選択 UI を出す。
+     *
+     * 主キーが検出できないテーブル・ビューでも、型が合う列があれば指定して
+     * 連携できる (Issue #66)。
+     */
+    val recordIdCandidates: List<ColumnInfo> = emptyList(),
 )
+
+/**
+ * レコード ID 列の選択 UI。候補が空なら何も描画しない。
+ *
+ * kintone の `RecordIdFieldDefinition` は列が DB 上で主キーかを問わないため、
+ * 型が合えば任意の列を指定できる。ただし**一意性は利用者の責任**になるので、
+ * 守らなかった場合に何が起きるかまで示す (Issue #66)。
+ */
+fun kotlinx.html.FlowContent.recordIdSelection(candidates: List<ColumnInfo>) {
+    if (candidates.isEmpty()) return
+
+    article(classes = "warning-banner") {
+        p {
+            +"主キーが無いため、レコード番号に使う列を指定してください。"
+            +"選んだ列の値が"
+            strong { +"一意であることは利用者の責任です" }
+            +"。重複がある列を選ぶと、更新・削除が意図しない行に及びます。"
+        }
+        label {
+            +"レコード番号に使う列: "
+            select {
+                name = "recordIdColumn"
+                candidates.forEach { c ->
+                    option {
+                        value = c.name
+                        +"${c.name} (${c.typeName})"
+                    }
+                }
+            }
+        }
+    }
+}
 
 /**
  * 連携追加ウィザード step3（カラム選択）。
@@ -214,6 +254,7 @@ fun HTML.wizardStep3View(
             input(type = InputType.hidden, name = "table") { value = tableName }
             schema?.let { input(type = InputType.hidden, name = "schema") { value = it } }
             input(type = InputType.hidden, name = "configName") { value = configName }
+            recordIdSelection(content.recordIdCandidates)
 
             p { +"${columns.size} columns. Select target columns to map." }
             table(classes = "striped") {
