@@ -171,8 +171,9 @@ class AdapterServiceImpl(
                 conn.autoCommit = false
                 try {
                     for (record in payload.recordsList) {
-                        val values = rowMapper.recordToColumnValues(record)
-                            .filterKeys { it != config.table.primaryKey.kintoneFieldId }
+                        // 主キーと空文字のテキストを省いた値。空文字をそのまま送ると
+                        // 自動生成列で型変換に失敗する (Issue #76)。
+                        val values = rowMapper.recordToInsertValues(record)
                         val query = queryBuilder.buildInsert(values)
                         conn.prepareStatement(query.sql, Statement.RETURN_GENERATED_KEYS).use { stmt ->
                             bindParams(stmt, query.params)

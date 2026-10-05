@@ -247,4 +247,214 @@ class RowMapperTest {
         val record = Record.newBuilder().build()
         assertNull(mapper.extractRecordId(record))
     }
+
+    // ---- Insert 用の変換 (Issue #76) ----
+    //
+    // 自動生成列をマッピングしている既存の連携で、空文字が `uniqueidentifier` 等の列に
+    // 渡って Insert が失敗する。列を送らなければ DB 側の既定値が入る。
+    //
+    // 空文字を省けるのは Insert だけ。`TextField.value` は proto3 の presence を持たないため
+    // 「空文字を送った」と「送っていない」を区別できず、Update で省くとテキスト項目を
+    // 空にする操作ができなくなる。
+
+    private fun textField(fieldId: String, value: String): Field =
+        Field.newBuilder().setTextField(TextField.newBuilder().setFieldId(fieldId).setValue(value)).build()
+
+    private fun recordIdField(value: String): Field = Field.newBuilder()
+        .setRecordIdField(
+            RecordIdField.newBuilder()
+                .setFieldId("id")
+                .setRecordIdValue(RecordId.newBuilder().setValueText(value).build()),
+        )
+        .build()
+
+    @Test
+    fun `recordToInsertValues 空文字のテキストを含めない`() {
+        val mapper = RowMapper(tableConfig, RecordIdType.TEXT)
+        val record = Record.newBuilder()
+            .putFields("name", textField("name", "Acme"))
+            .putFields("industry", textField("industry", ""))
+            .build()
+
+        val values = mapper.recordToInsertValues(record)
+
+        assertFalse(values.containsKey("industry"), "空文字が含まれている: $values")
+    }
+
+    @Test
+    fun `recordToInsertValues 値のあるテキストは含める`() {
+        val mapper = RowMapper(tableConfig, RecordIdType.TEXT)
+        val record = Record.newBuilder().putFields("name", textField("name", "Acme")).build()
+
+        assertEquals("Acme", mapper.recordToInsertValues(record)["name"])
+    }
+
+    @Test
+    fun `recordToInsertValues 空白だけのテキストは含める`() {
+        // 空白は利用者が意図して入れた値の可能性がある。空文字だけを省く。
+        val mapper = RowMapper(tableConfig, RecordIdType.TEXT)
+        val record = Record.newBuilder()
+            .putFields("name", textField("name", " "))
+            .build()
+
+        assertEquals(" ", mapper.recordToInsertValues(record)["name"])
+    }
+
+    @Test
+    fun `recordToInsertValues 主キーを含めない`() {
+        val mapper = RowMapper(tableConfig, RecordIdType.TEXT)
+        val record = Record.newBuilder()
+            .putFields("id", recordIdField("001xx"))
+            .putFields("name", textField("name", "Acme"))
+            .build()
+
+        val values = mapper.recordToInsertValues(record)
+
+        assertFalse(values.containsKey("id"), "主キーが含まれている: $values")
+        assertEquals("Acme", values["name"])
+    }
+
+    @Test
+    fun `recordToInsertValues 未入力の NUMBER と DATETIME を含めない`() {
+        // NULL を送ると `NOT NULL` かつ既定値を持つ列で 515 になる。実機で
+        // `ModifiedDate` が失敗したため、テキストと同じく省く (Issue #76)。
+        val mapper = RowMapper(tableConfig, RecordIdType.TEXT)
+        val record = Record.newBuilder()
+            .putFields("name", textField("name", "Acme"))
+            .putFields(
+                "revenue",
+                Field.newBuilder().setNumberField(NumberField.newBuilder().setFieldId("revenue")).build(),
+            )
+            .putFields(
+                "created_at",
+                Field.newBuilder().setDatetimeField(DatetimeField.newBuilder().setFieldId("created_at")).build(),
+            )
+            .build()
+
+        val values = mapper.recordToInsertValues(record)
+
+        assertEquals(setOf("name"), values.keys, "実際: $values")
+    }
+
+    @Test
+    fun `recordToInsertValues 値のある NUMBER と DATETIME は含める`() {
+        val mapper = RowMapper(tableConfig, RecordIdType.TEXT)
+        val record = Record.newBuilder()
+            .putFields(
+                "revenue",
+                Field.newBuilder()
+                    .setNumberField(NumberField.newBuilder().setFieldId("revenue").setValue(100.0))
+                    .build(),
+            )
+            .putFields(
+                "created_at",
+                Field.newBuilder()
+                    .setDatetimeField(
+                        DatetimeField.newBuilder()
+                            .setFieldId("created_at")
+                            .setValue(Timestamp.newBuilder().setSeconds(1_700_000_000L).build()),
+                    )
+                    .build(),
+            )
+            .build()
+
+        val values = mapper.recordToInsertValues(record)
+
+        assertEquals(100.0, values["revenue"])
+        assertEquals(
+            SqlDateTime.format(Timestamp.newBuilder().setSeconds(1_700_000_000L).build()),
+            values["created_at"],
+        )
+    }
+
+    @Test
+    fun `recordToInsertValues 未選択の SELECTION を含めない`() {
+        // `Option` はメッセージ型なので presence を持つ。未選択を正しく判定できる。
+        val mapper = RowMapper(tableConfig, RecordIdType.TEXT)
+        val record = Record.newBuilder()
+            .putFields("name", textField("name", "Acme"))
+            .putFields(
+                "industry",
+                Field.newBuilder().setSelectionField(SelectionField.newBuilder().setFieldId("industry")).build(),
+            )
+            .build()
+
+        val values = mapper.recordToInsertValues(record)
+
+        assertEquals(setOf("name"), values.keys, "実際: $values")
+    }
+
+    @Test
+    fun `recordToColumnValues は未入力の NUMBER と DATETIME を null として含める`() {
+        // Update の挙動は変えない。値をクリアする操作に使われる (AC-3)。
+        val mapper = RowMapper(tableConfig, RecordIdType.TEXT)
+        val record = Record.newBuilder()
+            .putFields(
+                "revenue",
+                Field.newBuilder().setNumberField(NumberField.newBuilder().setFieldId("revenue")).build(),
+            )
+            .putFields(
+                "created_at",
+                Field.newBuilder().setDatetimeField(DatetimeField.newBuilder().setFieldId("created_at")).build(),
+            )
+            .build()
+
+        val values = mapper.recordToColumnValues(record)
+
+        assertEquals(setOf("revenue", "created_at"), values.keys)
+        assertNull(values["revenue"])
+        assertNull(values["created_at"])
+    }
+
+    @Test
+    fun `recordToInsertValues 全てが未入力なら省かない`() {
+        // 省くと INSERT 対象が 0 列になり組み立てに失敗する。従来どおりの値を送る。
+        val mapper = RowMapper(tableConfig, RecordIdType.TEXT)
+        val record = Record.newBuilder()
+            .putFields("name", textField("name", ""))
+            .putFields("industry", textField("industry", ""))
+            .build()
+
+        val values = mapper.recordToInsertValues(record)
+
+        assertEquals(setOf("name", "industry"), values.keys)
+        assertEquals("", values["name"])
+    }
+
+    @Test
+    fun `recordToInsertValues 主キー以外が全て空文字でも空のマップにならない`() {
+        // 主キーを除いた後で判定する必要がある。
+        val mapper = RowMapper(tableConfig, RecordIdType.TEXT)
+        val record = Record.newBuilder()
+            .putFields("id", recordIdField("001xx"))
+            .putFields("name", textField("name", ""))
+            .build()
+
+        val values = mapper.recordToInsertValues(record)
+
+        assertEquals(setOf("name"), values.keys, "実際: $values")
+    }
+
+    @Test
+    fun `recordToColumnValues は空文字のテキストを含める`() {
+        // Update の挙動は変えない。空文字でテキスト項目をクリアできる (AC-3)。
+        val mapper = RowMapper(tableConfig, RecordIdType.TEXT)
+        val record = Record.newBuilder()
+            .putFields("name", textField("name", ""))
+            .build()
+
+        val values = mapper.recordToColumnValues(record)
+
+        assertTrue(values.containsKey("name"), "実際: $values")
+        assertEquals("", values["name"])
+    }
+
+    @Test
+    fun `recordToColumnValues は主キーを含める`() {
+        // Update は WHERE 句に主キーを使う。除外はサービス層と buildUpdate の責務。
+        val mapper = RowMapper(tableConfig, RecordIdType.TEXT)
+        val record = Record.newBuilder().putFields("id", recordIdField("001xx")).build()
+
+        assertEquals("001xx", mapper.recordToColumnValues(record)["id"])
+    }
 }

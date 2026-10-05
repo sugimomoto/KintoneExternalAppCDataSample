@@ -71,6 +71,46 @@ class RowMapper(
         return map
     }
 
+    /**
+     * Insert 用に Record を `kintone field_id → 値` のマップへ変換する。
+     *
+     * 主キーと、**値が入っていないフィールド**を含めない。自動生成列をマッピングしている
+     * 連携で、空文字が `uniqueidentifier` 列に渡ったり、NULL が `NOT NULL` 列に渡ったりして
+     * 登録が失敗するのを防ぐ。列を送らなければ DB 側の既定値が入る (Issue #76)。
+     *
+     * 省けるのは Insert だけ。Insert には「既存の値を空にする」という操作が無いため、
+     * 値が無いフィールドを省いても失うものがない。Update で同じことをすると
+     * 項目を空にする操作ができなくなるため、[recordToColumnValues] は手を入れない。
+     *
+     * 主キーの除外をここで行うのは、省いた結果 0 列になる判定を**主キーを除いた後**で
+     * しなければ正しくできないため。
+     */
+    fun recordToInsertValues(record: Record): Map<String, Any?> {
+        val withoutId = record.fieldsMap.filterKeys { it != table.primaryKey.kintoneFieldId }
+        val kept = withoutId.filterValues { !isAbsent(it) }
+        // すべて空だった場合は省かない。INSERT 対象が 0 列になり組み立てに失敗する。
+        // `INSERT INTO t DEFAULT VALUES` は移植性が無いため、従来どおりの値を送る。
+        return kept.ifEmpty { withoutId }.mapValues { (_, field) -> fieldToValue(field) }
+    }
+
+    /**
+     * 値が入っていないフィールドか。
+     *
+     * テキストは `TextField.value` に proto3 の presence が無いため、空文字を
+     * 「未入力」とみなす。そのため**`NOT NULL` で既定値も無いテキスト列は、空のまま
+     * 登録すると従来の空文字挿入ではなく NULL 制約違反になる**。空文字を意図的に
+     * 入れたい場合と区別できないのはプロトコルの制約で、どちらかを選ぶしかない。
+     *
+     * 数値・日時・選択は presence を持つので「未入力」を正しく判定できる。
+     */
+    private fun isAbsent(field: Field): Boolean = when (field.fieldCase) {
+        Field.FieldCase.TEXT_FIELD -> field.textField.value.isEmpty()
+        Field.FieldCase.NUMBER_FIELD -> !field.numberField.hasValue()
+        Field.FieldCase.DATETIME_FIELD -> !field.datetimeField.hasValue()
+        Field.FieldCase.SELECTION_FIELD -> !field.selectionField.hasValue()
+        else -> false
+    }
+
     /** Record から主キー値だけを抽出する。なければ null。 */
     fun extractRecordId(record: Record): Any? {
         val field = record.fieldsMap[table.primaryKey.kintoneFieldId] ?: return null
