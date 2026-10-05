@@ -5,12 +5,23 @@ import java.sql.Connection
 /** テーブル情報。 */
 data class TableInfo(val schema: String?, val name: String)
 
-/** カラム情報。 */
+/**
+ * カラム情報。
+ *
+ * 自動生成に関する 3 項目は既定値付きにしてある。情報を返さないドライバーでも
+ * 「自動生成ではない」として扱えば従来どおり動く (Issue #75)。
+ */
 data class ColumnInfo(
     val name: String,
     val jdbcType: Int,
     val typeName: String,
     val nullable: Boolean,
+    /** 既定値の式（`COLUMN_DEF`）。`(newid())` 等。無ければ null。 */
+    val defaultValue: String? = null,
+    /** 自動採番列か（`IS_AUTOINCREMENT`）。 */
+    val autoIncrement: Boolean = false,
+    /** 計算列か（`IS_GENERATEDCOLUMN`）。 */
+    val generated: Boolean = false,
 )
 
 /** 主キー情報。`init-table` で record-id-type を推定するため、JDBC 型もセットで返す。 */
@@ -48,17 +59,33 @@ class JdbcMetadataInspector(private val connection: Connection) {
     fun listColumns(tableName: String, schema: String? = null): List<ColumnInfo> {
         val columns = mutableListOf<ColumnInfo>()
         connection.metaData.getColumns(null, schema, tableName, "%").use { rs ->
+            // 存在するラベルを 1 度だけ調べる。`IS_AUTOINCREMENT` / `IS_GENERATEDCOLUMN` は
+            // JDBC 4.0 / 4.1 で追加された列で、返さないドライバーがある (Issue #75)。
+            val labels = (1..rs.metaData.columnCount)
+                .map { rs.metaData.getColumnLabel(it).uppercase() }
+                .toSet()
             while (rs.next()) {
                 columns += ColumnInfo(
                     name = rs.getString("COLUMN_NAME"),
                     jdbcType = rs.getInt("DATA_TYPE"),
                     typeName = rs.getString("TYPE_NAME"),
                     nullable = rs.getInt("NULLABLE") == java.sql.DatabaseMetaData.columnNullable,
+                    defaultValue = rs.stringIfPresent(labels, "COLUMN_DEF"),
+                    autoIncrement = rs.isYes(labels, "IS_AUTOINCREMENT"),
+                    generated = rs.isYes(labels, "IS_GENERATEDCOLUMN"),
                 )
             }
         }
         return columns
     }
+
+    /** 列があればその文字列を返す。無ければ null。 */
+    private fun java.sql.ResultSet.stringIfPresent(labels: Set<String>, label: String): String? =
+        if (label in labels) getString(label) else null
+
+    /** 列の値が `YES` か。列自体が無ければ false。 */
+    private fun java.sql.ResultSet.isYes(labels: Set<String>, label: String): Boolean =
+        "YES".equals(stringIfPresent(labels, label)?.trim(), ignoreCase = true)
 
     /** 主キー（最初の1カラム）を返す。複合主キーは未対応。なければ null。 */
     fun findPrimaryKey(tableName: String, schema: String? = null): PrimaryKeyInfo? {

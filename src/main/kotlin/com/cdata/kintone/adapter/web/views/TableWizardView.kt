@@ -1,6 +1,7 @@
 package com.cdata.kintone.adapter.web.views
 
 import com.cdata.kintone.adapter.metadata.ColumnInfo
+import com.cdata.kintone.adapter.metadata.ExcludedColumn
 import com.cdata.kintone.adapter.metadata.RecordIdType
 import com.cdata.kintone.adapter.metadata.TableInfo
 import com.cdata.kintone.adapter.runtime.PortAllocator
@@ -184,7 +185,59 @@ data class Step3Content(
      * 連携できる (Issue #66)。
      */
     val recordIdCandidates: List<ColumnInfo> = emptyList(),
+    /**
+     * 自動生成列として選択候補から外した列。空なら何も描画しない。
+     *
+     * 黙って消すと「列が足りない」と誤解される (Issue #75)。
+     */
+    val excludedColumns: List<ExcludedColumn> = emptyList(),
 )
+
+/**
+ * 除外した自動生成列の案内。空なら何も描画しない。
+ *
+ * DB 側で値が決まる列を kintone の入力項目として出すと、空のまま登録されて必ず失敗する。
+ * 列自体を送らなければ既定値が効くため候補から外すが、**何をなぜ外したのかは示す**。
+ * 既定値の式まで出すのは、省いて良い列なのかを利用者が判断できるようにするため。
+ *
+ * 関連: [Issue #75](https://github.com/sugimomoto/KintoneExternalAppCDataSample/issues/75)
+ */
+fun kotlinx.html.FlowContent.excludedColumnsNotice(excluded: List<ExcludedColumn>) {
+    if (excluded.isEmpty()) return
+
+    article(classes = "warning-banner") {
+        p {
+            +"以下の ${excluded.size} 列は DB 側で自動的に値が決まるため、マッピング対象から外しました。"
+            +"kintone の入力項目として表示すると、空のまま登録しようとして"
+            strong { +"失敗します" }
+            +"。列を送らなければ DB 側の既定値が入ります。"
+        }
+        table(classes = "striped") {
+            thead {
+                tr {
+                    th { +"Column" }
+                    th { +"JDBC Type" }
+                    th { +"除外した理由" }
+                }
+            }
+            tbody {
+                excluded.forEach { item ->
+                    tr {
+                        td { code { +item.column.name } }
+                        td { +item.column.typeName }
+                        td {
+                            +item.reason.label
+                            item.column.defaultValue?.takeIf { it.isNotBlank() }?.let { expr ->
+                                +" "
+                                code { +expr }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 /**
  * レコード ID 列の選択 UI。候補が空なら何も描画しない。
@@ -255,6 +308,7 @@ fun HTML.wizardStep3View(
             schema?.let { input(type = InputType.hidden, name = "schema") { value = it } }
             input(type = InputType.hidden, name = "configName") { value = configName }
             recordIdSelection(content.recordIdCandidates)
+            excludedColumnsNotice(content.excludedColumns)
 
             p { +"${columns.size} columns. Select target columns to map." }
             table(classes = "striped") {

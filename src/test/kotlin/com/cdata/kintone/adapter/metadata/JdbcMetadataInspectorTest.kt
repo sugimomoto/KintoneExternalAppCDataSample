@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.sql.Connection
@@ -39,6 +40,17 @@ class JdbcMetadataInspectorTest {
                 )
                 """.trimIndent(),
             )
+            // 自動生成列の申告を確認するためのテーブル (Issue #75)。
+            stmt.execute(
+                """
+                CREATE TABLE Gen (
+                    Id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    Code VARCHAR(10) DEFAULT 'N/A',
+                    Plain VARCHAR(10),
+                    Total INT GENERATED ALWAYS AS (1 + 1)
+                )
+                """.trimIndent(),
+            )
             stmt.execute("INSERT INTO Account VALUES ('001', 'Acme', 100, 'Banking', NOW())")
             stmt.execute("INSERT INTO Account VALUES ('002', 'Beta', 200, 'Banking', NOW())")
             stmt.execute("INSERT INTO Account VALUES ('003', 'Gamma', 300, 'Retail', NOW())")
@@ -57,7 +69,7 @@ class JdbcMetadataInspectorTest {
         val tables = inspector.listTables()
         val names = tables.map { it.name }.sorted()
         // H2 はテーブル名を大文字化することがある
-        assertEquals(listOf("ACCOUNT", "CONTACT"), names.map { it.uppercase() })
+        assertEquals(listOf("ACCOUNT", "CONTACT", "GEN"), names.map { it.uppercase() })
     }
 
     @Test
@@ -98,6 +110,51 @@ class JdbcMetadataInspectorTest {
         }
         val inspector = JdbcMetadataInspector(connection)
         assertNull(inspector.findPrimaryKey("NOPK"))
+    }
+
+    @Test
+    fun `listColumns が自動採番列を申告する`() {
+        // Issue #75: 自動生成列をマッピング対象から外すための情報。
+        val columns = JdbcMetadataInspector(connection).listColumns("GEN")
+
+        val id = columns.first { it.name.equals("ID", ignoreCase = true) }
+        assertTrue(id.autoIncrement, "自動採番と判定されていない: $id")
+        assertEquals(ExclusionReason.AUTO_INCREMENT, GeneratedColumns.reasonFor(id))
+    }
+
+    @Test
+    fun `listColumns が既定値を申告する`() {
+        val columns = JdbcMetadataInspector(connection).listColumns("GEN")
+
+        val code = columns.first { it.name.equals("CODE", ignoreCase = true) }
+        assertNotNull(code.defaultValue, "既定値が取れていない: $code")
+        assertEquals(ExclusionReason.DEFAULT_VALUE, GeneratedColumns.reasonFor(code))
+    }
+
+    @Test
+    fun `listColumns が計算列を申告する`() {
+        val columns = JdbcMetadataInspector(connection).listColumns("GEN")
+
+        val total = columns.first { it.name.equals("TOTAL", ignoreCase = true) }
+        assertTrue(total.generated, "計算列と判定されていない: $total")
+        assertEquals(ExclusionReason.GENERATED, GeneratedColumns.reasonFor(total))
+    }
+
+    @Test
+    fun `listColumns が通常の列を自動生成と誤判定しない`() {
+        val columns = JdbcMetadataInspector(connection).listColumns("GEN")
+
+        val plain = columns.first { it.name.equals("PLAIN", ignoreCase = true) }
+        assertNull(GeneratedColumns.reasonFor(plain), "通常の列が除外されている: $plain")
+    }
+
+    @Test
+    fun `自動採番列でも主キーとして検出される`() {
+        // Issue #75 の除外は主キー検出に影響させない。レコード番号には使う。
+        val pk = JdbcMetadataInspector(connection).findPrimaryKey("GEN")
+
+        assertNotNull(pk)
+        assertEquals("ID", pk!!.column.uppercase())
     }
 
     @Test

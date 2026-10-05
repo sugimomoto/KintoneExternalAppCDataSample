@@ -14,6 +14,7 @@ import com.cdata.kintone.adapter.jdbc.ConnectionStringMasker
 import io.github.oshai.kotlinlogging.KotlinLogging
 import com.cdata.kintone.adapter.web.views.Step3Content
 import com.cdata.kintone.adapter.metadata.ColumnInfo
+import com.cdata.kintone.adapter.metadata.GeneratedColumns
 import com.cdata.kintone.adapter.metadata.JdbcMetadataInspector
 import com.cdata.kintone.adapter.metadata.TableInfo
 import com.cdata.kintone.adapter.metadata.RecordIdType
@@ -71,8 +72,13 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
                 JdbcMetadataInspector(conn).listColumns(tableName, schema)
             }
         }
+        // 自動生成列は選択候補から外す。空のまま登録されて必ず失敗するため (Issue #75)。
+        val partition = GeneratedColumns.partition(columns)
         call.respondHtml {
-            wizardStep3View(ctx, connectionName, TableInfo(schema, tableName), configName, Step3Content(columns))
+            wizardStep3View(
+                ctx, connectionName, TableInfo(schema, tableName), configName,
+                Step3Content(partition.selectable, excludedColumns = partition.excluded),
+            )
         }
     }
 
@@ -122,7 +128,12 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
                     if (result.candidates.isEmpty()) {
                         Step3Content(emptyList(), noPrimaryKeyMessage(result.tableName))
                     } else {
-                        Step3Content(result.candidates, recordIdCandidates = result.candidates)
+                        // レコード ID の候補は自動生成列も残す。自動採番列はレコード番号に
+                        // 使える。マッピング対象からだけ外す (Issue #75)。
+                        Step3Content(
+                            GeneratedColumns.partition(result.candidates).selectable,
+                            recordIdCandidates = result.candidates,
+                        )
                     },
                 )
             }
@@ -247,7 +258,9 @@ private fun computeStep4(
                 table.name,
                 allColumns.filter { FieldTypeSuggester.canBeRecordId(it.jdbcType) },
             )
-        val maps = allColumns
+        // 画面を経由せず POST された場合に備えて、ここでも自動生成列を落とす。
+        // 表示だけを変えても保存内容は守れない (Issue #75)。
+        val maps = GeneratedColumns.partition(allColumns).selectable
             .filter { it.name in selectedColumns && it.name != idColumn.name }
             .map { col ->
                 WizardMapping(
