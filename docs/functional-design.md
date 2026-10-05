@@ -219,9 +219,9 @@ classDiagram
     class JdbcMetadataInspector {
         -conn: Connection
         +listTables(): List~TableInfo~
-        +listColumns(table: String): List~ColumnInfo~
-        +findPrimaryKey(table: String): PrimaryKeyInfo
-        +distinctValues(table, col, limit): List~String~
+        +listColumns(table: String, schema: String?): List~ColumnInfo~
+        +findPrimaryKey(table: String, schema: String?): PrimaryKeyInfo
+        +distinctValues(table, col, limit, schema): List~String~
     }
 
     class FieldTypeSuggester {
@@ -238,8 +238,10 @@ classDiagram
 
     class TableConfig {
         +name: String
+        +schema: String?
         +primaryKey: PrimaryKeyConfig
         +columns: List~ColumnConfig~
+        +qualifiedName(): String
     }
 
     class ColumnConfig {
@@ -318,6 +320,26 @@ classDiagram
     AdapterServiceImpl --> QueryBuilder
     FilterTranslator --> WhereClause
 ```
+
+### スキーマの扱い
+
+`TableConfig.schema` は**省略可能**。スキーマを持たないデータソースでは `null` になる。
+
+実行時クエリは `qualifiedName()` が返す修飾名を使う。
+
+| `schema` | `qualifiedName()` | 用途 |
+|---|---|---|
+| `"SalesLT"` | `[SalesLT].[Customer]` | スキーマを持つデータソース |
+| `null` | `[Customer]` | スキーマを持たないデータソース／スキーマ項目の無い既存設定 |
+
+**テーブル名にドットを含めて修飾する方式は採らない。** `SqlIdentifier.quote` は
+`SalesLT.Customer` を 1 つの識別子として扱うため、独立した項目として持つ。
+
+連携追加ウィザードでは、スキーマが 2 種類以上あるときだけ step2 に選択 UI を出し、
+1 スキーマに絞って表示する。絞らないと、どのテーブルがどのスキーマのものかを
+hidden 1 つでは送れない。
+
+関連: [Issue #63](https://github.com/sugimomoto/KintoneExternalAppCDataSample/issues/63)
 
 ---
 

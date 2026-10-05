@@ -38,10 +38,16 @@ class JdbcMetadataInspector(private val connection: Connection) {
         return tables
     }
 
-    /** 指定テーブルのカラム一覧を返す。 */
-    fun listColumns(tableName: String): List<ColumnInfo> {
+    /**
+     * 指定テーブルのカラム一覧を返す。
+     *
+     * [schema] を渡さないと、スキーマを持つデータソースで目的のテーブルを特定できない。
+     * JDBC は `schema = null` を「すべてのスキーマ」として扱うため、既定値は従来の
+     * 挙動を保つ (Issue #63)。
+     */
+    fun listColumns(tableName: String, schema: String? = null): List<ColumnInfo> {
         val columns = mutableListOf<ColumnInfo>()
-        connection.metaData.getColumns(null, null, tableName, "%").use { rs ->
+        connection.metaData.getColumns(null, schema, tableName, "%").use { rs ->
             while (rs.next()) {
                 columns += ColumnInfo(
                     name = rs.getString("COLUMN_NAME"),
@@ -55,33 +61,42 @@ class JdbcMetadataInspector(private val connection: Connection) {
     }
 
     /** 主キー（最初の1カラム）を返す。複合主キーは未対応。なければ null。 */
-    fun findPrimaryKey(tableName: String): PrimaryKeyInfo? {
+    fun findPrimaryKey(tableName: String, schema: String? = null): PrimaryKeyInfo? {
         var pkColumn: String? = null
-        connection.metaData.getPrimaryKeys(null, null, tableName).use { rs ->
+        connection.metaData.getPrimaryKeys(null, schema, tableName).use { rs ->
             if (rs.next()) {
                 pkColumn = rs.getString("COLUMN_NAME")
             }
         }
         val column = pkColumn ?: return null
-        val columnInfo = listColumns(tableName).firstOrNull { it.name == column }
+        val columnInfo = listColumns(tableName, schema).firstOrNull { it.name == column }
             ?: error("主キー '$column' のカラム情報が取得できません")
         return PrimaryKeyInfo(column = column, jdbcType = columnInfo.jdbcType)
     }
 
     /** 指定カラムの DISTINCT な値（最大 limit 件）を返す。SELECTION 型の選択肢自動検出に利用。 */
-    fun distinctValues(tableName: String, columnName: String, limit: Int = DEFAULT_DISTINCT_LIMIT): List<String> {
-        val values = mutableListOf<String>()
-        val sql = "SELECT DISTINCT $columnName FROM $tableName WHERE $columnName IS NOT NULL LIMIT ?"
-        connection.prepareStatement(sql).use { stmt ->
+    fun distinctValues(
+        tableName: String,
+        columnName: String,
+        limit: Int = DEFAULT_DISTINCT_LIMIT,
+        schema: String? = null,
+    ): List<String> {
+        // 識別子をクォートしない。ここはウィザードの選択肢検出だけに使う補助クエリで、
+        // クォート形式を変えるとデータソースによって通らなくなる（既存の制約）。
+        // スキーマは接頭辞として付ける (Issue #63)。
+        val target = if (schema.isNullOrBlank()) tableName else "$schema.$tableName"
+        val sql = "SELECT DISTINCT $columnName FROM $target WHERE $columnName IS NOT NULL LIMIT ?"
+        return connection.prepareStatement(sql).use { stmt ->
             stmt.setInt(1, limit)
-            stmt.executeQuery().use { rs ->
-                while (rs.next()) {
-                    val v = rs.getString(1)
-                    if (v != null) values += v
-                }
-            }
+            stmt.executeQuery().use { rs -> readStrings(rs) }
         }
-        return values
+    }
+
+    /** 1 列目の文字列を全行読む。null は除く。 */
+    private fun readStrings(rs: java.sql.ResultSet): List<String> = buildList {
+        while (rs.next()) {
+            rs.getString(1)?.let { add(it) }
+        }
     }
 
     companion object {

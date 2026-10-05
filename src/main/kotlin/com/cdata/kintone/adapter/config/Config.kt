@@ -1,5 +1,6 @@
 package com.cdata.kintone.adapter.config
 
+import com.cdata.kintone.adapter.jdbc.SqlIdentifier
 import com.cdata.kintone.adapter.metadata.ColumnType
 import com.cdata.kintone.adapter.metadata.RecordIdType
 import kotlinx.serialization.KSerializer
@@ -106,7 +107,23 @@ data class TableConfig(
     val name: String,
     @SerialName("primary-key") val primaryKey: PrimaryKeyConfig,
     val columns: List<ColumnConfig>,
+    /**
+     * テーブルのスキーマ。スキーマを持たないデータソースでは null。
+     *
+     * **省略可能にしている。** この項目が無い既存設定をそのまま読むため
+     * （`ignoreUnknownKeys` / `encodeDefaults = false`）。
+     *
+     * 名前にドットを含めて修飾する方式は採れない。[SqlIdentifier.quote] は
+     * `SalesLT.Customer` を 1 つの識別子として扱うため (Issue #63)。
+     */
+    val schema: String? = null,
 ) {
+    /**
+     * 実行時クエリで使う修飾済みテーブル名。
+     * スキーマが無ければ修飾されず、従来と同じ SQL になる。
+     */
+    fun qualifiedName(): String = SqlIdentifier.qualified(schema, name)
+
     /** kintone field_id から JDBC カラム名を解決する。主キーまたはカラムリストの両方を見る。 */
     fun toJdbcColumn(kintoneFieldId: String): String {
         if (kintoneFieldId == primaryKey.kintoneFieldId) return primaryKey.jdbcColumn

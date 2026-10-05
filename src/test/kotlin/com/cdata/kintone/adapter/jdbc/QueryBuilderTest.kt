@@ -8,6 +8,10 @@ import com.cdata.kintone.adapter.config.TableConfig
 import com.cdata.kintone.adapter.filter.WhereClause
 import com.cdata.kintone.adapter.metadata.ColumnType
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
@@ -276,5 +280,76 @@ class QueryBuilderTest {
             "SELECT [Id], [Name], [AnnualRevenue], [CreatedDate] FROM [Account] WHERE 1=1 LIMIT ? OFFSET ?",
             q.sql,
         )
+    }
+
+    // --- スキーマ修飾 (Issue #63) ---
+
+    private val tableWithSchema = TableConfig(
+        name = "Customer",
+        primaryKey = PrimaryKeyConfig("id", "CustomerID"),
+        columns = listOf(ColumnConfig("name", "CompanyName", ColumnType.TEXT)),
+        schema = "SalesLT",
+    )
+
+    @Test
+    fun `スキーマがあれば修飾名でクエリする`() {
+        val sql = QueryBuilder(tableWithSchema).buildSelect(
+            fields = emptyList(),
+            where = WhereClause.ALL_RECORDS,
+            sortConditions = emptyList(),
+            limit = 10,
+            offset = 0,
+        ).sql
+
+        assertTrue(sql.contains("FROM [SalesLT].[Customer]"), "実際: $sql")
+    }
+
+    @Test
+    fun `スキーマがなければ従来どおり修飾しない`() {
+        // スキーマ項目の無い既存設定との後方互換 (AC-7)。
+        val sql = QueryBuilder(tableConfig).buildSelect(
+            fields = emptyList(),
+            where = WhereClause.ALL_RECORDS,
+            sortConditions = emptyList(),
+            limit = 10,
+            offset = 0,
+        ).sql
+
+        assertTrue(sql.contains("FROM [Account]"), "実際: $sql")
+        assertFalse(sql.contains("]."), "修飾してはいけない: $sql")
+    }
+
+    @Test
+    fun `INSERT UPDATE DELETE COUNT もスキーマで修飾する`() {
+        val builder = QueryBuilder(tableWithSchema)
+
+        assertTrue(builder.buildInsert(mapOf("name" to "x")).sql.contains("INTO [SalesLT].[Customer]"))
+        assertTrue(builder.buildUpdate("1", mapOf("name" to "x")).sql.contains("UPDATE [SalesLT].[Customer]"))
+        assertTrue(builder.buildDelete(listOf("1")).sql.contains("FROM [SalesLT].[Customer]"))
+        assertTrue(builder.buildCount(WhereClause.ALL_RECORDS).sql.contains("FROM [SalesLT].[Customer]"))
+    }
+
+    @Test
+    fun `schema を持たない JSON を読める（後方互換）`() {
+        // 既存の table_json はこの項目を持たない。読めなくなると連携が全滅する。
+        val json = Json { ignoreUnknownKeys = true }
+        val decoded = json.decodeFromString<TableConfig>(
+            """{"name":"Account","primary-key":{"kintone-field-id":"id","jdbc-column":"Id"},"columns":[]}""",
+        )
+
+        assertNull(decoded.schema)
+        assertEquals("[Account]", decoded.qualifiedName())
+    }
+
+    @Test
+    fun `schema を持つ JSON を読める`() {
+        val json = Json { ignoreUnknownKeys = true }
+        val decoded = json.decodeFromString<TableConfig>(
+            """{"name":"Customer","schema":"SalesLT",""" +
+                """"primary-key":{"kintone-field-id":"id","jdbc-column":"CustomerID"},"columns":[]}""",
+        )
+
+        assertEquals("SalesLT", decoded.schema)
+        assertEquals("[SalesLT].[Customer]", decoded.qualifiedName())
     }
 }
