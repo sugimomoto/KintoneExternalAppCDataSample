@@ -43,6 +43,7 @@ import build.buf.gen.cybozu.data_connector.adapter.v1.RecordId
 import build.buf.gen.cybozu.data_connector.adapter.v1.TextFieldValueState
 import com.cdata.kintone.adapter.config.TableConfig
 import com.cdata.kintone.adapter.jdbc.SqlIdentifier
+import com.cdata.kintone.adapter.jdbc.SqlDateTime
 import com.google.protobuf.Timestamp
 import java.sql.Timestamp as SqlTimestamp
 import java.time.Instant
@@ -419,9 +420,13 @@ class FilterTranslator(private val table: TableConfig) {
         return WhereClause("$column $op ($placeholders)", values.toList())
     }
 
-    private fun timestampToSql(ts: Timestamp): SqlTimestamp {
-        return SqlTimestamp.from(Instant.ofEpochSecond(ts.seconds, ts.nanos.toLong()))
-    }
+    /**
+     * 日時フィルタのパラメータを SQL 用の文字列にする。
+     *
+     * `java.sql.Timestamp` を渡すと、CData の SQL Server ドライバーが SQL Server が
+     * 解釈できない文字列に変換し、日時での絞り込みが失敗する (Issue #71)。
+     */
+    private fun timestampToSql(ts: Timestamp): String = SqlDateTime.format(ts)
 }
 
 /** サポートされていないフィルター条件が渡されたときに投げられる例外。 */

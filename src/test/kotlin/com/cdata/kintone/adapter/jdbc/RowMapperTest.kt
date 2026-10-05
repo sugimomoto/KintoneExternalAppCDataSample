@@ -202,7 +202,12 @@ class RowMapperTest {
         assertEquals("001xx", values["id"])
         assertEquals("Acme", values["name"])
         assertEquals(100.0, values["revenue"])
-        assertEquals(SqlTimestamp.from(Instant.ofEpochSecond(1_700_000_000L)), values["created_at"])
+        // java.sql.Timestamp ではなく文字列。CData の SQL Server ドライバーが
+        // Timestamp を解釈できない文字列に変換するため (Issue #71)。
+        assertEquals(
+            SqlDateTime.format(Timestamp.newBuilder().setSeconds(1_700_000_000L).build()),
+            values["created_at"],
+        )
         assertEquals("Banking", values["industry"])
     }
 
