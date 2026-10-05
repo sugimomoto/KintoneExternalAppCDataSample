@@ -150,8 +150,9 @@ class RowMapper(
         Field.FieldCase.NUMBER_FIELD -> if (field.numberField.hasValue()) field.numberField.value else null
         Field.FieldCase.DATETIME_FIELD -> {
             if (field.datetimeField.hasValue()) {
-                val ts = field.datetimeField.value
-                SqlTimestamp.from(Instant.ofEpochSecond(ts.seconds, ts.nanos.toLong()))
+                // java.sql.Timestamp は渡さない。CData の SQL Server ドライバーが
+                // SQL Server が解釈できない文字列に変換して失敗する (Issue #71)。
+                SqlDateTime.format(field.datetimeField.value)
             } else {
                 null
             }
