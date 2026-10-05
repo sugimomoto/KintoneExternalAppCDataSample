@@ -392,15 +392,20 @@ fun kotlinx.html.FlowContent.propertiesFormContent(
     }
 
     if (result.properties.isEmpty()) {
-        manualUrlField(existingValues)
+        // プロパティフォームが作れないため、手動入力が唯一の編集手段。事前入力する。
+        manualUrlField(existingValues, prefill = true)
         return
     }
 
     propertyCategories(result.properties, existingValues)
 
     // 縮退時は取得漏れのプロパティを補えるよう、直接入力も併記する。
+    //
+    // **事前入力はしない。** 埋めた値はブラウザがそのまま送り返し、
+    // ConnectionFormUrl.build で無条件に優先されるため、プロパティ側の編集が
+    // 黙って捨てられていた (Issue #59)。
     if (result.isDegraded) {
-        manualUrlField(existingValues)
+        manualUrlField(existingValues, prefill = false)
     }
 }
 
@@ -429,14 +434,43 @@ private fun noticeFor(source: PropertySource): String? = when (source) {
             "JDBC 接続文字列を直接入力すればデータソース接続は作成できます。"
 }
 
-/** プロパティフォームを生成できない / 補完が必要なときのフォールバック入力欄。 */
-private fun kotlinx.html.FlowContent.manualUrlField(existingValues: Map<String, String>) {
+/** 既存の接続文字列を `existingValues` に載せるときのキー。プロパティ名と衝突しない形。 */
+private const val URL_VALUE_KEY = "__url__"
+
+/**
+ * プロパティフォームを生成できない / 補完が必要なときのフォールバック入力欄。
+ *
+ * [prefill] は**プロパティフォームが併記されないときだけ true** にする。
+ * 併記時に既存の接続文字列を埋めると、ブラウザがそれをそのまま送り返し、
+ * [ConnectionFormUrl][com.cdata.kintone.adapter.web.routes.ConnectionFormUrl] が
+ * 無条件に優先するため、プロパティ側の編集が黙って捨てられる (Issue #59)。
+ */
+private fun kotlinx.html.FlowContent.manualUrlField(
+    existingValues: Map<String, String>,
+    prefill: Boolean,
+) {
+    val current = existingValues[URL_VALUE_KEY].orEmpty()
     label {
-        +"JDBC 接続文字列 (直接入力):"
+        +if (prefill) "JDBC 接続文字列 (直接入力):" else "JDBC 接続文字列 (直接入力、任意):"
         textArea {
             name = "jdbc.url.manual"
             rows = "3"
-            +(existingValues["__url__"] ?: "")
+            if (prefill) +current
+        }
+    }
+    if (prefill) return
+
+    small(classes = "muted") {
+        +"空欄のままなら上のプロパティから組み立てます。入力した場合はその値が優先されます。"
+    }
+    if (current.isNotBlank()) {
+        // 参照用。マスク済みの値のみを出すこと (生の接続文字列を入れると
+        // DOM に平文の資格情報が載る)。
+        p {
+            small(classes = "muted") {
+                +"現在の値: "
+                code { +ConnectionStringMasker.mask(current) }
+            }
         }
     }
 }
@@ -662,6 +696,6 @@ fun existingValuesOf(config: JdbcConfig): Map<String, String> {
         }
         map[k.trim()] = v
     }
-    map["__url__"] = config.url
+    map[URL_VALUE_KEY] = config.url
     return map
 }
