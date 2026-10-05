@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.assertNotEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
 /**
@@ -231,5 +232,45 @@ class JdbcUrlEnhancerTest {
         // 接続文字列の区切りを壊さないため。CData のトークンに ; は現れないが防御的に。
         val result = JdbcUrlEnhancer.withProperty("jdbc:salesforce:User=u;", "OAuthRefreshToken", "a;b")
         assertTrue(result.contains("OAuthRefreshToken=ab"), "result was: $result")
+    }
+
+    // --- propertyOf (Issue #69) ---
+
+    @Test
+    fun `propertyOf - プロパティ値を読める`() {
+        val url = "jdbc:sql:Server=x;QueryPassthrough=False;Port=1433;"
+
+        assertEquals("False", JdbcUrlEnhancer.propertyOf(url, "QueryPassthrough"))
+    }
+
+    @Test
+    fun `propertyOf - 無ければ null`() {
+        assertNull(JdbcUrlEnhancer.propertyOf("jdbc:sql:Server=x;", "QueryPassthrough"))
+    }
+
+    @Test
+    fun `propertyOf - 最初のプロパティでも読める`() {
+        // CData の接続文字列は jdbc:<product>:<最初のプロパティ>=... の形。
+        val url = "jdbc:sql:QueryPassthrough=False;Server=x;"
+
+        assertEquals("False", JdbcUrlEnhancer.propertyOf(url, "QueryPassthrough"))
+    }
+
+    @Test
+    fun `propertyOf - 大文字小文字を無視する`() {
+        val url = "jdbc:sql:querypassthrough=false;"
+
+        assertEquals("false", JdbcUrlEnhancer.propertyOf(url, "QueryPassthrough"))
+    }
+
+    @Test
+    fun `propertyOf - 空値は null`() {
+        assertNull(JdbcUrlEnhancer.propertyOf("jdbc:sql:QueryPassthrough=;Server=x;", "QueryPassthrough"))
+    }
+
+    @Test
+    fun `propertyOf - 似た名前のプロパティを誤検出しない`() {
+        // 前方一致で拾うと別プロパティを誤って読む。
+        assertNull(JdbcUrlEnhancer.propertyOf("jdbc:sql:MyQueryPassthroughExtra=x;", "QueryPassthrough"))
     }
 }
