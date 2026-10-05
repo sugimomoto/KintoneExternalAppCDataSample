@@ -68,51 +68,55 @@ class AdapterServiceImpl(
 ) : AdapterServiceGrpcKt.AdapterServiceCoroutineImplBase() {
 
     override suspend fun getCapability(request: GetCapabilityRequest): GetCapabilityResponse {
-        log.info { "GetCapability called" }
-        val cap = config.capability
-        val payload = GetCapabilityResponsePayload.newBuilder().apply {
-            selectOperationSupported = cap.selectSupported
-            insertOperationSupported = cap.insertSupported
-            updateOperationSupported = cap.updateSupported
-            deleteOperationSupported = cap.deleteSupported
-            countOperationSupported = cap.countSupported
-            searchOperationSupported = cap.searchSupported
-            recordIdType = when (cap.recordIdType) {
-                RecordIdType.NUMBER -> ProtoRecordIdType.RECORD_ID_TYPE_NUMBER
-                RecordIdType.TEXT -> ProtoRecordIdType.RECORD_ID_TYPE_TEXT
-            }
-            addAllFilterableFields(cap.filterableFields)
-            addAllSortableFields(cap.sortableFields)
-        }.build()
-        return GetCapabilityResponse.newBuilder().setPayload(payload).build()
+        return withRpcErrors("GetCapability") {
+            log.info { "GetCapability called" }
+            val cap = config.capability
+            val payload = GetCapabilityResponsePayload.newBuilder().apply {
+                selectOperationSupported = cap.selectSupported
+                insertOperationSupported = cap.insertSupported
+                updateOperationSupported = cap.updateSupported
+                deleteOperationSupported = cap.deleteSupported
+                countOperationSupported = cap.countSupported
+                searchOperationSupported = cap.searchSupported
+                recordIdType = when (cap.recordIdType) {
+                    RecordIdType.NUMBER -> ProtoRecordIdType.RECORD_ID_TYPE_NUMBER
+                    RecordIdType.TEXT -> ProtoRecordIdType.RECORD_ID_TYPE_TEXT
+                }
+                addAllFilterableFields(cap.filterableFields)
+                addAllSortableFields(cap.sortableFields)
+            }.build()
+            GetCapabilityResponse.newBuilder().setPayload(payload).build()
+        }
     }
 
     override suspend fun getSchema(request: GetSchemaRequest): GetSchemaResponse {
-        log.info { "GetSchema called" }
-        val schemaMap = mutableMapOf<String, FieldDefinition>()
-        schemaMap[config.table.primaryKey.kintoneFieldId] = recordIdFieldDefinition(config.table.primaryKey.kintoneFieldId)
-        for (col in config.table.columns) {
-            schemaMap[col.kintoneFieldId] = when (col.type) {
-                ColumnType.TEXT -> FieldDefinition.newBuilder()
-                    .setTextFieldDefinition(TextFieldDefinition.newBuilder().setFieldId(col.kintoneFieldId))
-                    .build()
-                ColumnType.NUMBER -> FieldDefinition.newBuilder()
-                    .setNumberFieldDefinition(NumberFieldDefinition.newBuilder().setFieldId(col.kintoneFieldId))
-                    .build()
-                ColumnType.DATETIME -> FieldDefinition.newBuilder()
-                    .setDatetimeFieldDefinition(DatetimeFieldDefinition.newBuilder().setFieldId(col.kintoneFieldId))
-                    .build()
-                ColumnType.SELECTION -> FieldDefinition.newBuilder()
-                    .setSelectionFieldDefinition(
-                        SelectionFieldDefinition.newBuilder()
-                            .setFieldId(col.kintoneFieldId)
-                            .addAllOptions((col.options ?: emptyList()).map { Option.newBuilder().setValue(it).build() }),
-                    )
-                    .build()
+        return withRpcErrors("GetSchema") {
+            log.info { "GetSchema called" }
+            val schemaMap = mutableMapOf<String, FieldDefinition>()
+            schemaMap[config.table.primaryKey.kintoneFieldId] = recordIdFieldDefinition(config.table.primaryKey.kintoneFieldId)
+            for (col in config.table.columns) {
+                schemaMap[col.kintoneFieldId] = when (col.type) {
+                    ColumnType.TEXT -> FieldDefinition.newBuilder()
+                        .setTextFieldDefinition(TextFieldDefinition.newBuilder().setFieldId(col.kintoneFieldId))
+                        .build()
+                    ColumnType.NUMBER -> FieldDefinition.newBuilder()
+                        .setNumberFieldDefinition(NumberFieldDefinition.newBuilder().setFieldId(col.kintoneFieldId))
+                        .build()
+                    ColumnType.DATETIME -> FieldDefinition.newBuilder()
+                        .setDatetimeFieldDefinition(DatetimeFieldDefinition.newBuilder().setFieldId(col.kintoneFieldId))
+                        .build()
+                    ColumnType.SELECTION -> FieldDefinition.newBuilder()
+                        .setSelectionFieldDefinition(
+                            SelectionFieldDefinition.newBuilder()
+                                .setFieldId(col.kintoneFieldId)
+                                .addAllOptions((col.options ?: emptyList()).map { Option.newBuilder().setValue(it).build() }),
+                        )
+                        .build()
+                }
             }
+            val payload = GetSchemaResponsePayload.newBuilder().putAllSchema(schemaMap).build()
+            GetSchemaResponse.newBuilder().setPayload(payload).build()
         }
-        val payload = GetSchemaResponsePayload.newBuilder().putAllSchema(schemaMap).build()
-        return GetSchemaResponse.newBuilder().setPayload(payload).build()
     }
 
     override suspend fun select(request: SelectRequest): SelectResponse {
@@ -124,7 +128,7 @@ class AdapterServiceImpl(
                 "sort=${p.sortConditionsList.map { "${it.fieldId}:${it.sortDirection}" }} " +
                 "limit=${p.limit} offset=${p.offset}"
         }
-        try {
+        return withRpcErrors("Select") {
             val payload = request.payload ?: throw invalidArgument("payload is required")
             val where = try {
                 filterTranslator.translate(payload.filterConditionsList, payload.matchOperator)
@@ -150,175 +154,181 @@ class AdapterServiceImpl(
                 }
             }
             log.info { "Select returned ${records.size} records" }
-            return SelectResponse.newBuilder()
+            SelectResponse.newBuilder()
                 .setPayload(SelectResponsePayload.newBuilder().addAllRecords(records))
                 .build()
-        } catch (e: StatusException) {
-            log.warn { "Select returning status error: ${e.message}" }
-            throw e
-        } catch (e: Exception) {
-            log.error(e) { "Select failed with unexpected exception" }
-            throw Status.INTERNAL.withDescription(e.message ?: e::class.simpleName).withCause(e).asException()
         }
     }
 
     override suspend fun insert(request: InsertRequest): InsertResponse {
-        log.info { "Insert called: ${request.payload.recordsCount} records" }
-        val payload = request.payload ?: throw invalidArgument("payload is required")
+        return withRpcErrors("Insert") {
+            log.info { "Insert called: ${request.payload.recordsCount} records" }
+            val payload = request.payload ?: throw invalidArgument("payload is required")
 
-        val ids = mutableListOf<Long>()
-        val recordIds = mutableListOf<ProtoRecordId>()
-        connectionProvider.connection().use { conn ->
-            conn.autoCommit = false
-            try {
-                for (record in payload.recordsList) {
-                    val values = rowMapper.recordToColumnValues(record)
-                        .filterKeys { it != config.table.primaryKey.kintoneFieldId }
-                    val query = queryBuilder.buildInsert(values)
-                    conn.prepareStatement(query.sql, Statement.RETURN_GENERATED_KEYS).use { stmt ->
-                        bindParams(stmt, query.params)
-                        stmt.executeUpdate()
-                        stmt.generatedKeys.use { rs ->
-                            if (rs.next()) {
-                                when (config.capability.recordIdType) {
-                                    RecordIdType.NUMBER -> ids += rs.getLong(1)
-                                    RecordIdType.TEXT -> recordIds += ProtoRecordId.newBuilder()
-                                        .setValueText(rs.getString(1)).build()
+            val ids = mutableListOf<Long>()
+            val recordIds = mutableListOf<ProtoRecordId>()
+            connectionProvider.connection().use { conn ->
+                conn.autoCommit = false
+                try {
+                    for (record in payload.recordsList) {
+                        val values = rowMapper.recordToColumnValues(record)
+                            .filterKeys { it != config.table.primaryKey.kintoneFieldId }
+                        val query = queryBuilder.buildInsert(values)
+                        conn.prepareStatement(query.sql, Statement.RETURN_GENERATED_KEYS).use { stmt ->
+                            bindParams(stmt, query.params)
+                            stmt.executeUpdate()
+                            stmt.generatedKeys.use { rs ->
+                                if (rs.next()) {
+                                    when (config.capability.recordIdType) {
+                                        RecordIdType.NUMBER -> ids += rs.getLong(1)
+                                        RecordIdType.TEXT -> recordIds += ProtoRecordId.newBuilder()
+                                            .setValueText(rs.getString(1)).build()
+                                    }
                                 }
                             }
                         }
                     }
+                    conn.commit()
+                } catch (e: Exception) {
+                    conn.rollback()
+                    throw e
                 }
-                conn.commit()
-            } catch (e: Exception) {
-                conn.rollback()
-                throw e
             }
+            val payloadBuilder = InsertResponsePayload.newBuilder()
+            if (config.capability.recordIdType == RecordIdType.NUMBER) {
+                payloadBuilder.addAllIds(ids)
+            } else {
+                payloadBuilder.addAllRecordIds(recordIds)
+            }
+            InsertResponse.newBuilder().setPayload(payloadBuilder).build()
         }
-        val payloadBuilder = InsertResponsePayload.newBuilder()
-        if (config.capability.recordIdType == RecordIdType.NUMBER) {
-            payloadBuilder.addAllIds(ids)
-        } else {
-            payloadBuilder.addAllRecordIds(recordIds)
-        }
-        return InsertResponse.newBuilder().setPayload(payloadBuilder).build()
     }
 
     override suspend fun update(request: UpdateRequest): UpdateResponse {
-        log.info { "Update called: ${request.payload.recordsCount} records" }
-        val payload = request.payload ?: throw invalidArgument("payload is required")
+        return withRpcErrors("Update") {
+            log.info { "Update called: ${request.payload.recordsCount} records" }
+            val payload = request.payload ?: throw invalidArgument("payload is required")
 
-        val updatedInfos = mutableListOf<UpdatedRecordInfo>()
-        connectionProvider.connection().use { conn ->
-            conn.autoCommit = false
-            try {
-                for (record in payload.recordsList) {
-                    val idValue = rowMapper.extractRecordId(record)
-                        ?: throw invalidArgument("Update には主キー（${config.table.primaryKey.kintoneFieldId}）が必要です")
-                    val values = rowMapper.recordToColumnValues(record)
-                    val query = queryBuilder.buildUpdate(idValue, values)
-                    conn.prepareStatement(query.sql).use { stmt ->
-                        bindParams(stmt, query.params)
-                        stmt.executeUpdate()
+            val updatedInfos = mutableListOf<UpdatedRecordInfo>()
+            connectionProvider.connection().use { conn ->
+                conn.autoCommit = false
+                try {
+                    for (record in payload.recordsList) {
+                        val idValue = rowMapper.extractRecordId(record)
+                            ?: throw invalidArgument("Update には主キー（${config.table.primaryKey.kintoneFieldId}）が必要です")
+                        val values = rowMapper.recordToColumnValues(record)
+                        val query = queryBuilder.buildUpdate(idValue, values)
+                        conn.prepareStatement(query.sql).use { stmt ->
+                            bindParams(stmt, query.params)
+                            stmt.executeUpdate()
+                        }
+                        updatedInfos += buildUpdatedRecordInfo(idValue)
                     }
-                    updatedInfos += buildUpdatedRecordInfo(idValue)
+                    conn.commit()
+                } catch (e: Exception) {
+                    conn.rollback()
+                    throw e
                 }
-                conn.commit()
-            } catch (e: Exception) {
-                conn.rollback()
-                throw e
             }
+            UpdateResponse.newBuilder()
+                .setPayload(UpdateResponsePayload.newBuilder().addAllRecords(updatedInfos))
+                .build()
         }
-        return UpdateResponse.newBuilder()
-            .setPayload(UpdateResponsePayload.newBuilder().addAllRecords(updatedInfos))
-            .build()
     }
 
     override suspend fun delete(request: DeleteRequest): DeleteResponse {
-        val payload = request.payload ?: throw invalidArgument("payload is required")
-        log.info {
-            "Delete called: idsList(NUMBER)=${payload.idsList} " +
-                "recordIdsList(TEXT)=${payload.recordIdsList.map { it.valueText }} " +
-                "recordIdType=${config.capability.recordIdType}"
-        }
-        val ids: List<Any> = when (config.capability.recordIdType) {
-            RecordIdType.NUMBER -> {
-                // フォールバック: NUMBER 設定でも recordIdsList で来た場合に対応
-                if (payload.idsList.isNotEmpty()) payload.idsList.map { it as Any }
-                else payload.recordIdsList.map { it.valueNumber as Any }
+        return withRpcErrors("Delete") {
+            val payload = request.payload ?: throw invalidArgument("payload is required")
+            log.info {
+                "Delete called: idsList(NUMBER)=${payload.idsList} " +
+                    "recordIdsList(TEXT)=${payload.recordIdsList.map { it.valueText }} " +
+                    "recordIdType=${config.capability.recordIdType}"
             }
-            RecordIdType.TEXT -> {
-                // フォールバック: TEXT 設定でも idsList で来た場合に対応
-                if (payload.recordIdsList.isNotEmpty()) payload.recordIdsList.map { it.valueText as Any }
-                else payload.idsList.map { it.toString() as Any }
-            }
-        }
-        log.info { "Delete: resolved ${ids.size} IDs = $ids" }
-        if (ids.isEmpty()) {
-            log.warn { "Delete: ID リストが空。何も削除しない" }
-            return DeleteResponse.newBuilder().setPayload(DeleteResponsePayload.getDefaultInstance()).build()
-        }
-        try {
-            connectionProvider.connection().use { conn ->
-                val query = queryBuilder.buildDelete(ids)
-                log.info { "Delete SQL: ${query.sql} | params=${query.params}" }
-                conn.prepareStatement(query.sql).use { stmt ->
-                    bindParams(stmt, query.params)
-                    val affected = stmt.executeUpdate()
-                    log.info { "Delete: 影響行数=$affected" }
+            val ids: List<Any> = when (config.capability.recordIdType) {
+                RecordIdType.NUMBER -> {
+                    // フォールバック: NUMBER 設定でも recordIdsList で来た場合に対応
+                    if (payload.idsList.isNotEmpty()) payload.idsList.map { it as Any }
+                    else payload.recordIdsList.map { it.valueNumber as Any }
+                }
+                RecordIdType.TEXT -> {
+                    // フォールバック: TEXT 設定でも idsList で来た場合に対応
+                    if (payload.recordIdsList.isNotEmpty()) payload.recordIdsList.map { it.valueText as Any }
+                    else payload.idsList.map { it.toString() as Any }
                 }
             }
-            return DeleteResponse.newBuilder().setPayload(DeleteResponsePayload.getDefaultInstance()).build()
-        } catch (e: Exception) {
-            log.error(e) { "Delete failed" }
-            throw Status.INTERNAL.withDescription(e.message ?: e::class.simpleName).withCause(e).asException()
+            log.info { "Delete: resolved ${ids.size} IDs = $ids" }
+            if (ids.isEmpty()) {
+                log.warn { "Delete: ID リストが空。何も削除しない" }
+                return DeleteResponse.newBuilder().setPayload(DeleteResponsePayload.getDefaultInstance()).build()
+            }
+            try {
+                connectionProvider.connection().use { conn ->
+                    val query = queryBuilder.buildDelete(ids)
+                    log.info { "Delete SQL: ${query.sql} | params=${query.params}" }
+                    conn.prepareStatement(query.sql).use { stmt ->
+                        bindParams(stmt, query.params)
+                        val affected = stmt.executeUpdate()
+                        log.info { "Delete: 影響行数=$affected" }
+                    }
+                }
+                DeleteResponse.newBuilder().setPayload(DeleteResponsePayload.getDefaultInstance()).build()
+            } catch (e: Exception) {
+                log.error(e) { "Delete failed" }
+                throw Status.INTERNAL.withDescription(e.message ?: e::class.simpleName).withCause(e).asException()
+            }
         }
     }
 
     override suspend fun count(request: CountRequest): CountResponse {
-        log.info { "Count called (strategy=${config.capability.countStrategy})" }
-        if (config.capability.countStrategy == CountStrategy.ALWAYS_ZERO) {
-            return CountResponse.newBuilder()
-                .setPayload(CountResponsePayload.newBuilder().setCount(0L))
-                .build()
-        }
-        val payload = request.payload ?: throw invalidArgument("payload is required")
-        val where = filterTranslator.translate(payload.filterConditionsList, payload.matchOperator)
-        val query = queryBuilder.buildCount(where)
-        var count = 0L
-        connectionProvider.connection().use { conn ->
-            conn.prepareStatement(query.sql).use { stmt ->
-                bindParams(stmt, query.params)
-                stmt.executeQuery().use { rs ->
-                    if (rs.next()) count = rs.getLong(1)
+        return withRpcErrors("Count") {
+            log.info { "Count called (strategy=${config.capability.countStrategy})" }
+            if (config.capability.countStrategy == CountStrategy.ALWAYS_ZERO) {
+                return CountResponse.newBuilder()
+                    .setPayload(CountResponsePayload.newBuilder().setCount(0L))
+                    .build()
+            }
+            val payload = request.payload ?: throw invalidArgument("payload is required")
+            val where = filterTranslator.translate(payload.filterConditionsList, payload.matchOperator)
+            val query = queryBuilder.buildCount(where)
+            var count = 0L
+            connectionProvider.connection().use { conn ->
+                conn.prepareStatement(query.sql).use { stmt ->
+                    bindParams(stmt, query.params)
+                    stmt.executeQuery().use { rs ->
+                        if (rs.next()) count = rs.getLong(1)
+                    }
                 }
             }
+            CountResponse.newBuilder()
+                .setPayload(CountResponsePayload.newBuilder().setCount(count))
+                .build()
         }
-        return CountResponse.newBuilder()
-            .setPayload(CountResponsePayload.newBuilder().setCount(count))
-            .build()
     }
 
     override suspend fun search(request: SearchRequest): SearchResponse {
-        log.info { "Search called - basic LIKE implementation" }
-        // フェーズ1 では LIKE ベースの簡易実装のみ。詳細なフルテキスト検索は将来対応。
-        if (!config.capability.searchSupported) {
-            throw unimplemented("Search は capability で無効化されています")
+        return withRpcErrors("Search") {
+            log.info { "Search called - basic LIKE implementation" }
+            // フェーズ1 では LIKE ベースの簡易実装のみ。詳細なフルテキスト検索は将来対応。
+            if (!config.capability.searchSupported) {
+                throw unimplemented("Search は capability で無効化されています")
+            }
+            // 簡易: filterable_fields のうち TEXT 型カラムに対して OR LIKE
+            SearchResponse.newBuilder()
+                .setPayload(SearchResponsePayload.getDefaultInstance())
+                .build()
         }
-        // 簡易: filterable_fields のうち TEXT 型カラムに対して OR LIKE
-        return SearchResponse.newBuilder()
-            .setPayload(SearchResponsePayload.getDefaultInstance())
-            .build()
     }
 
     override suspend fun aggregate(request: AggregateRequest): AggregateResponse {
-        log.info { "Aggregate called" }
-        if (!config.capability.aggregateSupported) {
-            throw unimplemented("Aggregate は capability で無効化されています")
+        return withRpcErrors("Aggregate") {
+            log.info { "Aggregate called" }
+            if (!config.capability.aggregateSupported) {
+                throw unimplemented("Aggregate は capability で無効化されています")
+            }
+            AggregateResponse.newBuilder()
+                .setPayload(AggregateResponsePayload.getDefaultInstance())
+                .build()
         }
-        return AggregateResponse.newBuilder()
-            .setPayload(AggregateResponsePayload.getDefaultInstance())
-            .build()
     }
 
     private fun recordIdFieldDefinition(fieldId: String): FieldDefinition =
@@ -344,6 +354,26 @@ class AdapterServiceImpl(
             }
         }
     }
+
+    /**
+     * RPC の本体を囲み、例外を必ずログと説明文に乗せる。
+     *
+     * **9 メソッドすべてがこれを通ること。** 1 つでも素の実装が残ると、そのメソッドの
+     * 例外が `code: Unknown` かつメッセージ空になり、ログにも出ない (Issue #70)。
+     *
+     * 意図した [StatusException]（`INVALID_ARGUMENT` / `UNIMPLEMENTED` 等）はそのまま
+     * 返す。`INTERNAL` に化けさせると呼び出し側が原因を取り違える。
+     */
+    private inline fun <T> withRpcErrors(operation: String, block: () -> T): T =
+        try {
+            block()
+        } catch (e: StatusException) {
+            log.warn { "$operation returning status error: ${e.message}" }
+            throw e
+        } catch (e: Exception) {
+            log.error(e) { "$operation failed with unexpected exception" }
+            throw RpcErrors.internal(e)
+        }
 
     private fun invalidArgument(message: String): StatusException =
         StatusException(Status.INVALID_ARGUMENT.withDescription(message))
