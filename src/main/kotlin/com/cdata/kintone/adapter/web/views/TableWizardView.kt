@@ -165,13 +165,33 @@ private fun kotlinx.html.FlowContent.schemaSelector(
     }
 }
 
+/**
+ * step3 に渡す内容。
+ *
+ * `columns` と `error` を束ねているのは、`wizardStep3View` の引数が detekt の
+ * `LongParameterList`（閾値 6、拡張関数のレシーバも 1 つとして数える）に
+ * 引っかかるため。表示する内容という関心でまとまってもいる。
+ */
+data class Step3Content(
+    val columns: List<ColumnInfo>,
+    /** 失敗の理由。null なら何も表示しない。 */
+    val error: String? = null,
+)
+
+/**
+ * 連携追加ウィザード step3（カラム選択）。
+ *
+ * step4 の算出に失敗した場合もこの画面に戻す。専用のエラーページを作らないのは、
+ * 前のステップに戻れる状態を保つため (Issue #64)。
+ */
 fun HTML.wizardStep3View(
     ctx: AppContext,
     connectionName: String,
     table: TableInfo,
     configName: String,
-    columns: List<ColumnInfo>,
+    content: Step3Content,
 ) {
+    val columns = content.columns
     val tableName = table.name
     val schema = table.schema
     layout(
@@ -181,6 +201,9 @@ fun HTML.wizardStep3View(
     ) {
         h2 { +"New Table — Step 3 of 4: Select Columns" }
         wizardSteps(3)
+        content.error?.let { reason ->
+            article(classes = "warning-banner") { p { +reason } }
+        }
         p {
             +"Via "; code { +connectionName }
             +" / "; code { +tableName }
