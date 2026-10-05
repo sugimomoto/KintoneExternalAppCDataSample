@@ -29,42 +29,43 @@ class LicenseVerifier(
         if (!Files.exists(jarPath)) {
             return LicenseVerification.Invalid("ドライバー JAR が見つかりません: $jarPath")
         }
-        val jdbcPrefix = runCatching { JdbcConnectionPropertyInspector.jdbcPrefixOf(driverClass) }.getOrNull()
+        val configUrl = runCatching { ConnectionPropertyProbe.configUrl(driverClass) }.getOrNull()
             ?: return LicenseVerification.Invalid("CData JDBC Driver ではありません: $driverClass")
 
-        return loadAndProbe(jarPath, jdbcPrefix, driverClass)
+        return loadAndProbe(jarPath, configUrl, driverClass)
     }
 
-    private fun loadAndProbe(jarPath: Path, jdbcPrefix: String, driverClass: String): LicenseVerification {
+    private fun loadAndProbe(jarPath: Path, configUrl: String, driverClass: String): LicenseVerification {
         val loaded = runCatching { metadataSource.loadDriver(jarPath, driverClass) }
         if (loaded.isFailure) {
             return LicenseVerification.Invalid(
                 loaded.exceptionOrNull()?.message ?: "ドライバーのロードに失敗しました",
             )
         }
-        return probe(jdbcPrefix, driverClass)
+        return probe(configUrl, driverClass)
     }
 
     /**
-     * プローブ接続で `sys_procedures` を読む。
+     * config 接続文字列で `sys_procedures` を読む。
      *
-     * 候補の生成は #15 の仕組みを再利用する。26.x 系ドライバーは空の接続文字列を
-     * 検証で弾くため、ダミー値付きの候補が必要になる。
+     * 以前はダミー値付きの候補接続文字列を総当たりしていたが、データベース系
+     * ドライバーは実サーバーへ接続するため必ず失敗し、**未認証と到達不能を
+     * 区別できていなかった**（SQL Server が認証済みでも「要アクティベーション」に
+     * なっていた）。config 接続は接続を伴わず、かつライセンスは検証される (Issue #60)。
+     *
+     * **件数では判定しない。** config 接続はストアドプロシージャを列挙しない
+     * ドライバーがある（SQL Server は 0 件）。未認証なら例外になるため、
+     * クエリの成否だけを見る。
      */
-    private fun probe(jdbcPrefix: String, driverClass: String): LicenseVerification {
-        val driverProperties = runCatching { metadataSource.driverProperties(jdbcPrefix) }
-            .getOrDefault(emptyList())
-
-        var lastError: String? = null
-        ConnectionPropertyProbe.candidateUrls(jdbcPrefix, driverProperties).forEach { url ->
-            val result = runCatching { metadataSource.sysProcedureNames(url) }
-            if (result.isSuccess) return LicenseVerification.Valid
-            lastError = result.exceptionOrNull()?.message
-        }
-        log.info { "ライセンス検証に失敗しました: $driverClass" }
-        // メッセージはロケール依存なのでパースせず、そのまま利用者に見せる (Issue #19 の教訓)。
-        return LicenseVerification.Invalid(lastError ?: "ライセンスを検証できませんでした")
-    }
+    private fun probe(configUrl: String, driverClass: String): LicenseVerification =
+        runCatching { metadataSource.sysProcedureNames(configUrl) }.fold(
+            onSuccess = { LicenseVerification.Valid },
+            onFailure = { cause ->
+                log.info { "ライセンス検証に失敗しました: $driverClass" }
+                // メッセージはロケール依存なのでパースせず、そのまま利用者に見せる (Issue #19 の教訓)。
+                LicenseVerification.Invalid(cause.message ?: "ライセンスを検証できませんでした")
+            },
+        )
 }
 
 /**

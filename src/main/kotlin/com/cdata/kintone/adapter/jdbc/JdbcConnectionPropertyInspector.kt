@@ -62,30 +62,33 @@ class JdbcConnectionPropertyInspector(
             return ConnectionPropertiesResult.unavailable(PropertySource.NONE_FETCH_FAILED)
         }
 
-        // getPropertyInfo は接続を張らないので、プローブ用の安全プロパティ・必須プロパティを
-        // 知るためにまず呼ぶ。取れなくてもプローブ自体は試す価値があるので続行する。
-        val driverProperties = runCatching { metadataSource.driverProperties(jdbcPrefix) }
-            .onFailure { log.debug(it) { "getPropertyInfo 取得失敗: $driverClass" } }
-            .getOrDefault(emptyList())
-
-        val fetched = firstSuccessfulProbe(jdbcPrefix, driverProperties)
+        val fetched = fetchFromConfig(driverClass)
         if (fetched != null) {
             cache[key] = fetched
             return ConnectionPropertiesResult(fetched, PropertySource.SYS_CONNECTION_PROPS)
         }
+
+        // config 接続で取れなかった場合の保険。getPropertyInfo は接続を張らないので、
+        // 必須プロパティ名と選択肢だけは得られる。
+        val driverProperties = runCatching { metadataSource.driverProperties(jdbcPrefix) }
+            .onFailure { log.debug(it) { "getPropertyInfo 取得失敗: $driverClass" } }
+            .getOrDefault(emptyList())
         return degradedResult(driverClass, driverProperties)
     }
 
-    /** 候補を順に試し、最初に成功した `sys_connection_props` の結果を返す。全滅なら null。 */
-    private fun firstSuccessfulProbe(
-        jdbcPrefix: String,
-        driverProperties: List<DriverProperty>,
-    ): List<ConnectionProperty>? =
-        ConnectionPropertyProbe.candidateUrls(jdbcPrefix, driverProperties).firstNotNullOfOrNull { url ->
-            runCatching { metadataSource.sysConnectionProps(url) }
-                .onFailure { log.debug(it) { "プローブ失敗: ${ConnectionStringMasker.mask(url)}" } }
-                .getOrNull()
-        }
+    /**
+     * config 接続文字列で `sys_connection_props` を読む。取れなければ null。
+     *
+     * 接続を伴わないため、データベース系ドライバーでも実サーバーへ繋がずに
+     * 完全なプロパティ定義（カテゴリー・階層・機密度・既定値）が得られる (Issue #60)。
+     */
+    private fun fetchFromConfig(driverClass: String): List<ConnectionProperty>? {
+        val url = runCatching { ConnectionPropertyProbe.configUrl(driverClass) }.getOrNull()
+            ?: return null
+        return runCatching { metadataSource.sysConnectionProps(url) }
+            .onFailure { log.debug(it) { "config 接続でのプロパティ取得に失敗: $driverClass" } }
+            .getOrNull()
+    }
 
     private fun degradedResult(
         driverClass: String,
