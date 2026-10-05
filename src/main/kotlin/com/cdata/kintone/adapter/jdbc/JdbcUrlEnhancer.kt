@@ -56,6 +56,24 @@ object JdbcUrlEnhancer {
     }
 
     /**
+     * 接続文字列からプロパティ値を取り出す。明示されていなければ null。
+     *
+     * 区切りは `;` だけでなく `:` も見る。CData の接続文字列は
+     * `jdbc:<product>:<最初のプロパティ>=...` の形で、最初に書かれた場合は
+     * 直前が `:` になる。
+     *
+     * 前方一致では拾わない。`MyQueryPassthroughExtra` のような別プロパティを
+     * 誤って読まないため (Issue #69)。
+     */
+    fun propertyOf(jdbcUrl: String, name: String): String? =
+        Regex("""(?i)(?:^|[;:])\s*${Regex.escape(name)}\s*=\s*([^;]*)""")
+            .find(jdbcUrl)
+            ?.groupValues
+            ?.get(1)
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+
+    /**
      * `InitiateOAuth` を `OFF` にした接続文字列を返す。
      *
      * OAuth 認可ウィザードで接続を張るときに使う。`GETANDREFRESH` のままだと

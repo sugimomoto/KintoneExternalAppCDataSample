@@ -5,6 +5,7 @@ import com.cdata.kintone.adapter.jdbc.ConnectionPropertiesResult
 import com.cdata.kintone.adapter.jdbc.ConnectionProperty
 import com.cdata.kintone.adapter.jdbc.ConnectionStringMasker
 import com.cdata.kintone.adapter.jdbc.OAuthCapability
+import com.cdata.kintone.adapter.jdbc.QueryPassthroughAdvice
 import com.cdata.kintone.adapter.jdbc.authSchemeDefaultOf
 import com.cdata.kintone.adapter.jdbc.PropertyHierarchyResolver
 import com.cdata.kintone.adapter.jdbc.PropertySource
@@ -274,6 +275,8 @@ fun HTML.connectionFormView(
                 }
             }
 
+            queryPassthroughNotice(existing, propertiesResult)
+
             // 動的プロパティフォーム挿入箇所。
             // 認証方式など条件に使われる入力欄が変わると、その入力欄自身が
             // ここを差し替える (propertyFieldTargets を参照)。
@@ -432,6 +435,25 @@ private fun noticeFor(source: PropertySource): String? = when (source) {
     PropertySource.NONE_FETCH_FAILED ->
         "プロパティの取得に失敗しました。詳細はログを確認してください。" +
             "JDBC 接続文字列を直接入力すればデータソース接続は作成できます。"
+}
+
+/**
+ * `QueryPassthrough` が既定で有効なコネクタへの注意書き。
+ *
+ * 接続テストもウィザードも通るため、kintone からレコードを読んだ時点で初めて
+ * 失敗する。原因から遠い場所でエラーに遭遇するのを防ぐ (Issue #69)。
+ *
+ * 判定を関数に切り出しているのは、`connectionFormView` の
+ * `CyclomaticComplexMethod` を増やさないため。
+ */
+private fun kotlinx.html.FlowContent.queryPassthroughNotice(
+    existing: JdbcConfig?,
+    properties: ConnectionPropertiesResult?,
+) {
+    if (existing == null || properties == null) return
+    if (!QueryPassthroughAdvice.isNeeded(properties.properties, existing.url)) return
+
+    article(classes = "warning-banner") { p { +QueryPassthroughAdvice.MESSAGE } }
 }
 
 /** 既存の接続文字列を `existingValues` に載せるときのキー。プロパティ名と衝突しない形。 */
