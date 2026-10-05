@@ -78,7 +78,18 @@ fun HTML.wizardStep1View(ctx: AppContext) {
     }
 }
 
-fun HTML.wizardStep2View(ctx: AppContext, connectionName: String, tables: List<TableInfo>) {
+fun HTML.wizardStep2View(
+    ctx: AppContext,
+    connectionName: String,
+    tables: List<TableInfo>,
+    selectedSchema: String? = null,
+) {
+    val schemas = tables.mapNotNull { it.schema }.distinct().sorted()
+    // スキーマが 2 種類以上あるときだけ選択させ、1 スキーマに絞って表示する。
+    // 絞らないと、どのテーブルがどのスキーマのものか hidden 1 つでは送れない。
+    // スキーマが 1 種類以下なら選択 UI を出さない (Issue #63)。
+    val effectiveSchema = if (schemas.size >= 2) selectedSchema ?: schemas.first() else schemas.firstOrNull()
+    val visibleTables = if (schemas.size >= 2) tables.filter { it.schema == effectiveSchema } else tables
     layout(
         pageTitle = "New Table — Step 2",
         activeCount = ctx.runner.listActive().size,
@@ -88,19 +99,24 @@ fun HTML.wizardStep2View(ctx: AppContext, connectionName: String, tables: List<T
         wizardSteps(2)
         p { +"Via connection: "; code { +connectionName } }
 
+        if (schemas.size >= 2) {
+            schemaSelector(connectionName, schemas, effectiveSchema)
+        }
+
         form(action = "/syncs/new/step3", method = FormMethod.get) {
             input(type = InputType.hidden, name = "connection") { value = connectionName }
+            // スキーマはラベルに詰めず独立した値として送る (Issue #63)。
+            effectiveSchema?.let { input(type = InputType.hidden, name = "schema") { value = it } }
 
-            p { +"Found ${tables.size} tables (showing first 100)" }
+            p { +"Found ${visibleTables.size} tables (showing first 100)" }
             div(classes = "scrollable-list") {
-                tables.take(100).forEach { t ->
-                    val tableLabel = (if (t.schema != null) "${t.schema}." else "") + t.name
+                visibleTables.take(100).forEach { t ->
                     label {
                         input(type = InputType.radio, name = "table") {
-                            value = tableLabel
+                            value = t.name
                             required = true
                         }
-                        +" $tableLabel"
+                        +" ${t.name}"
                     }
                 }
             }
@@ -119,13 +135,45 @@ fun HTML.wizardStep2View(ctx: AppContext, connectionName: String, tables: List<T
     }
 }
 
+/**
+ * スキーマの絞り込み。スキーマが 2 種類以上あるときだけ描画する。
+ *
+ * 絞り込んで 1 スキーマだけを表示するのは、どのテーブルがどのスキーマのものかを
+ * hidden 1 つでは送れないため (Issue #63)。
+ */
+private fun kotlinx.html.FlowContent.schemaSelector(
+    connectionName: String,
+    schemas: List<String>,
+    effectiveSchema: String?,
+) {
+    form(action = "/syncs/new/step2", method = FormMethod.get) {
+        input(type = InputType.hidden, name = "connection") { value = connectionName }
+        label {
+            +"スキーマ: "
+            select {
+                name = "schema"
+                schemas.forEach { s ->
+                    option {
+                        value = s
+                        selected = (s == effectiveSchema)
+                        +s
+                    }
+                }
+            }
+        }
+        button(type = ButtonType.submit, classes = "secondary outline") { +"絞り込む" }
+    }
+}
+
 fun HTML.wizardStep3View(
     ctx: AppContext,
     connectionName: String,
-    tableName: String,
+    table: TableInfo,
     configName: String,
     columns: List<ColumnInfo>,
 ) {
+    val tableName = table.name
+    val schema = table.schema
     layout(
         pageTitle = "New Table — Step 3",
         activeCount = ctx.runner.listActive().size,
@@ -141,6 +189,7 @@ fun HTML.wizardStep3View(
         form(action = "/syncs/new/step4", method = FormMethod.post) {
             input(type = InputType.hidden, name = "connection") { value = connectionName }
             input(type = InputType.hidden, name = "table") { value = tableName }
+            schema?.let { input(type = InputType.hidden, name = "schema") { value = it } }
             input(type = InputType.hidden, name = "configName") { value = configName }
 
             p { +"${columns.size} columns. Select target columns to map." }
@@ -185,12 +234,14 @@ data class WizardMapping(
 fun HTML.wizardStep4View(
     ctx: AppContext,
     connectionName: String,
-    tableName: String,
+    table: TableInfo,
     configName: String,
     primaryKey: String,
     recommendedRecordIdType: RecordIdType,
     mappings: List<WizardMapping>,
 ) {
+    val tableName = table.name
+    val schema = table.schema
     // 空きポートを提示する。使い切っている場合は空欄にして保存時にエラーを出す。
     val suggestedPort = runCatching { ctx.syncPortAllocator.allocate() }.getOrNull()
     layout(
@@ -204,6 +255,7 @@ fun HTML.wizardStep4View(
         form(action = "/syncs", method = FormMethod.post) {
             input(type = InputType.hidden, name = "connection") { value = connectionName }
             input(type = InputType.hidden, name = "table") { value = tableName }
+            schema?.let { input(type = InputType.hidden, name = "schema") { value = it } }
             input(type = InputType.hidden, name = "configName") { value = configName }
             input(type = InputType.hidden, name = "primaryKeyColumn") { value = primaryKey }
 

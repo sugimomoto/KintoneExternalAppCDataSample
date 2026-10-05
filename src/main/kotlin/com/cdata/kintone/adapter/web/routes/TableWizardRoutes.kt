@@ -11,6 +11,7 @@ import com.cdata.kintone.adapter.jdbc.JdbcConnectionProvider
 import com.cdata.kintone.adapter.metadata.ColumnType
 import com.cdata.kintone.adapter.metadata.FieldTypeSuggester
 import com.cdata.kintone.adapter.metadata.JdbcMetadataInspector
+import com.cdata.kintone.adapter.metadata.TableInfo
 import com.cdata.kintone.adapter.metadata.RecordIdType
 import com.cdata.kintone.adapter.web.AppContext
 import com.cdata.kintone.adapter.web.views.WizardMapping
@@ -36,6 +37,8 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
     get("/syncs/new/step2") {
         val connectionName = call.request.queryParameters["connection"]
             ?: return@get call.respondRedirect("/syncs/new")
+        // 空文字は「（すべて）」の選択。null と同じ扱いにする。
+        val selectedSchema = call.request.queryParameters["schema"]?.takeIf { it.isNotBlank() }
         val jdbc = ctx.configSource.loadSharedJdbcConfig(connectionName)
             ?: return@get call.respondText("Connection not found", status = HttpStatusCode.NotFound)
         val tables = JdbcConnectionProvider(jdbc, oauthCacheKey = connectionName).use { provider ->
@@ -43,45 +46,46 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
                 JdbcMetadataInspector(conn).listTables()
             }
         }
-        call.respondHtml { wizardStep2View(ctx, connectionName, tables) }
+        call.respondHtml { wizardStep2View(ctx, connectionName, tables, selectedSchema) }
     }
 
     get("/syncs/new/step3") {
         val connectionName = call.request.queryParameters["connection"]
             ?: return@get call.respondRedirect("/syncs/new")
-        val tableLabel = call.request.queryParameters["table"]
+        val tableName = call.request.queryParameters["table"]
             ?: return@get call.respondRedirect("/syncs/new")
         val configName = call.request.queryParameters["configName"]
             ?: return@get call.respondRedirect("/syncs/new")
+        // スキーマはラベルから切り出さず独立した値として受け取る (Issue #63)。
+        val schema = call.request.queryParameters["schema"]?.takeIf { it.isNotBlank() }
         val jdbc = ctx.configSource.loadSharedJdbcConfig(connectionName)
             ?: return@get call.respondText("Connection not found", status = HttpStatusCode.NotFound)
-        val tableName = tableLabel.substringAfter(".")
         val columns = JdbcConnectionProvider(jdbc, oauthCacheKey = connectionName).use { provider ->
             provider.connection().use { conn ->
-                JdbcMetadataInspector(conn).listColumns(tableName)
+                JdbcMetadataInspector(conn).listColumns(tableName, schema)
             }
         }
-        call.respondHtml { wizardStep3View(ctx, connectionName, tableLabel, configName, columns) }
+        call.respondHtml { wizardStep3View(ctx, connectionName, TableInfo(schema, tableName), configName, columns) }
     }
 
     post("/syncs/new/step4") {
         val form = call.receiveParameters()
         val connectionName = form["connection"]!!
-        val tableLabel = form["table"]!!
+        val tableName = form["table"]!!
         val configName = form["configName"]!!
+        val schema = form["schema"]?.takeIf { it.isNotBlank() }
         val selectedColumns = form.getAll("selectedColumns") ?: emptyList()
 
         val jdbc = ctx.configSource.loadSharedJdbcConfig(connectionName)
             ?: return@post call.respondText("Connection not found", status = HttpStatusCode.NotFound)
-        val tableName = tableLabel.substringAfter(".")
 
         val provider = JdbcConnectionProvider(jdbc, oauthCacheKey = connectionName)
         val (primaryKey, recommendedRecordIdType, mappings) = provider.use {
             it.connection().use { conn ->
                 val inspector = JdbcMetadataInspector(conn)
-                val pk = inspector.findPrimaryKey(tableName)
+                val pk = inspector.findPrimaryKey(tableName, schema)
                     ?: throw IllegalStateException("主キーが定義されていません: $tableName")
-                val allColumns = inspector.listColumns(tableName)
+                val allColumns = inspector.listColumns(tableName, schema)
                 val selectedColumnInfos = allColumns.filter { it.name in selectedColumns && it.name != pk.column }
                 val maps = selectedColumnInfos.map { col ->
                     WizardMapping(
@@ -96,7 +100,7 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
 
         call.respondHtml {
             wizardStep4View(
-                ctx, connectionName, tableLabel, configName,
+                ctx, connectionName, TableInfo(schema, tableName), configName,
                 primaryKey = primaryKey,
                 recommendedRecordIdType = recommendedRecordIdType,
                 mappings = mappings,
@@ -107,8 +111,9 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
     post("/syncs") {
         val form = call.receiveParameters()
         val connectionName = form["connection"]!!
-        val tableLabel = form["table"]!!
+        val tableName = form["table"]!!
         val configName = form["configName"]!!
+        val schema = form["schema"]?.takeIf { it.isNotBlank() }
         val primaryKey = form["primaryKeyColumn"]!!
         val recordIdType = form["recordIdType"]?.let { RecordIdType.valueOf(it) } ?: RecordIdType.TEXT
         // 空欄 / 0 (auto) は publish 範囲から採番する。範囲外の ephemeral port を掴ませない (Issue #3)。
@@ -146,13 +151,13 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
             ?: return@post call.respondText("Connection not found", status = HttpStatusCode.NotFound)
 
         // db テーブル名は schema.name の name 部分
-        val dbTableName = tableLabel.substringAfter(".")
 
         val set = TableConfigSet(
             server = ServerConfig(port = port, bindAddress = "0.0.0.0", plaintext = true),
             jdbc = jdbc,  // SqliteConfigSource なら saveTableSetWithRef を使うがここでは shared を inline 保存
             table = TableConfig(
-                name = dbTableName,
+                name = tableName,
+                schema = schema,
                 primaryKey = PrimaryKeyConfig(kintoneFieldId = "id", jdbcColumn = primaryKey),
                 columns = columns,
             ),

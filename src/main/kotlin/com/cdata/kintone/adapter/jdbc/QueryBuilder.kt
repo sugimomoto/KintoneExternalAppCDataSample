@@ -48,7 +48,7 @@ class QueryBuilder(private val table: TableConfig) {
             }
         }
         val colsList = columns.joinToString(", ") { quote(it) }
-        val sql = "SELECT $colsList FROM ${quote(table.name)} WHERE ${where.sql}$orderBy LIMIT ? OFFSET ?"
+        val sql = "SELECT $colsList FROM ${table.qualifiedName()} WHERE ${where.sql}$orderBy LIMIT ? OFFSET ?"
         return PreparedQuery(sql, where.params + listOf(limit, offset))
     }
 
@@ -63,7 +63,8 @@ class QueryBuilder(private val table: TableConfig) {
         val jdbcColumnValues = columnValues.mapKeys { (k, _) -> table.toJdbcColumn(k) }
         val cols = jdbcColumnValues.keys.toList()
         val placeholders = cols.joinToString(", ") { "?" }
-        val sql = "INSERT INTO ${quote(table.name)} (${cols.joinToString(", ") { quote(it) }}) VALUES ($placeholders)"
+        val colsList = cols.joinToString(", ") { quote(it) }
+        val sql = "INSERT INTO ${table.qualifiedName()} ($colsList) VALUES ($placeholders)"
         return PreparedQuery(sql, cols.map { jdbcColumnValues[it] })
     }
 
@@ -79,7 +80,7 @@ class QueryBuilder(private val table: TableConfig) {
             .mapKeys { (k, _) -> table.toJdbcColumn(k) }
         require(nonIdColumns.isNotEmpty()) { "UPDATE 対象のカラムがありません" }
         val setClause = nonIdColumns.keys.joinToString(", ") { "${quote(it)} = ?" }
-        val sql = "UPDATE ${quote(table.name)} SET $setClause WHERE ${quote(table.primaryKey.jdbcColumn)} = ?"
+        val sql = "UPDATE ${table.qualifiedName()} SET $setClause WHERE ${quote(table.primaryKey.jdbcColumn)} = ?"
         return PreparedQuery(sql, nonIdColumns.values.toList() + listOf(idValue))
     }
 
@@ -89,7 +90,7 @@ class QueryBuilder(private val table: TableConfig) {
     fun buildDelete(idValues: List<Any>): PreparedQuery {
         require(idValues.isNotEmpty()) { "削除対象の ID がありません" }
         val placeholders = idValues.joinToString(", ") { "?" }
-        val sql = "DELETE FROM ${quote(table.name)} WHERE ${quote(table.primaryKey.jdbcColumn)} IN ($placeholders)"
+        val sql = "DELETE FROM ${table.qualifiedName()} WHERE ${quote(table.primaryKey.jdbcColumn)} IN ($placeholders)"
         return PreparedQuery(sql, idValues)
     }
 
@@ -97,7 +98,7 @@ class QueryBuilder(private val table: TableConfig) {
      * COUNT(*) 文を組み立てる。
      */
     fun buildCount(where: WhereClause): PreparedQuery {
-        val sql = "SELECT COUNT(*) FROM ${quote(table.name)} WHERE ${where.sql}"
+        val sql = "SELECT COUNT(*) FROM ${table.qualifiedName()} WHERE ${where.sql}"
         return PreparedQuery(sql, where.params)
     }
 }
