@@ -52,7 +52,7 @@ class LicenseVerifierTest {
 
     @Test
     fun `sys_procedures が読めたら有効と判定する`() {
-        val source = FakeMetadataSource(succeedingUrls = setOf("jdbc:salesforce:"))
+        val source = FakeMetadataSource(succeedingUrls = setOf("jdbc:cdata:salesforce:config:"))
 
         val result = verifier(source).verify(driverClass, jarFilename)
 
@@ -81,27 +81,21 @@ class LicenseVerifierTest {
     }
 
     @Test
-    fun `空の接続文字列を拒否するドライバーでも次の候補で判定できる`() {
-        // 26.x 系は空の接続文字列を検証で弾く (Issue #15)。
-        val withDummies = "jdbc:salesforce:Offline=true;InitiateOAuth=OFF;URL=${ConnectionPropertyProbe.PROBE_URL};"
-        val source = FakeMetadataSource(
-            succeedingUrls = setOf(withDummies),
-            driverProperties = listOf(
-                DriverProperty("Offline", "", false, emptyList()),
-                DriverProperty("InitiateOAuth", "", false, emptyList()),
-                DriverProperty("URL", "", true, emptyList()),
-            ),
-        )
+    fun `config 接続だけで判定し、接続値を渡さない`() {
+        // 以前はダミー値付きの候補を総当たりしていたが、データベース系ドライバーは
+        // 実サーバーへ接続するため必ず失敗し、未認証と到達不能を区別できなかった
+        // (Issue #60)。
+        val source = FakeMetadataSource(succeedingUrls = setOf("jdbc:cdata:salesforce:config:"))
 
         val result = verifier(source).verify(driverClass, jarFilename)
 
         assertEquals(LicenseVerification.Valid, result)
-        assertTrue(source.attemptedUrls.size > 1, "候補を切り替えていない: ${source.attemptedUrls}")
+        assertEquals(listOf("jdbc:cdata:salesforce:config:"), source.attemptedUrls)
     }
 
     @Test
     fun `JAR が無ければ無効と判定する`() {
-        val source = FakeMetadataSource(succeedingUrls = setOf("jdbc:salesforce:"))
+        val source = FakeMetadataSource(succeedingUrls = setOf("jdbc:cdata:salesforce:config:"))
 
         val result = verifier(source).verify(driverClass, "missing.jar")
 

@@ -59,38 +59,38 @@ class JdbcConnectionPropertyInspectorTest {
     private fun driverProperty(name: String, required: Boolean = false) =
         DriverProperty(name, "", required, emptyList())
 
-    // --- 段階的プローブ ---
+    // --- config 接続でのプロパティ取得 (Issue #60) ---
+
+    private val configUrl = "jdbc:cdata:sapgateway:config:"
 
     @Test
-    fun `最初の候補で成功したとき完全取得として返す`() {
-        val source = FakeMetadataSource(succeedingUrls = setOf("jdbc:sapgateway:"))
+    fun `config 接続で取得できたとき完全取得として返す`() {
+        val source = FakeMetadataSource(succeedingUrls = setOf(configUrl))
         val result = inspector(source).fetchProperties(driverClass, jarFilename)
 
         assertEquals(PropertySource.SYS_CONNECTION_PROPS, result.source)
         assertEquals(listOf("URL"), result.properties.map { it.propertyName })
-        assertEquals(1, source.attemptedUrls.size, "成功したら後続の候補は試さない")
+        assertEquals(listOf(configUrl), source.attemptedUrls, "config 接続だけを試す")
     }
 
     @Test
-    fun `空の接続文字列を拒否するドライバでもダミー値付きの候補で成功する`() {
-        // 26.x 系ドライバの再現。安全プロパティのみ・素の接続文字列では接続できない。
-        val withDummies =
-            "jdbc:sapgateway:Offline=true;InitiateOAuth=OFF;URL=${ConnectionPropertyProbe.PROBE_URL};" +
-                "Namespace=${ConnectionPropertyProbe.PROBE_VALUE};"
+    fun `接続値を含む接続文字列は試さない`() {
+        // 以前はダミー値を詰めた候補を総当たりしていたが、データベース系ドライバーは
+        // 実サーバーへ接続するため必ず失敗していた (Issue #60)。
         val source = FakeMetadataSource(
             driverProperties = listOf(
-                driverProperty("Offline"),
-                driverProperty("InitiateOAuth"),
                 driverProperty("URL", required = true),
                 driverProperty("Namespace", required = true),
             ),
-            succeedingUrls = setOf(withDummies),
+            succeedingUrls = setOf(configUrl),
         )
-        val result = inspector(source).fetchProperties(driverClass, jarFilename)
+        inspector(source).fetchProperties(driverClass, jarFilename)
 
-        assertEquals(PropertySource.SYS_CONNECTION_PROPS, result.source)
-        assertEquals(3, source.attemptedUrls.size, "実際の試行: ${source.attemptedUrls}")
-        assertEquals(withDummies, source.attemptedUrls.last())
+        assertEquals(listOf(configUrl), source.attemptedUrls)
+        assertTrue(
+            source.attemptedUrls.none { it.contains("=") },
+            "接続値を渡してはいけない: ${source.attemptedUrls}",
+        )
     }
 
     @Test
@@ -117,7 +117,7 @@ class JdbcConnectionPropertyInspectorTest {
     @Test
     fun `getPropertyInfo が例外でも素の接続文字列で取得できれば完全取得になる`() {
         val source = FakeMetadataSource(
-            succeedingUrls = setOf("jdbc:sapgateway:"),
+            succeedingUrls = setOf("jdbc:cdata:sapgateway:config:"),
             driverPropertiesFails = true,
         )
         val result = inspector(source).fetchProperties(driverClass, jarFilename)
@@ -129,7 +129,7 @@ class JdbcConnectionPropertyInspectorTest {
 
     @Test
     fun `JAR が無いときは取得を試みない`() {
-        val source = FakeMetadataSource(succeedingUrls = setOf("jdbc:sapgateway:"))
+        val source = FakeMetadataSource(succeedingUrls = setOf("jdbc:cdata:sapgateway:config:"))
         val result = inspector(source).fetchProperties(driverClass, "missing.jar")
 
         assertEquals(PropertySource.NONE_JAR_MISSING, result.source)
@@ -151,7 +151,7 @@ class JdbcConnectionPropertyInspectorTest {
 
     @Test
     fun `完全取得はキャッシュされ二度目は取得しない`() {
-        val source = FakeMetadataSource(succeedingUrls = setOf("jdbc:sapgateway:"))
+        val source = FakeMetadataSource(succeedingUrls = setOf("jdbc:cdata:sapgateway:config:"))
         val inspector = inspector(source)
 
         inspector.fetchProperties(driverClass, jarFilename)
@@ -177,7 +177,7 @@ class JdbcConnectionPropertyInspectorTest {
 
     @Test
     fun `invalidateCache 後は再取得する`() {
-        val source = FakeMetadataSource(succeedingUrls = setOf("jdbc:sapgateway:"))
+        val source = FakeMetadataSource(succeedingUrls = setOf("jdbc:cdata:sapgateway:config:"))
         val inspector = inspector(source)
 
         inspector.fetchProperties(driverClass, jarFilename)
