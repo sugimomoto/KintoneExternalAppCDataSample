@@ -48,6 +48,7 @@ import com.cdata.kintone.adapter.config.ColumnConfig
 import com.cdata.kintone.adapter.config.PrimaryKeyConfig
 import com.cdata.kintone.adapter.config.TableConfig
 import com.cdata.kintone.adapter.metadata.ColumnType
+import com.cdata.kintone.adapter.jdbc.SqlDateTime
 import com.google.protobuf.Timestamp
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -82,7 +83,14 @@ class FilterTranslatorTest {
 
     private fun timestamp(epochSec: Long): Timestamp = Timestamp.newBuilder().setSeconds(epochSec).build()
 
-    private fun sqlTimestamp(epochSec: Long): SqlTimestamp = SqlTimestamp.from(Instant.ofEpochSecond(epochSec))
+    /**
+     * 日時フィルタのパラメータの期待値。
+     *
+     * `java.sql.Timestamp` ではなく文字列。CData の SQL Server ドライバーが
+     * Timestamp を解釈できない文字列に変換するため (Issue #71)。
+     */
+    private fun sqlTimestamp(epochSec: Long): String =
+        SqlDateTime.format(Timestamp.newBuilder().setSeconds(epochSec).build())
 
     // ===== 基盤 =====
 
