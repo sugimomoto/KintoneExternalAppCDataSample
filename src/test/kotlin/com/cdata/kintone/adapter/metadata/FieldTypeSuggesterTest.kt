@@ -1,6 +1,8 @@
 package com.cdata.kintone.adapter.metadata
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.sql.Types
@@ -133,6 +135,58 @@ class FieldTypeSuggesterTest {
     fun `主キーが対応外の型ならエラー`() {
         assertThrows<IllegalStateException> {
             FieldTypeSuggester.suggestRecordIdType(Types.BLOB)
+        }
+    }
+
+    // --- canBeRecordId (Issue #66) ---
+
+    @Test
+    fun `canBeRecordId - 整数型は候補になる`() {
+        assertTrue(FieldTypeSuggester.canBeRecordId(Types.BIGINT))
+        assertTrue(FieldTypeSuggester.canBeRecordId(Types.INTEGER))
+        assertTrue(FieldTypeSuggester.canBeRecordId(Types.SMALLINT))
+        assertTrue(FieldTypeSuggester.canBeRecordId(Types.TINYINT))
+    }
+
+    @Test
+    fun `canBeRecordId - 文字列型は候補になる`() {
+        assertTrue(FieldTypeSuggester.canBeRecordId(Types.VARCHAR))
+        assertTrue(FieldTypeSuggester.canBeRecordId(Types.CHAR))
+        assertTrue(FieldTypeSuggester.canBeRecordId(Types.NVARCHAR))
+        assertTrue(FieldTypeSuggester.canBeRecordId(Types.LONGVARCHAR))
+    }
+
+    @Test
+    fun `canBeRecordId - 日時や真偽値は候補にならない`() {
+        // kintone のレコード番号は BIGINT 系か VARCHAR 系のみ。
+        assertFalse(FieldTypeSuggester.canBeRecordId(Types.TIMESTAMP))
+        assertFalse(FieldTypeSuggester.canBeRecordId(Types.DATE))
+        assertFalse(FieldTypeSuggester.canBeRecordId(Types.BOOLEAN))
+        assertFalse(FieldTypeSuggester.canBeRecordId(Types.BLOB))
+    }
+
+    @Test
+    fun `canBeRecordId - 小数型は候補にならない`() {
+        // NumberField としては使えるが、レコード番号には使えない。
+        assertFalse(FieldTypeSuggester.canBeRecordId(Types.DECIMAL))
+        assertFalse(FieldTypeSuggester.canBeRecordId(Types.DOUBLE))
+        assertFalse(FieldTypeSuggester.canBeRecordId(Types.FLOAT))
+    }
+
+    @Test
+    fun `canBeRecordId と suggestRecordIdType の対応表が一致する`() {
+        // 対応表を 2 箇所に書かないための回帰テスト。
+        val allTypes = listOf(
+            Types.BIGINT, Types.INTEGER, Types.SMALLINT, Types.TINYINT,
+            Types.VARCHAR, Types.CHAR, Types.NVARCHAR, Types.NCHAR,
+            Types.LONGVARCHAR, Types.LONGNVARCHAR,
+            Types.TIMESTAMP, Types.DATE, Types.BOOLEAN, Types.BLOB,
+            Types.DECIMAL, Types.DOUBLE, Types.FLOAT, Types.REAL,
+        )
+        allTypes.forEach { type ->
+            val canBe = FieldTypeSuggester.canBeRecordId(type)
+            val suggests = runCatching { FieldTypeSuggester.suggestRecordIdType(type) }.isSuccess
+            assertEquals(canBe, suggests, "型 $type で判定がずれている")
         }
     }
 }
