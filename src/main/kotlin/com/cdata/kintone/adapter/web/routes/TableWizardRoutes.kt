@@ -10,6 +10,9 @@ import com.cdata.kintone.adapter.config.TableConfigSet
 import com.cdata.kintone.adapter.jdbc.JdbcConnectionProvider
 import com.cdata.kintone.adapter.metadata.ColumnType
 import com.cdata.kintone.adapter.metadata.FieldTypeSuggester
+import com.cdata.kintone.adapter.jdbc.ConnectionStringMasker
+import io.github.oshai.kotlinlogging.KotlinLogging
+import com.cdata.kintone.adapter.web.views.Step3Content
 import com.cdata.kintone.adapter.metadata.JdbcMetadataInspector
 import com.cdata.kintone.adapter.metadata.TableInfo
 import com.cdata.kintone.adapter.metadata.RecordIdType
@@ -27,6 +30,8 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
+
+private val log = KotlinLogging.logger {}
 
 fun Route.tableWizardRoutes(ctx: AppContext) {
 
@@ -65,7 +70,9 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
                 JdbcMetadataInspector(conn).listColumns(tableName, schema)
             }
         }
-        call.respondHtml { wizardStep3View(ctx, connectionName, TableInfo(schema, tableName), configName, columns) }
+        call.respondHtml {
+            wizardStep3View(ctx, connectionName, TableInfo(schema, tableName), configName, Step3Content(columns))
+        }
     }
 
     post("/syncs/new/step4") {
@@ -79,32 +86,45 @@ fun Route.tableWizardRoutes(ctx: AppContext) {
         val jdbc = ctx.configSource.loadSharedJdbcConfig(connectionName)
             ?: return@post call.respondText("Connection not found", status = HttpStatusCode.NotFound)
 
-        val provider = JdbcConnectionProvider(jdbc, oauthCacheKey = connectionName)
-        val (primaryKey, recommendedRecordIdType, mappings) = provider.use {
-            it.connection().use { conn ->
-                val inspector = JdbcMetadataInspector(conn)
-                val pk = inspector.findPrimaryKey(tableName, schema)
-                    ?: throw IllegalStateException("主キーが定義されていません: $tableName")
-                val allColumns = inspector.listColumns(tableName, schema)
-                val selectedColumnInfos = allColumns.filter { it.name in selectedColumns && it.name != pk.column }
-                val maps = selectedColumnInfos.map { col ->
-                    WizardMapping(
-                        kintoneFieldId = toSnakeCase(col.name),
-                        jdbcColumn = col.name,
-                        columnType = FieldTypeSuggester.suggest(col.jdbcType).name,
-                    )
-                }
-                Triple(pk.column, FieldTypeSuggester.suggestRecordIdType(pk.jdbcType), maps)
-            }
-        }
-
-        call.respondHtml {
-            wizardStep4View(
-                ctx, connectionName, TableInfo(schema, tableName), configName,
-                primaryKey = primaryKey,
-                recommendedRecordIdType = recommendedRecordIdType,
-                mappings = mappings,
+        // 例外を投げない。以前は主キーが無いと IllegalStateException が未処理となり
+        // 500 で画面が真っ白になっていた (Issue #64)。
+        val result = runCatching {
+            computeStep4(jdbc, connectionName, tableName, schema, selectedColumns)
+        }.getOrElse { cause ->
+            log.warn(cause) { "step4 の算出に失敗しました: $tableName" }
+            // 例外メッセージに接続文字列が含まれる場合に備えてマスクする。
+            // ロケール依存のメッセージは分類しない (#19 の方針)。
+            Step4Result.Failed(
+                ConnectionStringMasker.mask(cause.message ?: "メタデータの取得に失敗しました"),
             )
+        }
+        val table = TableInfo(schema, tableName)
+
+        when (result) {
+            is Step4Result.Ready -> call.respondHtml {
+                wizardStep4View(
+                    ctx, connectionName, table, configName,
+                    primaryKey = result.primaryKey,
+                    recommendedRecordIdType = result.recordIdType,
+                    mappings = result.mappings,
+                )
+            }
+
+            // 失敗は step3 に戻して理由を出す。専用のエラーページを作らないのは、
+            // 前のステップに戻れる状態を保つため。
+            is Step4Result.NoPrimaryKey -> call.respondHtml {
+                wizardStep3View(
+                    ctx, connectionName, table, configName,
+                    Step3Content(result.candidates, noPrimaryKeyMessage(result.tableName)),
+                )
+            }
+
+            is Step4Result.Failed -> call.respondHtml {
+                wizardStep3View(
+                    ctx, connectionName, table, configName,
+                    Step3Content(emptyList(), result.reason),
+                )
+            }
         }
     }
 
@@ -199,3 +219,46 @@ private fun toSnakeCase(s: String): String {
     }
     return sb.toString()
 }
+
+/**
+ * step4 の内容を算出する。主キーが無い場合は例外ではなく [Step4Result.NoPrimaryKey] を返す。
+ */
+private fun computeStep4(
+    jdbc: JdbcConfig,
+    connectionName: String,
+    tableName: String,
+    schema: String?,
+    selectedColumns: List<String>,
+): Step4Result = JdbcConnectionProvider(jdbc, oauthCacheKey = connectionName).use { provider ->
+    provider.connection().use { conn ->
+        val inspector = JdbcMetadataInspector(conn)
+        val allColumns = inspector.listColumns(tableName, schema)
+        val pk = inspector.findPrimaryKey(tableName, schema)
+            ?: return@use Step4Result.NoPrimaryKey(tableName, allColumns)
+        val maps = allColumns
+            .filter { it.name in selectedColumns && it.name != pk.column }
+            .map { col ->
+                WizardMapping(
+                    kintoneFieldId = toSnakeCase(col.name),
+                    jdbcColumn = col.name,
+                    columnType = FieldTypeSuggester.suggest(col.jdbcType).name,
+                )
+            }
+        Step4Result.Ready(pk.column, FieldTypeSuggester.suggestRecordIdType(pk.jdbcType), maps)
+    }
+}
+
+/**
+ * 主キーが無い場合の案内。
+ *
+ * kintone の「外部システムのアプリ化」は `GetCapability` で `RecordIdType` を、
+ * `GetSchema` で `RecordIdFieldDefinition` を要求する。どちらも必須メソッドなので、
+ * レコード番号に使える列が無いテーブル・ビューは**読み取り専用であっても連携できない**。
+ * 「主キーが見つかりません」だけでは、DB を直せばよいのか別のテーブルを選ぶのかが
+ * 分からないため、理由と根拠を示す (Issue #64)。
+ */
+internal fun noPrimaryKeyMessage(tableName: String): String =
+    "テーブル \"$tableName\" には主キーが定義されていないため、連携を作成できません。" +
+        "kintone の「外部システムのアプリ化」はレコード番号を必須とするため、" +
+        "レコード番号に使える列が無いテーブル・ビューは読み取り専用でも連携できません。" +
+        "主キーを持つ別のテーブルを選び直してください。"
